@@ -38,7 +38,6 @@ class MREDataset:
         self.ref_image = sitk.Image((dx, dy, dz), 2)
 
     def load_data(self):
-        identity = sitk.Transform(3, sitk.sitkIdentity)
 
         for subj in self.ds.coords['subject'].values:
             full_path = self.data_path + f'/{subj}/DICOM/ST00001'
@@ -52,11 +51,15 @@ class MREDataset:
                 image = reader.Execute()
                 spacing = image.GetSpacing()
 
-                self.ref_image.SetSpacing((1.4, 1.4, spacing[-1]))
-                self.ref_image.SetOrigin(image.GetOrigin())
-                self.ref_image.SetDirection(image.GetDirection())
+                self.ref_image.SetSpacing((1.5, 1.5, spacing[-1]))
+                self.ref_image.SetOrigin((0, 0, 0))
+                self.ref_image.SetDirection(np.identity(3).flatten())
 
-                new_image = sitk.Resample(image, self.ref_image, identity,
+                center = sitk.CenteredTransformInitializer(
+                    self.ref_image, image, sitk.Euler3DTransform(),
+                    sitk.CenteredTransformInitializerFilter.GEOMETRY
+                )
+                new_image = sitk.Resample(image, self.ref_image, center,
                                           sitk.sitkNearestNeighbor)
 
                 self.ds['image'].loc[{'sequence': self.sequence_labels[i],
@@ -65,3 +68,6 @@ class MREDataset:
                                         'subject': subj}] = spacing[-1]
 
         self.ds['age'].loc[{'subject': subj}] = reader.GetMetaData(0, '0010|0030')
+
+    def write_data(self, out_name):
+        self.ds.to_netcdf(self.data_path+'/'+out_name)
