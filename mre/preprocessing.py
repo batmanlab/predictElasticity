@@ -37,7 +37,7 @@ class MREDataset:
     def gen_ref_image(self, dx, dy, dz):
         self.ref_image = sitk.Image((dx, dy, dz), 2)
 
-    def load_data(self):
+    def load_data(self, norm=False):
 
         for subj in self.ds.coords['subject'].values:
             full_path = self.data_path + f'/{subj}/DICOM/ST00001'
@@ -62,8 +62,13 @@ class MREDataset:
                 new_image = sitk.Resample(image, self.ref_image, center,
                                           sitk.sitkNearestNeighbor)
 
+                np_image = sitk.GetArrayFromImage(new_image)
+                if norm and sdir not in ['SE00005', 'SE00006']:
+                    for im in range(4):
+                        np_image[im, :, :] = (np_image[im, :, :] / np_image[im, :, :].max())
+
                 self.ds['image'].loc[{'sequence': self.sequence_labels[i],
-                                      'subject': subj}] = sitk.GetArrayFromImage(new_image)
+                                      'subject': subj}] = np_image
                 self.ds['z_space'].loc[{'sequence': self.sequence_labels[i],
                                         'subject': subj}] = spacing[-1]
 
