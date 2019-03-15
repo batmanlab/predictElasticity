@@ -45,6 +45,7 @@ Thumbs.db
 #*.ps                                                            
 #*.eps                                                            
 #*.png
+**/plots
 
 # Data Files #
 **/data

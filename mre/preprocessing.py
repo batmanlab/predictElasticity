@@ -50,7 +50,7 @@ class MREDataset:
     def gen_ref_image(self, dx, dy, dz):
         self.ref_image = sitk.Image((dx, dy, dz), 2)
 
-    def load_data(self, norm=False):
+    def load_data(self, norm=False, write_nifti=False):
         '''Load data into MREDataset'''
 
         for subj in self.ds.coords['subject'].values:
@@ -70,9 +70,10 @@ class MREDataset:
 
             self.determine_seq_name(seq_holder_list)
             self.assign_images(seq_holder_list, subj)
+            if write_nifti:
+                self.write_nifti(seq_holder_list, subj)
             self.ds['age'].loc[{'subject': subj}] = seq_holder_list[0].age
-
-    def write_data(self, out_name):
+    def write_data_netcdf(self, out_name):
         self.ds.to_netcdf(self.data_path+'/'+out_name)
 
     def load_sequence(self, path):
@@ -132,6 +133,11 @@ class MREDataset:
             self.ds['z_space'].loc[{'sequence': seq_holder.seq_name,
                                     'subject': subj}] = seq_holder.spacing[-1]
 
+    def write_nifti(self, seq_holder_list, subj):
+        for seq_holder in seq_holder_list:
+            sitk.WriteImage(seq_holder.new_image,
+                            self.data_path + f'/{subj}/{seq_holder.seq_name}.nii')
+
 
 class SequenceHolder:
     '''Small data class for storing an image sequence'''
@@ -146,8 +152,10 @@ class SequenceHolder:
     def gen_interp_image(self, ref_image):
 
         ref_image.SetSpacing((1.5, 1.5, self.spacing[-1]))
-        ref_image.SetOrigin((0, 0, 0))
-        ref_image.SetDirection(np.identity(3).flatten())
+        # ref_image.SetOrigin((0, 0, 0))
+        ref_image.SetOrigin(self.image.GetOrigin())
+        # ref_image.SetDirection(np.identity(3).flatten())
+        ref_image.SetDirection(self.image.GetDirection())
 
         center = sitk.CenteredTransformInitializer(
             ref_image, self.image, sitk.Euler3DTransform(),
@@ -156,4 +164,5 @@ class SequenceHolder:
         new_image = sitk.Resample(self.image, ref_image, center,
                                   sitk.sitkNearestNeighbor)
 
+        self.new_image = new_image
         self.np_image = sitk.GetArrayFromImage(new_image)
