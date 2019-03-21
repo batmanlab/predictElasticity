@@ -9,13 +9,14 @@ import SimpleITK as sitk
 import skimage as skim
 from skimage import feature, morphology
 import glob
+from tqdm import tqdm
 
 
 class MRELiverMask:
     '''Class that generates liver masks for MRE input images'''
 
     def __init__(self, fixed_subj, moving_subj, fixed_seq='T2SS', moving_seq='T1DUAL',
-                 fixed_path=None, moving_path=None, verbose=False):
+                 fixed_path=None, moving_path=None, verbose=False, center=False):
 
         self.verbose = verbose
         if fixed_path is None:
@@ -33,12 +34,16 @@ class MRELiverMask:
         self.fixed_subj = fixed_subj
         self.moving_subj = moving_subj
 
-        self.load_fixed()
-        self.load_moving()
+        self.load_fixed(center)
+        # self.load_fixed(center, extra=True)
+        self.load_moving(center)
         self.load_moving_mask()
 
-    def load_fixed(self):
-        nifti_name = self.fixed_path + '/' + self.fixed_subj + '/' + self.fixed_seq + '.nii'
+    def load_fixed(self, center, extra=None):
+        if extra is None:
+            nifti_name = self.fixed_path + '/' + self.fixed_subj + '/' + self.fixed_seq + '.nii'
+        else:
+            nifti_name = self.fixed_path + '/' + self.fixed_subj + '/' + 'T1Pre' + '.nii'
 
         reader = sitk.ImageFileReader()
         reader.SetImageIO("NiftiImageIO")
@@ -57,9 +62,15 @@ class MRELiverMask:
         fixed_img.GetPixelIDTypeAsString()
         caster = sitk.CastImageFilter()
         caster.SetOutputPixelType(sitk.sitkFloat32)
-        self.fixed_img = caster.Execute(fixed_img)
+        fixed_img = caster.Execute(fixed_img)
+        if center:
+            self.recenter_img_z(fixed_img)
+        if extra is None:
+            self.fixed_img = fixed_img
+        else:
+            self.fixed_extra = fixed_img
 
-    def load_moving(self):
+    def load_moving(self, center):
         dcm_names = '/'.join([self.moving_path, self.moving_subj, self.moving_seq,
                               '/DICOM_anon/*dcm'])
         moving_img_list = []
@@ -92,6 +103,8 @@ class MRELiverMask:
             print("Image size:", size[0], size[1], size[2])
             print("Image dims:", dims[0], dims[1], dims[2])
             print("Image orig:", orig[0], orig[1], orig[2])
+        if center:
+            self.recenter_img_z(self.moving_img, offset=False)
 
     def load_moving_mask(self):
         png_names = '/'.join([self.moving_path, self.moving_subj, self.moving_seq,
@@ -104,7 +117,7 @@ class MRELiverMask:
             seg_img_list.append(tmp_seg_img)
 
         seg_img_array = np.zeros((len(seg_img_list), seg_img_list[0].shape[0],
-                                  seg_img_list[0].shape[1]), dtype=np.uint8)
+                                  seg_img_list[0].shape[1]), dtype=np.float32)
         for i, img in enumerate(seg_img_list):
             seg_img_array[i, :, :] = img
 
@@ -117,38 +130,94 @@ class MRELiverMask:
         self.p_map_vector = sitk.VectorOfParameterMap()
         paff = sitk.GetDefaultParameterMap("affine")
         pbsp = sitk.GetDefaultParameterMap("bspline")
-        # paff['NumberOfSamplesForExactGradient'] = ['8192']
-        # pbsp['NumberOfSamplesForExactGradient'] = ['8192']
+        paff['AutomaticTransformInitializationMethod'] = ['Origins']
+        # paff['NumberOfSamplesForExactGradient'] = ['100000']
+        # pbsp['NumberOfSamplesForExactGradient'] = ['100000']
         # paff['MaximumNumberOfSamplingAttempts'] = ['2']
         # pbsp['MaximumNumberOfSamplingAttempts'] = ['2']
-        # paff['NumberOfSpatialSamples'] = ['4096']
-        # pbsp['NumberOfSpatialSamples'] = ['4096']
+        # paff['NumberOfSpatialSamples'] = ['5000']
+        # pbsp['NumberOfSpatialSamples'] = ['5000']
+        # paff['NumberOfHistogramBins'] = ['50']
+        # pbsp['NumberOfHistogramBins'] = ['50']
         # paff['MaximumNumberOfIterations'] = ['512']
         # pbsp['MaximumNumberOfIterations'] = ['512']
         # paff['NumberOfResolutions'] = ['4']
         # pbsp['NumberOfResolutions'] = ['4']
         # paff['GridSpacingSchedule'] = ['2.803220', '1.988100', '1.410000', '1.000000']
         # pbsp['GridSpacingSchedule'] = ['2.803220', '1.988100', '1.410000', '1.000000']
-        # pbsp['FinalGridSpacingInPhysicalUnits'] = ['16', '16', '8']
+        pbsp['FinalGridSpacingInPhysicalUnits'] = ['16', '16', str(self.fixed_img.GetSpacing()[2])]
+        # pbsp['FinalGridSpacingInPhysicalUnits'] = ['16', '16', '2']
+        # pbsp['FinalGridSpacingInPhysicalUnits'] = ['20']
+        # pbsp['Metric0Weight'] = ['0.0001']
+        # pbsp['Metric1Weight'] = ['0.9999']
+
+        # attempting to use multiple fixed images at once
+        # paff['Registration'] = ['MultiMetricMultiResolutionRegistration']
+        # paff['FixedImagePyramid'] = ['FixedSmoothingImagePyramid', 'FixedSmoothingImagePyramid']
+        # paff['ImageSampler'] = ['RandomCoordinate', 'RandomCoordinate']
+        # paff['Metric'] = ['AdvancedMattesMutualInformation', 'AdvancedMattesMutualInformation']
+        # pbsp['Metric'] = ['AdvancedMattesMutualInformation', 'TransformBendingEnergyPenalty',
+        #                  'AdvancedMattesMutualInformation', 'TransformBendingEnergyPenalty']
+        # pbsp['FixedImagePyramid'] = ['FixedSmoothingImagePyramid', 'FixedSmoothingImagePyramid']
+        # pbsp['ImageSampler'] = ['RandomCoordinate', 'RandomCoordinate']
+        #                         'RandomCoordinate', 'RandomCoordinate']
         self.p_map_vector.append(paff)
         self.p_map_vector.append(pbsp)
         if self.verbose:
             sitk.PrintParameterMap(self.p_map_vector)
 
-    def register_imgs(self):
+    def register_imgs(self, extra=False):
         self.elastixImageFilter = sitk.ElastixImageFilter()
         self.elastixImageFilter.SetFixedImage(self.fixed_img)
+        if extra:
+            self.elastixImageFilter.AddFixedImage(self.fixed_extra)
+
         self.elastixImageFilter.SetMovingImage(self.moving_img)
         self.elastixImageFilter.SetParameterMap(self.p_map_vector)
         self.elastixImageFilter.Execute()
         self.moving_img_result = self.elastixImageFilter.GetResultImage()
         self.moving_img_result.CopyInformation(self.fixed_img)
 
-    def gen_mask(self):
+    def gen_mask(self, smooth=False):
         transformixImageFilter = sitk.TransformixImageFilter()
         transformixImageFilter.SetTransformParameterMap(
             self.elastixImageFilter.GetTransformParameterMap())
         transformixImageFilter.SetMovingImage(self.moving_mask)
         transformixImageFilter.Execute()
         self.moving_mask_result = transformixImageFilter.GetResultImage()
+
+        if smooth:
+            tmp_img = sitk.GetArrayFromImage(self.moving_mask_result)
+            tmp_img = np.where((tmp_img > 50) & (tmp_img < 100), 80, 0)
+            self.moving_mask_result = sitk.GetImageFromArray(tmp_img)
+
         self.moving_mask_result.CopyInformation(self.fixed_img)
+        self.moving_mask_result = sitk.Cast(self.moving_mask_result, sitk.sitkFloat32)
+
+    def recenter_img_z(self, sitk_img, offset=False):
+        spacing = sitk_img.GetSpacing()[2]
+        layers = sitk_img.GetSize()[2]
+        orig = sitk_img.GetOrigin()
+        if not offset:
+            sitk_img.SetOrigin([orig[0], orig[1], spacing*(-layers/2)])
+        else:
+            sitk_img.SetOrigin([orig[0], orig[1], spacing*(-layers/1.5)])
+
+
+def add_liver_mask(ds, moving_name='19', extra_name='extra1'):
+    '''Generate a mask from the liver registration method, and place it into the given "extra" slot.
+    Assumes you are using an xarray dataset from the MREDataset class.'''
+
+    for sub in tqdm(ds.subject):
+        mask_maker = MRELiverMask(str(sub.values), moving_name, verbose=False, center=True,
+                                  fixed_seq='T2SS', moving_seq='T1DUAL')
+        mask_maker.gen_param_map()
+        mask_maker.register_imgs()
+        mask_maker.gen_mask(smooth=True)
+        mask = sitk.GetArrayFromImage(mask_maker.moving_mask_result)
+        mask = np.where(mask >= 1, 1, 0)
+        ds['image'].loc[dict(sequence=extra_name, subject=sub)] = mask
+
+    new_sequence = [a.replace(extra_name, 'liverMsk') for a in ds.sequence.values]
+    ds = ds.assign_coords(sequence=new_sequence)
+    return ds
