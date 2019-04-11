@@ -19,8 +19,8 @@ def grid_plots(ds, rows, cols, title=None, xlabel=None, ylabel=None):
             plt.yticks([])
             if i == 0:
                 axs[i][j].set_title(f'{col.values}', size=18)
-            # if j == 0:
-                # axs[i][j].set_ylabel(f'{row.values}', size=18)
+            if j == 0:
+                axs[i][j].set_ylabel(f'{row.values}', size=18)
     if title is None:
         title = f'Grid Plot of {rows} vs {cols}'
     fig.tight_layout(rect=[0, 0.03, 1, 0.95])
