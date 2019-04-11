@@ -36,8 +36,10 @@ class MRELiverMask:
 
         self.load_fixed(center)
         # self.load_fixed(center, extra=True)
-        self.load_moving(center)
-        self.load_moving_mask()
+        # self.load_moving(center)
+        self.load_moving_nifti()
+        # self.load_moving_mask()
+        self.load_moving_mask_nifti()
 
     def load_fixed(self, center, extra=None):
         if extra is None:
@@ -69,6 +71,29 @@ class MRELiverMask:
             self.fixed_img = fixed_img
         else:
             self.fixed_extra = fixed_img
+
+    def load_moving_nifti(self):
+        nifti_name = self.moving_path + '/' + self.moving_subj + '/' + self.moving_seq + '.nii'
+
+        reader = sitk.ImageFileReader()
+        reader.SetImageIO("NiftiImageIO")
+        reader.SetFileName(nifti_name)
+        img = reader.Execute()
+        size = img.GetSize()
+        dims = img.GetSpacing()
+        orig = img.GetOrigin()
+        if self.verbose:
+            print(f"Fixed Image info for {nifti_name}:")
+            print("Image size:", size[0], size[1], size[2])
+            print("Image dims:", dims[0], dims[1], dims[2])
+            print("Image orig:", orig[0], orig[1], orig[2])
+
+        moving_img = img
+        moving_img.GetPixelIDTypeAsString()
+        caster = sitk.CastImageFilter()
+        caster.SetOutputPixelType(sitk.sitkFloat32)
+        moving_img = caster.Execute(moving_img)
+        self.moving_img = moving_img
 
     def load_moving(self, center):
         dcm_names = '/'.join([self.moving_path, self.moving_subj, self.moving_seq,
@@ -106,8 +131,19 @@ class MRELiverMask:
         if center:
             self.recenter_img_z(self.moving_img, offset=False)
 
+    def load_moving_mask_nifti(self):
+        nifti_name = self.moving_path + '/' + self.moving_subj + '/' + self.moving_seq + '_mask.nii'
+
+        reader = sitk.ImageFileReader()
+        reader.SetImageIO("NiftiImageIO")
+        reader.SetFileName(nifti_name)
+        img = reader.Execute()
+        self.moving_mask = img
+
     def load_moving_mask(self):
-        png_names = '/'.join([self.moving_path, self.moving_subj, self.moving_seq,
+        # png_names = '/'.join([self.moving_path, self.moving_subj, self.moving_seq,
+        #                      '/Ground/*png'])
+        png_names = '/'.join([self.moving_path, self.moving_subj, 'T1DUAL',
                               '/Ground/*png'])
         seg_img_list = []
         for i, fn in enumerate(sorted(glob.glob(png_names))):
@@ -147,7 +183,7 @@ class MRELiverMask:
         pbsp['GridSpacingSchedule'] = ['8', '4', '2', '1.000000']
         # pbsp['FinalGridSpacingInPhysicalUnits'] = ['40', '40', str(self.fixed_img.GetSpacing()[2])]
         # pbsp['FinalGridSpacingInPhysicalUnits'] = ['40', '40', '40']
-        pbsp['FinalGridSpacingInPhysicalUnits'] = ['32']
+        pbsp['FinalGridSpacingInPhysicalUnits'] = ['16','16','4']
         # pbsp['Metric0Weight'] = ['0.01']
         # pbsp['Metric1Weight'] = ['0.9999']
 

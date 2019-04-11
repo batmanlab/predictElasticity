@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 import pickle as pkl
+import glob
 from datetime import datetime
 from scipy import ndimage as ndi
 import SimpleITK as sitk
@@ -166,3 +167,87 @@ class SequenceHolder:
 
         self.new_image = new_image
         self.np_image = sitk.GetArrayFromImage(new_image)
+
+
+def make_nifti_atlas(path=None):
+    if path is None:
+        path = ('/pghbio/dbmi/batmanlab/Data/'
+                'CombinedHealthyAbdominalOrganSegmentation/MR_data_batch1')
+    for subj in ['1', '2', '3', '5', '8', '10', '13', '15', '19', '20']:
+        for iseq, seq in enumerate(['T1DUAL', 'T1DUAL', 'T2SPIR']):
+            dcm_names = '/'.join([path, subj, seq, '/DICOM_anon/*dcm'])
+            print(f"Moving Image info for {dcm_names}")
+
+            moving_img_list = []
+
+            for i, fn in enumerate(sorted(glob.glob(dcm_names))):
+                if iseq == 0:  # In phase T1
+                    if i % 2 == 0:
+                        continue
+                elif iseq == 1:  # Out phase T1
+                    if i % 2 != 0:
+                        continue
+                if i == 1 or i == 2:
+                    # grab a single image to copy its metadata
+                    tmp_moving_img = sitk.ReadImage(fn)
+                moving_img_list.append(sitk.GetArrayFromImage(sitk.ReadImage(fn)))
+
+            moving_img_array = np.zeros((len(moving_img_list), moving_img_list[0].shape[1],
+                                         moving_img_list[0].shape[2]), dtype=np.float32)
+            for i, img in enumerate(moving_img_list):
+                moving_img_array[i, :, :] = img
+
+            moving_img = sitk.GetImageFromArray(moving_img_array)
+            moving_img.SetDirection(tmp_moving_img.GetDirection())
+            moving_img.SetOrigin(tmp_moving_img.GetOrigin())
+            moving_img.SetSpacing(tmp_moving_img.GetSpacing())
+            size = moving_img.GetSize()
+            dims = moving_img.GetSpacing()
+            orig = moving_img.GetOrigin()
+
+            print("Image size:", size[0], size[1], size[2])
+            print("Image dims:", dims[0], dims[1], dims[2])
+            print("Image orig:", orig[0], orig[1], orig[2])
+
+            # recenter
+            spacing = moving_img.GetSpacing()[2]
+            layers = moving_img.GetSize()[2]
+            orig = moving_img.GetOrigin()
+            moving_img.SetOrigin([orig[0], orig[1], spacing*(-layers/2)])
+
+            if iseq == 0:
+                nifti_name = 'T1_inphase.nii'
+            elif iseq == 1:
+                nifti_name = 'T1_outphase.nii'
+            elif iseq == 2:
+                nifti_name = 'T2.nii'
+            sitk.WriteImage(moving_img,
+                            path + f'/{subj}/{nifti_name}')
+
+            png_names = '/'.join([path, subj, seq,
+                                  '/Ground/*png'])
+            seg_img_list = []
+            for i, fn in enumerate(sorted(glob.glob(png_names))):
+                tmp_seg_img = sitk.GetArrayFromImage(sitk.ReadImage(fn))
+                # mask out all organs besides the liver (val = 80)
+                tmp_seg_img = np.where((tmp_seg_img > 79) & (tmp_seg_img < 81), 80, 0)
+                seg_img_list.append(tmp_seg_img)
+
+            seg_img_array = np.zeros((len(seg_img_list), seg_img_list[0].shape[0],
+                                      seg_img_list[0].shape[1]), dtype=np.float32)
+            for i, img in enumerate(seg_img_list):
+                seg_img_array[i, :, :] = img
+
+            moving_mask = sitk.GetImageFromArray(seg_img_array)
+            moving_mask.SetDirection(moving_img.GetDirection())
+            moving_mask.SetOrigin(moving_img.GetOrigin())
+            moving_mask.SetSpacing(moving_img.GetSpacing())
+
+            if iseq == 0:
+                nifti_name = 'T1_inphase_mask.nii'
+            elif iseq == 1:
+                nifti_name = 'T1_outphase_mask.nii'
+            elif iseq == 2:
+                nifti_name = 'T2_mask.nii'
+            sitk.WriteImage(moving_mask,
+                            path + f'/{subj}/{nifti_name}')
