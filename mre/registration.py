@@ -166,7 +166,8 @@ class MRELiverMask:
         self.p_map_vector = sitk.VectorOfParameterMap()
         paff = sitk.GetDefaultParameterMap("affine")
         pbsp = sitk.GetDefaultParameterMap("bspline")
-        #paff['AutomaticTransformInitializationMethod'] = ['Origins']
+        paff['AutomaticTransformInitialization'] = ['true']
+        paff['AutomaticTransformInitializationMethod'] = ['GeometricalCenter']
         paff['NumberOfSamplesForExactGradient'] = ['100000']
         pbsp['NumberOfSamplesForExactGradient'] = ['100000']
         # paff['MaximumNumberOfSamplingAttempts'] = ['2']
@@ -179,13 +180,15 @@ class MRELiverMask:
         pbsp['MaximumNumberOfIterations'] = ['1024']
         # paff['NumberOfResolutions'] = ['4']
         # pbsp['NumberOfResolutions'] = ['4']
-        paff['GridSpacingSchedule'] = ['8', '4', '2', '1.000000']
-        pbsp['GridSpacingSchedule'] = ['8', '4', '2', '1.000000']
+        paff['GridSpacingSchedule'] = ['6', '4', '2', '1.000000']
+        pbsp['GridSpacingSchedule'] = ['6', '4', '2', '1.000000']
         # pbsp['FinalGridSpacingInPhysicalUnits'] = ['40', '40', str(self.fixed_img.GetSpacing()[2])]
         # pbsp['FinalGridSpacingInPhysicalUnits'] = ['40', '40', '40']
-        pbsp['FinalGridSpacingInPhysicalUnits'] = ['16','16','4']
+        pbsp['FinalGridSpacingInPhysicalUnits'] = ['32','32','32']
         # pbsp['Metric0Weight'] = ['0.01']
-        # pbsp['Metric1Weight'] = ['0.9999']
+        # pbsp['Metric1Weight'] = ['0.1']
+        # paff['FixedImagePyramid'] = ['FixedShrinkingImagePyramid']
+        # pbsp['FixedImagePyramid'] = ['FixedShrinkingImagePyramid']
 
         # attempting to use multiple fixed images at once
         # paff['Registration'] = ['MultiMetricMultiResolutionRegistration']
@@ -246,7 +249,7 @@ def add_liver_mask(ds, moving_name='19', extra_name='extra1'):
 
     for sub in tqdm(ds.subject):
         mask_maker = MRELiverMask(str(sub.values), moving_name, verbose=False, center=True,
-                                  fixed_seq='T2SS', moving_seq='T1DUAL')
+                                  fixed_seq='T1Pre', moving_seq='T1_inphase')
         mask_maker.gen_param_map()
         mask_maker.register_imgs()
         mask_maker.gen_mask(smooth=True)
