@@ -1,7 +1,12 @@
 README.md
 setup.py
 mre/__init__.py
+mre/mask.py
+mre/plotting.py
+mre/preprocessing.py
 mre/pytorch_unet.py
+mre/pytorch_unet_tb.py
+mre/registration.py
 mre.egg-info/PKG-INFO
 mre.egg-info/SOURCES.txt
 mre.egg-info/dependency_links.txt

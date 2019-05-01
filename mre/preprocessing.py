@@ -1,3 +1,4 @@
+#! usr/bin/env python
 import os
 import numpy as np
 import pandas as pd
@@ -49,7 +50,14 @@ class MREDataset:
         self.gen_ref_image(dx, dy, dz)
 
     def gen_ref_image(self, dx, dy, dz):
-        self.ref_image = sitk.Image((dx, dy, dz), 2)
+        self.ref_image = sitk.GetImageFromArray(np.ones((dz,dy,dx), dtype=np.float32))
+
+    def fill_ref_image(self, image):
+        self.ref_image = sitk.Cast(self.ref_image, image.GetPixelIDValue())
+        self.ref_image.SetSpacing((1.6, 1.6, image.GetSpacing()[-1]))
+        self.ref_image.SetOrigin(image.GetOrigin())
+        # self.ref_image.SetOrigin((0,0,0))
+        self.ref_image.SetDirection(image.GetDirection())
 
     def load_data(self, norm=False, write_nifti=False):
         '''Load data into MREDataset'''
@@ -57,8 +65,11 @@ class MREDataset:
         for subj in self.ds.coords['subject'].values:
             full_path = self.data_path + f'/{subj}/DICOM/ST00001'
             seq_holder_list = []
+            print(subj)
             for i, sdir in enumerate(self.subdir_names):
+                print(sdir)
                 # Make a sequence holder so we can properly determine the name:
+
                 seq_path = full_path + '/' + sdir
                 seq_holder = SequenceHolder(*self.load_sequence(seq_path))
                 if sdir == 'SE00005':
@@ -66,7 +77,14 @@ class MREDataset:
                 elif sdir == 'SE00006':
                     seq_holder.seq_name = 'elast'
 
-                seq_holder.gen_interp_image(self.ref_image)
+                if i==0:
+                    self.fill_ref_image(seq_holder.image)
+                    self.ref_image = seq_holder.gen_interp_image(self.ref_image, True)
+                else:
+                    seq_holder.gen_interp_image(self.ref_image, False)
+
+
+                # seq_holder.gen_interp_image(self.ref_image)
                 seq_holder_list.append(seq_holder)
 
             self.determine_seq_name(seq_holder_list)
@@ -149,24 +167,43 @@ class SequenceHolder:
         self.seq_name = None
         self.spacing = self.image.GetSpacing()
         self.age = self.reader.GetMetaData(0, '0010|0030')
+        print(image.GetOrigin())
 
-    def gen_interp_image(self, ref_image):
+    def gen_interp_image(self, ref_image, intialize=False):
 
-        ref_image.SetSpacing((1.5, 1.5, self.spacing[-1]))
-        # ref_image.SetOrigin((0, 0, 0))
-        ref_image.SetOrigin(self.image.GetOrigin())
-        # ref_image.SetDirection(np.identity(3).flatten())
-        ref_image.SetDirection(self.image.GetDirection())
+        ref_image.SetSpacing((1.7, 1.7, self.spacing[-1]))
+        ref_image.SetOrigin((ref_image.GetOrigin()[0], ref_image.GetOrigin()[1],
+                             self.image.GetOrigin()[2]))
+        #ref_image.SetOrigin(self.image.GetOrigin())
+        #ref_image.SetDirection(np.identity(3).flatten())
+        #ref_image.SetDirection(self.image.GetDirection())
 
-        center = sitk.CenteredTransformInitializer(
-            ref_image, self.image, sitk.Euler3DTransform(),
-            sitk.CenteredTransformInitializerFilter.GEOMETRY
-        )
-        new_image = sitk.Resample(self.image, ref_image, center,
-                                  sitk.sitkNearestNeighbor)
+        if intialize:
+            center = sitk.CenteredTransformInitializer(
+                ref_image, self.image, sitk.AffineTransform(3),
+                sitk.CenteredTransformInitializerFilter.GEOMETRY,
+            )
+            # new_image = sitk.Resample(self.image, ref_image, sitk.Transform(3, sitk.sitkIdentity),
+            #                           sitk.sitkNearestNeighbor)
+            new_image = sitk.Resample(self.image, ref_image, center,
+                                      sitk.sitkNearestNeighbor)
 
+        else:
+            center = sitk.CenteredTransformInitializer(
+                ref_image, self.image, sitk.AffineTransform(3),
+                sitk.CenteredTransformInitializerFilter.MOMENTS,
+            )
+            # new_image = sitk.Resample(self.image, ref_image, sitk.Transform(3, sitk.sitkIdentity),
+            #                           sitk.sitkNearestNeighbor)
+            new_image = sitk.Resample(self.image, ref_image, center,
+                                      sitk.sitkNearestNeighbor)
+
+        print(new_image.GetOrigin())
         self.new_image = new_image
         self.np_image = sitk.GetArrayFromImage(new_image)
+
+        if intialize:
+            return new_image
 
 
 def make_nifti_atlas(path=None):
