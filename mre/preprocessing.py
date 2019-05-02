@@ -10,8 +10,10 @@ from scipy import ndimage as ndi
 import SimpleITK as sitk
 import skimage as skim
 from skimage import feature, morphology
+from skimage.filters import sobel
 import pdb
 from tqdm import tqdm_notebook
+import matplotlib.pyplot as plt
 
 # Important DICOM Tags (https://www.dicomlibrary.com/dicom/dicom-tags/)
 # '0008|0032': Acquision Time
@@ -78,6 +80,8 @@ class MREDataset:
                 elif sdir == 'SE00005':
                     seq_holder.seq_name = 'elastMsk'
 
+                if sdir not in ['SE00006', 'SE00005']:
+                    seq_holder.clean_image_background()
                 if i == 0:
                     self.fill_ref_image(seq_holder.image)
                 seq_holder.gen_interp_image(self.ref_image, elast_ref)
@@ -168,6 +172,41 @@ class SequenceHolder:
         self.seq_name = None
         self.spacing = self.image.GetSpacing()
         self.age = self.reader.GetMetaData(0, '0010|0030')
+        # self.clean_image_background()
+
+    def clean_image_background(self):
+        fuzzy_image = sitk.GetArrayFromImage(self.image)
+        for i in range(len(fuzzy_image)):
+            # plt.imshow(fuzzy_image[i])
+            # plt.show()
+            # edges = feature.canny(fuzzy_image[i, :, :], low_threshold=50)
+            # plt.imshow(edges)
+            # plt.show()
+            # fill = ndi.binary_fill_holes(edges)
+            # fill = morphology.remove_small_objects(fill)
+            # if np.mean(fill) < 0.15:
+            #     fill = ndi.binary_dilation(edges)
+            #     fill = ndi.binary_closing(fill)
+            #     fill = ndi.binary_fill_holes(fill)
+            #     fill = morphology.remove_small_objects(fill)
+            elevation_map = sobel(fuzzy_image[i])
+            markers = np.zeros_like(fuzzy_image[i])
+            markers[fuzzy_image[i] <= 75] = 1
+            markers[fuzzy_image[i] > 75] = 2
+            segmentation = morphology.watershed(elevation_map, markers)
+            segmentation = ndi.binary_closing(segmentation-1, np.ones((1, 1)))
+            segmentation = morphology.remove_small_objects(segmentation, 150)
+            segmentation = ndi.binary_fill_holes(segmentation)
+            segmentation = ndi.binary_erosion(segmentation)
+            segmentation = morphology.remove_small_objects(segmentation, 100)
+            segmentation = morphology.convex_hull_image(segmentation)
+            clean_img = np.where(segmentation, fuzzy_image[i], 0)
+            fuzzy_image[i] = clean_img
+
+        cleaned_sitk = sitk.GetImageFromArray(fuzzy_image)
+        cleaned_sitk.CopyInformation(self.image)
+        cleaned_sitk = sitk.Cast(cleaned_sitk, self.image.GetPixelIDValue())
+        self.image = cleaned_sitk
 
     def gen_interp_image(self, ref_image, center_ref=None):
 
