@@ -192,6 +192,10 @@ class SequenceHolder:
             ref_image, self.center_ref, sitk.AffineTransform(3),
             sitk.CenteredTransformInitializerFilter.MOMENTS,
         )
+        # center = sitk.CenteredTransformInitializer(
+        #     ref_image, self.image, sitk.AffineTransform(3),
+        #     sitk.CenteredTransformInitializerFilter.MOMENTS,
+        # )
         # new_image = sitk.Resample(self.image, ref_image, sitk.Transform(3, sitk.sitkIdentity),
         #                           sitk.sitkNearestNeighbor)
         new_image = sitk.Resample(self.image, ref_image, center,

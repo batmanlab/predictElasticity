@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import xarray as xr
 import SimpleITK as sitk
@@ -34,4 +35,32 @@ def display_images_with_alpha(image_z, alpha, fixed, moving):
     plt.figure()
     plt.imshow(sitk.GetArrayViewFromImage(img))
     plt.axis('off')
+    plt.show()
+
+
+def torch_dl_vis(inputs, targets, masks):
+    print('lol')
+    titles = ['T1Pre', 'T1Pos', 'T2SS', 'T2FR', 'elast', 'mask']
+    # titles = ['T1Pre', 'T1Pos', 'T2SS', 'elast', 'mask']
+    n_input = inputs.shape[0]
+    n_seq = inputs.shape[1]+targets.shape[1]+masks.shape[1]
+    fig, axes = plt.subplots(n_input, n_seq, tight_layout=True,
+                             figsize=(2.5*n_seq, 2.5*n_input), sharex=True, sharey=True)
+    for i in range(n_input):
+        for seq in range(n_seq):
+            if seq < inputs.shape[1]:
+                # set_trace()
+                axes[i][seq].imshow(np.asarray(inputs[i, seq, :, :]))
+            elif seq < inputs.shape[1]+targets.shape[1]:
+                axes[i][seq].imshow(np.asarray(targets[i, seq-inputs.shape[1], :, :]))
+            else:
+                axes[i][seq].imshow(np.asarray(masks[i,
+                                                     seq-inputs.shape[1]-targets.shape[1], :, :]))
+
+            axes[i][seq].axis('off')
+            if i == 0:
+                axes[i][seq].set_title(titles[seq])
+        if seq == 0:
+            axes[i][seq].set_xlabel(f'subj = {i}')
+    fig.lines.append(plt.vlines(0.8, 0, 1, transform=fig.transFigure))
     plt.show()
