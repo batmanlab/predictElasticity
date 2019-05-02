@@ -58,12 +58,12 @@ class MREDataset:
 
     def fill_ref_image(self, image):
         self.ref_image = sitk.Cast(self.ref_image, image.GetPixelIDValue())
-        self.ref_image.SetSpacing((1.6, 1.6, image.GetSpacing()[-1]))
+        self.ref_image.SetSpacing((1.7, 1.7, image.GetSpacing()[-1]))
         # self.ref_image.SetOrigin(image.GetOrigin())
         # self.ref_image.SetOrigin((0,0,0))
         self.ref_image.SetDirection(image.GetDirection())
 
-    def load_data(self, norm=False, write_nifti=False):
+    def load_data(self, norm=False, write_nifti=False, minimal=False):
         '''Load data into MREDataset'''
 
         for subj in tqdm_notebook(self.ds.coords['subject'].values, desc='Subject'):
@@ -79,14 +79,16 @@ class MREDataset:
                     seq_holder.seq_name = 'elast'
                 elif sdir == 'SE00005':
                     seq_holder.seq_name = 'elastMsk'
-
-                if sdir not in ['SE00006', 'SE00005']:
-                    seq_holder.clean_image_background()
                 if i == 0:
                     self.fill_ref_image(seq_holder.image)
-                seq_holder.gen_interp_image(self.ref_image, elast_ref)
-                if sdir == 'SE00006':
-                    elast_ref = seq_holder.center_ref
+                seq_holder.gen_interp_image(self.ref_image, None, True)
+
+                if not minimal:
+                    if sdir not in ['SE00006', 'SE00005']:
+                        seq_holder.clean_image_background()
+                    seq_holder.gen_interp_image(self.ref_image, elast_ref)
+                    if sdir == 'SE00006':
+                        elast_ref = seq_holder.center_ref
 
                 # seq_holder.gen_interp_image(self.ref_image)
                 seq_holder_list.append(seq_holder)
@@ -177,25 +179,14 @@ class SequenceHolder:
     def clean_image_background(self):
         fuzzy_image = sitk.GetArrayFromImage(self.image)
         for i in range(len(fuzzy_image)):
-            # plt.imshow(fuzzy_image[i])
-            # plt.show()
-            # edges = feature.canny(fuzzy_image[i, :, :], low_threshold=50)
-            # plt.imshow(edges)
-            # plt.show()
-            # fill = ndi.binary_fill_holes(edges)
-            # fill = morphology.remove_small_objects(fill)
-            # if np.mean(fill) < 0.15:
-            #     fill = ndi.binary_dilation(edges)
-            #     fill = ndi.binary_closing(fill)
-            #     fill = ndi.binary_fill_holes(fill)
-            #     fill = morphology.remove_small_objects(fill)
             elevation_map = sobel(fuzzy_image[i])
             markers = np.zeros_like(fuzzy_image[i])
-            markers[fuzzy_image[i] <= 75] = 1
-            markers[fuzzy_image[i] > 75] = 2
+            markers[fuzzy_image[i] <= 55] = 1
+            markers[fuzzy_image[i] > 55] = 2
             segmentation = morphology.watershed(elevation_map, markers)
-            segmentation = ndi.binary_closing(segmentation-1, np.ones((1, 1)))
-            segmentation = morphology.remove_small_objects(segmentation, 150)
+            segmentation = (segmentation-1).astype(bool)
+            segmentation = morphology.remove_small_objects(segmentation, 10)
+            segmentation = ndi.binary_closing(segmentation, np.ones((8, 8)))
             segmentation = ndi.binary_fill_holes(segmentation)
             segmentation = ndi.binary_erosion(segmentation)
             segmentation = morphology.remove_small_objects(segmentation, 100)
@@ -208,40 +199,38 @@ class SequenceHolder:
         cleaned_sitk = sitk.Cast(cleaned_sitk, self.image.GetPixelIDValue())
         self.image = cleaned_sitk
 
-    def gen_interp_image(self, ref_image, center_ref=None):
+    def gen_interp_image(self, ref_image, center_ref=None, first_pass=False):
 
         ref_image.SetSpacing((1.7, 1.7, self.spacing[-1]))
-        # ref_image.SetOrigin((ref_image.GetOrigin()[0], ref_image.GetOrigin()[1],
-        #                      self.image.GetOrigin()[2]))
-        # ref_image.SetOrigin(self.image.GetOrigin())
-        # ref_image.SetDirection(np.identity(3).flatten())
-        # ref_image.SetDirection(self.image.GetDirection())
+        if first_pass:
+            center = sitk.CenteredTransformInitializer(
+                ref_image, self.image, sitk.AffineTransform(3),
+                sitk.CenteredTransformInitializerFilter.GEOMETRY,
+            )
+            self.image = sitk.Resample(self.image, ref_image,
+                                       center,
+                                       sitk.sitkNearestNeighbor)
+            self.np_image = sitk.GetArrayFromImage(self.image)
 
-        # bad, assumes "elast" always shows up before "elastMsk"
-        if self.seq_name != 'elastMsk':
-            self.center_ref = sitk.GetArrayFromImage(self.image)
-            self.center_ref = np.where(self.center_ref > 1, 1, 0)
-            self.center_ref = sitk.GetImageFromArray(self.center_ref)
-            self.center_ref.CopyInformation(self.image)
-            self.center_ref = sitk.Cast(self.center_ref, self.image.GetPixelIDValue())
         else:
-            self.center_ref = center_ref
-        # pdb.set_trace()
-        center = sitk.CenteredTransformInitializer(
-            ref_image, self.center_ref, sitk.AffineTransform(3),
-            sitk.CenteredTransformInitializerFilter.MOMENTS,
-        )
-        # center = sitk.CenteredTransformInitializer(
-        #     ref_image, self.image, sitk.AffineTransform(3),
-        #     sitk.CenteredTransformInitializerFilter.MOMENTS,
-        # )
-        # new_image = sitk.Resample(self.image, ref_image, sitk.Transform(3, sitk.sitkIdentity),
-        #                           sitk.sitkNearestNeighbor)
-        new_image = sitk.Resample(self.image, ref_image, center,
-                                  sitk.sitkNearestNeighbor)
+            # bad, assumes "elast" always shows up before "elastMsk"
+            if self.seq_name != 'elastMsk':
+                self.center_ref = sitk.GetArrayFromImage(self.image)
+                self.center_ref = np.where(self.center_ref > 1, 1, 0)
+                self.center_ref = sitk.GetImageFromArray(self.center_ref)
+                self.center_ref.CopyInformation(self.image)
+                self.center_ref = sitk.Cast(self.center_ref, self.image.GetPixelIDValue())
+            else:
+                self.center_ref = center_ref
+            center = sitk.CenteredTransformInitializer(
+                ref_image, self.center_ref, sitk.AffineTransform(3),
+                sitk.CenteredTransformInitializerFilter.MOMENTS,
+            )
+            new_image = sitk.Resample(self.image, ref_image, center,
+                                      sitk.sitkNearestNeighbor)
 
-        self.new_image = new_image
-        self.np_image = sitk.GetArrayFromImage(new_image)
+            self.new_image = new_image
+            self.np_image = sitk.GetArrayFromImage(new_image)
 
 
 def make_nifti_atlas(path=None):
