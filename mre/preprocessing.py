@@ -59,13 +59,14 @@ class MREDataset:
     def fill_ref_image(self, image):
         self.ref_image = sitk.Cast(self.ref_image, image.GetPixelIDValue())
         self.ref_image.SetSpacing((1.7, 1.7, image.GetSpacing()[-1]))
-        # self.ref_image.SetOrigin(image.GetOrigin())
+        self.ref_image.SetOrigin(image.GetOrigin())
         # self.ref_image.SetOrigin((0,0,0))
         self.ref_image.SetDirection(image.GetDirection())
 
     def load_data(self, norm=False, write_nifti=False, minimal=False):
         '''Load data into MREDataset'''
 
+        # for subj in tqdm_notebook(self.ds.coords['subject'].values[6:7], desc='Subject'):
         for subj in tqdm_notebook(self.ds.coords['subject'].values, desc='Subject'):
             full_path = self.data_path + f'/{subj}/DICOM/ST00001'
             seq_holder_list = []
@@ -74,7 +75,7 @@ class MREDataset:
                 # Make a sequence holder so we can properly determine the name:
 
                 seq_path = full_path + '/' + sdir
-                seq_holder = SequenceHolder(*self.load_sequence(seq_path))
+                seq_holder = SequenceHolder(*self.load_sequence(seq_path), subj)
                 if sdir == 'SE00006':
                     seq_holder.seq_name = 'elast'
                 elif sdir == 'SE00005':
@@ -95,6 +96,7 @@ class MREDataset:
 
             self.determine_seq_name(seq_holder_list)
             self.assign_images(seq_holder_list, subj)
+            self.center_images_reg(seq_holder_list)
             if write_nifti:
                 self.write_nifti(seq_holder_list, subj)
             self.ds['age'].loc[{'subject': subj}] = seq_holder_list[0].age
@@ -159,6 +161,68 @@ class MREDataset:
             self.ds['z_space'].loc[{'sequence': seq_holder.seq_name,
                                     'subject': subj}] = seq_holder.spacing[-1]
 
+    def recenter_img_z(self, sitk_img):
+        spacing = sitk_img.GetSpacing()[2]
+        layers = sitk_img.GetSize()[2]
+        orig = sitk_img.GetOrigin()
+        sitk_img.SetOrigin([orig[0], orig[1], spacing*(-layers/2)])
+
+    def center_images_reg(self, seq_holder_list):
+        for seq_holder in seq_holder_list:
+            if seq_holder.seq_name == 'T2SS':
+                fixed_img = seq_holder.image
+            if seq_holder.seq_name == 'T1Pre':
+                moving_img_1 = seq_holder.image
+            elif seq_holder.seq_name == 'T1Pos':
+                moving_img_2 = seq_holder.image
+        moving_img_1.CopyInformation(fixed_img)
+        moving_img_2.CopyInformation(fixed_img)
+
+        elastixImageFilter = sitk.ElastixImageFilter()
+        elastixImageFilter.SetFixedImage(fixed_img)
+        elastixImageFilter.SetMovingImage(moving_img_1)
+        params = sitk.GetDefaultParameterMap("rigid")
+        params['AutomaticTransformInitialization'] = ['true']
+        params['AutomaticTransformInitializationMethod'] = ['GeometricalCenter']
+        params['NumberOfSamplesForExactGradient'] = ['100000']
+        params['NumberOfSpatialSamples'] = ['5000']
+        params['NumberOfResolutions'] = ['1']
+        params['NumberOfHistogramBins'] = ['128']
+        params['GridSpacingSchedule'] = ['1.000000']
+        elastixImageFilter.SetParameterMap(params)
+        # sitk.PrintParameterMap(elastixImageFilter.GetParameterMap())
+        # input()
+
+        # elastixImageFilter.LogToFileOn()
+        # elastixImageFilter.SetOutputDirectory('elastix_log')
+        elastixImageFilter.Execute()
+        moving_res_1 = elastixImageFilter.GetResultImage()
+        moving_res_1.CopyInformation(moving_img_1)
+
+        elastixImageFilter = sitk.ElastixImageFilter()
+        elastixImageFilter.SetFixedImage(fixed_img)
+        elastixImageFilter.SetMovingImage(moving_img_2)
+        params = sitk.GetDefaultParameterMap("rigid")
+        params['AutomaticTransformInitialization'] = ['true']
+        params['AutomaticTransformInitializationMethod'] = ['GeometricalCenter']
+        params['NumberOfSamplesForExactGradient'] = ['100000']
+        params['NumberOfSpatialSamples'] = ['5000']
+        params['NumberOfResolutions'] = ['1']
+        params['NumberOfHistogramBins'] = ['128']
+        params['GridSpacingSchedule'] = ['1.000000']
+        # params['AutomaticTransformInitialization'] = ['true']
+        # params['AutomaticTransformInitializationMethod'] = ['GeometricalCenter']
+        elastixImageFilter.SetParameterMap(params)
+        elastixImageFilter.Execute()
+        moving_res_2 = elastixImageFilter.GetResultImage()
+        moving_res_2.CopyInformation(moving_img_2)
+
+        for seq_holder in seq_holder_list:
+            if seq_holder.seq_name == 'T1Pre':
+                seq_holder.image = moving_res_1
+            elif seq_holder.seq_name == 'T1Pos':
+                seq_holder.image = moving_res_2
+
     def write_nifti(self, seq_holder_list, subj):
         for seq_holder in seq_holder_list:
             sitk.WriteImage(seq_holder.new_image,
@@ -168,28 +232,39 @@ class MREDataset:
 class SequenceHolder:
     '''Small data class for storing an image sequence'''
 
-    def __init__(self, image, reader):
+    def __init__(self, image, reader, subj):
         self.image = image
         self.reader = reader
         self.seq_name = None
         self.spacing = self.image.GetSpacing()
         self.age = self.reader.GetMetaData(0, '0010|0030')
+        self.subj = subj
         # self.clean_image_background()
 
     def clean_image_background(self):
         fuzzy_image = sitk.GetArrayFromImage(self.image)
         for i in range(len(fuzzy_image)):
+            mod_fuz = np.where(fuzzy_image[i] < 150, fuzzy_image[i], np.nan)
+            mod_fuz = np.where(mod_fuz > 1, mod_fuz, np.nan)
+            mean_val = np.nanmean(mod_fuz)
             elevation_map = sobel(fuzzy_image[i])
             markers = np.zeros_like(fuzzy_image[i])
-            markers[fuzzy_image[i] <= 55] = 1
-            markers[fuzzy_image[i] > 55] = 2
+            if self.subj in ['404']:
+                markers[fuzzy_image[i] <= mean_val*2] = 1
+                markers[fuzzy_image[i] > mean_val*3] = 2
+            else:
+                markers[fuzzy_image[i] <= mean_val*0.5] = 1
+                markers[fuzzy_image[i] > mean_val*2] = 2
             segmentation = morphology.watershed(elevation_map, markers)
             segmentation = (segmentation-1).astype(bool)
-            segmentation = morphology.remove_small_objects(segmentation, 10)
+            segmentation = morphology.remove_small_objects(segmentation, 15)
             segmentation = ndi.binary_closing(segmentation, np.ones((8, 8)))
             segmentation = ndi.binary_fill_holes(segmentation)
-            segmentation = ndi.binary_erosion(segmentation)
-            segmentation = morphology.remove_small_objects(segmentation, 100)
+            # segmentation = ndi.binary_erosion(segmentation)
+            if self.subj in ['396', '365', '404']:
+                segmentation = morphology.remove_small_objects(segmentation, 200)
+            else:
+                segmentation = morphology.remove_small_objects(segmentation, 100)
             segmentation = morphology.convex_hull_image(segmentation)
             clean_img = np.where(segmentation, fuzzy_image[i], 0)
             fuzzy_image[i] = clean_img
