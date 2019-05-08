@@ -16,7 +16,7 @@ class MRELiverMask:
     '''Class that generates liver masks for MRE input images'''
 
     def __init__(self, fixed_subj, moving_subj, fixed_seq='T2SS', moving_seq='T1DUAL',
-                 fixed_path=None, moving_path=None, verbose=False, center=False):
+                 fixed_path=None, moving_path=None, verbose=False, center=False, cut=0):
 
         self.verbose = verbose
         if fixed_path is None:
@@ -37,9 +37,9 @@ class MRELiverMask:
         self.load_fixed(center)
         # self.load_fixed(center, extra=True)
         # self.load_moving(center)
-        self.load_moving_nifti()
+        self.load_moving_nifti(cut=cut)
         # self.load_moving_mask()
-        self.load_moving_mask_nifti()
+        self.load_moving_mask_nifti(cut=cut)
 
     def load_fixed(self, center, extra=None):
         if extra is None:
@@ -72,7 +72,7 @@ class MRELiverMask:
         else:
             self.fixed_extra = fixed_img
 
-    def load_moving_nifti(self):
+    def load_moving_nifti(self, cut):
         nifti_name = self.moving_path + '/' + self.moving_subj + '/' + self.moving_seq + '.nii'
 
         reader = sitk.ImageFileReader()
@@ -93,7 +93,7 @@ class MRELiverMask:
         caster = sitk.CastImageFilter()
         caster.SetOutputPixelType(sitk.sitkFloat32)
         moving_img = caster.Execute(moving_img)
-        self.moving_img = moving_img
+        self.moving_img = moving_img[:, :, cut:]
 
     def load_moving(self, center):
         dcm_names = '/'.join([self.moving_path, self.moving_subj, self.moving_seq,
@@ -131,14 +131,14 @@ class MRELiverMask:
         if center:
             self.recenter_img_z(self.moving_img, offset=False)
 
-    def load_moving_mask_nifti(self):
+    def load_moving_mask_nifti(self, cut):
         nifti_name = self.moving_path + '/' + self.moving_subj + '/' + self.moving_seq + '_mask.nii'
 
         reader = sitk.ImageFileReader()
         reader.SetImageIO("NiftiImageIO")
         reader.SetFileName(nifti_name)
         img = reader.Execute()
-        self.moving_mask = img
+        self.moving_mask = img[:, :, cut:]
 
     def load_moving_mask(self):
         # png_names = '/'.join([self.moving_path, self.moving_subj, self.moving_seq,
@@ -167,24 +167,26 @@ class MRELiverMask:
         paff = sitk.GetDefaultParameterMap("affine")
         pbsp = sitk.GetDefaultParameterMap("bspline")
         paff['AutomaticTransformInitialization'] = ['true']
-        paff['AutomaticTransformInitializationMethod'] = ['GeometricalCenter']
+        paff['AutomaticTransformInitializationMethod'] = ['CenterOfGravity']
         paff['NumberOfSamplesForExactGradient'] = ['100000']
         pbsp['NumberOfSamplesForExactGradient'] = ['100000']
         # paff['MaximumNumberOfSamplingAttempts'] = ['2']
         # pbsp['MaximumNumberOfSamplingAttempts'] = ['2']
         paff['NumberOfSpatialSamples'] = ['5000']
         pbsp['NumberOfSpatialSamples'] = ['5000']
-        paff['NumberOfHistogramBins'] = ['32', '32', '64', '128']
-        pbsp['NumberOfHistogramBins'] = ['32', '32', '64', '128']
-        paff['MaximumNumberOfIterations'] = ['1024']
-        pbsp['MaximumNumberOfIterations'] = ['1024']
+        paff['NumberOfHistogramBins'] = ['32', '64', '128', '256']
+        #pbsp['NumberOfHistogramBins'] = ['32', '32', '64', '128']
+        paff['MaximumNumberOfIterations'] = ['512']
+        pbsp['MaximumNumberOfIterations'] = ['256']
         # paff['NumberOfResolutions'] = ['4']
-        # pbsp['NumberOfResolutions'] = ['4']
+        pbsp['NumberOfResolutions'] = ['2']
         paff['GridSpacingSchedule'] = ['6', '4', '2', '1.000000']
-        pbsp['GridSpacingSchedule'] = ['6', '4', '2', '1.000000']
+        # pbsp['GridSpacingSchedule'] = ['6', '4', '2', '1.000000']
+        pbsp['GridSpacingSchedule'] = ['4', '1.0']
         # pbsp['FinalGridSpacingInPhysicalUnits'] = ['40', '40', str(self.fixed_img.GetSpacing()[2])]
         # pbsp['FinalGridSpacingInPhysicalUnits'] = ['40', '40', '40']
-        pbsp['FinalGridSpacingInPhysicalUnits'] = ['32','32','32']
+        pbsp['FinalGridSpacingInPhysicalUnits'] = ['64','64','64']
+        pbsp['FinalBSplineInterpolationOrder'] = ['2']
         # pbsp['Metric0Weight'] = ['0.01']
         # pbsp['Metric1Weight'] = ['0.1']
         # paff['FixedImagePyramid'] = ['FixedShrinkingImagePyramid']
@@ -200,6 +202,9 @@ class MRELiverMask:
         # pbsp['FixedImagePyramid'] = ['FixedSmoothingImagePyramid', 'FixedSmoothingImagePyramid']
         # pbsp['ImageSampler'] = ['RandomCoordinate', 'RandomCoordinate']
         #                         'RandomCoordinate', 'RandomCoordinate']
+        paff['ResampleInterpolator'] = ['FinalNearestNeighborInterpolator']
+        pbsp['ResampleInterpolator'] = ['FinalNearestNeighborInterpolator']
+
         self.p_map_vector.append(paff)
         self.p_map_vector.append(pbsp)
         if self.verbose:
@@ -243,14 +248,15 @@ class MRELiverMask:
             sitk_img.SetOrigin([orig[0], orig[1], spacing*(-layers/1.5)])
 
 
-def add_liver_mask(ds, moving_name='19', extra_name='extra1'):
+def add_liver_mask(ds, moving_name='15', extra_name='extra1'):
     '''Generate a mask from the liver registration method, and place it into the given "extra" slot.
     Assumes you are using an xarray dataset from the MREDataset class.'''
 
     for sub in tqdm(ds.subject):
-        mask_maker = MRELiverMask(str(sub.values), moving_name, verbose=False, center=True,
-                                  fixed_seq='T1Pre', moving_seq='T1_inphase')
+        mask_maker = MRELiverMask(str(sub.values), moving_name, verbose=True, center=True,
+                                  fixed_seq='T1Pre', moving_seq='T1_inphase', cut=15)
         mask_maker.gen_param_map()
+        input()
         mask_maker.register_imgs()
         mask_maker.gen_mask(smooth=True)
         mask = sitk.GetArrayFromImage(mask_maker.moving_mask_result)

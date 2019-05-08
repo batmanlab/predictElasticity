@@ -3,6 +3,11 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 import SimpleITK as sitk
+import panel as pn
+import holoviews as hv
+from holoviews import opts
+from functools import reduce
+hv.extension('bokeh')
 
 
 def grid_plots(ds, rows, cols, title=None, xlabel=None, ylabel=None):
@@ -64,3 +69,47 @@ def torch_dl_vis(inputs, targets, masks):
             axes[i][seq].set_xlabel(f'subj = {i}')
     fig.lines.append(plt.vlines(0.8, 0, 1, transform=fig.transFigure))
     plt.show()
+
+
+def hv_alpha_plots(ds, seq_list=None):
+    if seq_list is None:
+        seq_list = [seq for seq in ds.sequence.values if 'extra' not in seq]
+
+    if len(seq_list) == 2:
+        color_list = ['viridis', 'Reds']
+    else:
+        color_list = ['Blues', 'Greens', 'Reds', 'Purples', 'Greys', 'Oranges']
+
+    hv_dict = {}
+    dmap_dict = {}
+    slider_dict = {}
+
+    for i, seq in enumerate(seq_list):
+        if (len(seq_list) == 2 and i == 0):
+            hv_dict[seq] = hv.Dataset(ds['image'].sel(sequence=seq).copy())
+            dmap_dict[seq] = hv_dict[seq].to(hv.Image, groupby=['z', 'subject'], dynamic=True)
+            dmap_dict[seq] = dmap_dict[seq].opts(style=dict(cmap=color_list[i]),
+                                                 plot=dict(width=500, height=500, tools=['hover']))
+        elif (len(seq_list) == 2 and i == 1):
+            mask = ds['image'].sel(sequence=seq)
+            mask = mask.where(mask < 1, 1)
+            mask = mask.where(mask > 0, np.nan)
+            hv_dict[seq] = hv.Dataset(mask)
+            dmap_dict[seq] = hv_dict[seq].to(hv.Image, groupby=['z', 'subject'], dynamic=True)
+            dmap_dict[seq] = dmap_dict[seq].opts(style=dict(cmap=color_list[i]),
+                                                 plot=dict(width=500, height=500, tools=['hover']))
+            slider_dict[seq] = pn.widgets.FloatSlider(start=0, end=1, value=0.0, name=seq)
+            dmap_dict[seq] = dmap_dict[seq].apply.opts(alpha=slider_dict[seq].param.value)
+            dmap_dict[seq] = dmap_dict[seq].redim.range(image=(0, 500))
+        else:
+            hv_dict[seq] = hv.Dataset(ds['image'].sel(sequence=seq).copy())
+            dmap_dict[seq] = hv_dict[seq].to(hv.Image, groupby=['z', 'subject'], dynamic=True)
+            dmap_dict[seq] = dmap_dict[seq].opts(style=dict(cmap=color_list[i]),
+                                                 plot=dict(width=500, height=500, tools=['hover']))
+            slider_dict[seq] = pn.widgets.FloatSlider(start=0, end=1, value=0.0, name=seq)
+            dmap_dict[seq] = dmap_dict[seq].apply.opts(alpha=slider_dict[seq].param.value)
+            dmap_dict[seq] = dmap_dict[seq].redim.range(image=(0, 500))
+    overlay = reduce((lambda x, y: x * y), dmap_dict.values())
+
+    return pn.Column(*slider_dict.values(), overlay)
+    # return slider_dict, hv_dict, overlay, dmap_dict
