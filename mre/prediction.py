@@ -54,71 +54,45 @@ class MREDataset(Dataset):
         image = self.input_images[idx]
         target = self.target_images[idx]
         if self.clip:
-            image = np.where(image >= 750, 750, image)
-            target = np.digitize(target, list(range(0, 20000, 200))+[1e6])
+            image = np.where(image >= 700, 700, image)
+            target = np.float32(np.digitize(target, list(range(0, 20000, 200))+[1e6]))
         mask = self.mask_images[idx]
         if self.transform:
-            # transform = transforms.Compose([
-            #     transforms.ToPILImage(),
-            #     transforms.RandomRotation(90),
-            #     transforms.ToTensor(),
-            # ])
-            # image = self.transform(image)
-            # print(image.mean(dim=[1, 2]))
-            # print(image.shape)
-            # image = transform(image)
-            # image = transforms.Normalize(
-            #     image.mean(dim=[1, 2]).clone().detach(),
-            #     image.std(dim=[1, 2]).clone().detach())(image)
-            # target = transform(target)
-            # image = np.where(image <= 1e-9, np.nan, image)
-            # # print(image.shape)
-            # mean = np.nanmean(image, axis=(1, 2))
-            # std = np.nanstd(image, axis=(1, 2))
-            # # print(mean, std)
-            # image = ((image.T - mean)/std).T + 4
-            # image = np.where(image != image, 0, image)
+            rot_angle = np.random.uniform(-5, 5, 1)
+            # rot_angle = 45
+            translations = np.random.uniform(-10, 10, 2)
+            scale = np.random.uniform(0.9, 1.1, 1)
+            image = self.input_transform(image, rot_angle, translations, scale)
+            mask = self.affine_transform(mask[0], rot_angle, translations, scale)
+            target = self.affine_transform(target[0], rot_angle, translations, scale)
 
-            # image0 = torch.Tensor(image[0])
-            # image1 = torch.Tensor(image[1])
-            # image2 = torch.Tensor(image[2])
-            # print('image0', image0.shape)
-            # image0 = transforms.ToPILImage()(image0)
-            # image0 = TF.rotate(image0, 45)
-            # image0 = transforms.ToTensor()(image0)
-            # image0 = transforms.ToPILImage()(image0)
-            # image0 = TF.rotate(image0, 45)
-            # image0 = transforms.ToTensor()(image0)
-            # print('image0', image0.shape)
-
-            image = self.input_transform(image)
-
-        # image = torch.stack((image0, image1, image2))
         image = torch.Tensor(image)
         target = torch.Tensor(target)
         mask = torch.Tensor(mask)
 
         return [image, target, mask, self.name_dict[idx]]
 
-    def input_slice_transform(self, input_slice):
+    def affine_transform(self, input_slice, rot_angle=0, translations=0, scale=1):
         input_slice = transforms.ToPILImage()(input_slice)
-        input_slice = TF.rotate(input_slice, 45)
+        input_slice = TF.affine(input_slice, angle=rot_angle,
+                                translate=list(translations), scale=scale, shear=0)
         input_slice = transforms.ToTensor()(input_slice)
         return input_slice
 
-    def input_transform(self, input_image):
+    def input_transform(self, input_image, rot_angle=0, translations=0, scale=1):
+
+        # normalize and offset image
         image = input_image
         image = np.where(input_image <= 1e-9, np.nan, input_image)
-        # print(image.shape)
         mean = np.nanmean(image, axis=(1, 2))
         std = np.nanstd(image, axis=(1, 2))
-        # print(mean, std)
         image = ((image.T - mean)/std).T + 4
         image = np.where(image != image, 0, image)
 
-        image0 = self.input_slice_transform(image[0])
-        image1 = self.input_slice_transform(image[1])
-        image2 = self.input_slice_transform(image[2])
+        # perform affine transfomrations
+        image0 = self.affine_transform(image[0], rot_angle, translations, scale)
+        image1 = self.affine_transform(image[1], rot_angle, translations, scale)
+        image2 = self.affine_transform(image[2], rot_angle, translations, scale)
         return torch.cat((image0, image1, image2))
 
 

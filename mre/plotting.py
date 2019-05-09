@@ -56,7 +56,6 @@ def hv_dl_vis(inputs, targets, masks, names, predictions=None):
     inputs = inputs.data.cpu().numpy()
     targets = targets.data.cpu().numpy()
     masks = masks.data.cpu().numpy()
-    print(inputs.shape)
 
     ds_inputs = xr.DataArray(inputs,
                              dims=['subject', 'sequence', 'y', 'x'],
