@@ -6,6 +6,7 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, datasets, models
 from collections import defaultdict
 import torch.nn.functional as F
+import torchvision.transforms.functional as TF
 import time
 import copy
 
@@ -54,18 +55,71 @@ class MREDataset(Dataset):
         target = self.target_images[idx]
         if self.clip:
             image = np.where(image >= 750, 750, image)
-            # target = np.where(target >= 9000, 9000, target)
             target = np.digitize(target, list(range(0, 20000, 200))+[1e6])
         mask = self.mask_images[idx]
+        if self.transform:
+            # transform = transforms.Compose([
+            #     transforms.ToPILImage(),
+            #     transforms.RandomRotation(90),
+            #     transforms.ToTensor(),
+            # ])
+            # image = self.transform(image)
+            # print(image.mean(dim=[1, 2]))
+            # print(image.shape)
+            # image = transform(image)
+            # image = transforms.Normalize(
+            #     image.mean(dim=[1, 2]).clone().detach(),
+            #     image.std(dim=[1, 2]).clone().detach())(image)
+            # target = transform(target)
+            # image = np.where(image <= 1e-9, np.nan, image)
+            # # print(image.shape)
+            # mean = np.nanmean(image, axis=(1, 2))
+            # std = np.nanstd(image, axis=(1, 2))
+            # # print(mean, std)
+            # image = ((image.T - mean)/std).T + 4
+            # image = np.where(image != image, 0, image)
+
+            # image0 = torch.Tensor(image[0])
+            # image1 = torch.Tensor(image[1])
+            # image2 = torch.Tensor(image[2])
+            # print('image0', image0.shape)
+            # image0 = transforms.ToPILImage()(image0)
+            # image0 = TF.rotate(image0, 45)
+            # image0 = transforms.ToTensor()(image0)
+            # image0 = transforms.ToPILImage()(image0)
+            # image0 = TF.rotate(image0, 45)
+            # image0 = transforms.ToTensor()(image0)
+            # print('image0', image0.shape)
+
+            image = self.input_transform(image)
+
+        # image = torch.stack((image0, image1, image2))
         image = torch.Tensor(image)
         target = torch.Tensor(target)
         mask = torch.Tensor(mask)
-        if self.transform:
-            # image = self.transform(image)
-            image = transforms.Normalize([image.mean()], [image.std()])(image)
-            # target = self.transform(target)
 
-        return [image, target, mask]
+        return [image, target, mask, self.name_dict[idx]]
+
+    def input_slice_transform(self, input_slice):
+        input_slice = transforms.ToPILImage()(input_slice)
+        input_slice = TF.rotate(input_slice, 45)
+        input_slice = transforms.ToTensor()(input_slice)
+        return input_slice
+
+    def input_transform(self, input_image):
+        image = input_image
+        image = np.where(input_image <= 1e-9, np.nan, input_image)
+        # print(image.shape)
+        mean = np.nanmean(image, axis=(1, 2))
+        std = np.nanstd(image, axis=(1, 2))
+        # print(mean, std)
+        image = ((image.T - mean)/std).T + 4
+        image = np.where(image != image, 0, image)
+
+        image0 = self.input_slice_transform(image[0])
+        image1 = self.input_slice_transform(image[1])
+        image2 = self.input_slice_transform(image[2])
+        return torch.cat((image0, image1, image2))
 
 
 def masked_mse(pred, target, mask):
@@ -125,10 +179,11 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
             metrics = defaultdict(float)
             epoch_samples = 0
 
-            for inputs, labels, masks in dataloaders[phase]:
-                inputs = inputs.to(device)
-                labels = labels.to(device)
-                masks = masks.to(device)
+            # for inputs, labels, masks in dataloaders[phase]:
+            for data in dataloaders[phase]:
+                inputs = data[0].to(device)
+                labels = data[1].to(device)
+                masks = data[2].to(device)
                 # zero the parameter gradients
                 optimizer.zero_grad()
                 # forward

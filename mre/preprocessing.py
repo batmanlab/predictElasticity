@@ -45,7 +45,9 @@ class MREDataset:
                                         np.zeros((dsub, dseq, dz, dy, dx), dtype=np.float32)),
                               'age': (['subject'], np.zeros(dsub, dtype=np.int8)),
                               'z_space': (['subject', 'sequence'],
-                                          np.zeros((dsub, dseq), dtype=np.float16))
+                                          np.zeros((dsub, dseq), dtype=np.float16)),
+                              'z_space_std': (['subject', 'sequence'],
+                                              np.zeros((dsub, dseq), dtype=np.float16))
                               },
 
                              coords={'subject': subjects,
@@ -95,11 +97,16 @@ class MREDataset:
                 seq_holder_list.append(seq_holder)
 
             self.determine_seq_name(seq_holder_list)
-            self.assign_images(seq_holder_list, subj)
             self.center_images_reg(seq_holder_list)
+            self.assign_images(seq_holder_list, subj)
+
             if write_nifti:
                 self.write_nifti(seq_holder_list, subj)
             self.ds['age'].loc[{'subject': subj}] = seq_holder_list[0].age
+
+        self.ds = self.ds.assign_coords(x=range(len(self.ds.x)),
+                                        y=range(0, -len(self.ds.y), -1),
+                                        z=range(len(self.ds.z)))
 
     def write_data_netcdf(self, out_name):
         self.ds.to_netcdf(self.data_path+'/'+out_name)
@@ -160,6 +167,8 @@ class MREDataset:
                                   'subject': subj}] = seq_holder.np_image
             self.ds['z_space'].loc[{'sequence': seq_holder.seq_name,
                                     'subject': subj}] = seq_holder.spacing[-1]
+            self.ds['z_space_std'].loc[{'sequence': seq_holder.seq_name,
+                                        'subject': subj}] = np.std(seq_holder.spacing[-1])
 
     def recenter_img_z(self, sitk_img):
         spacing = sitk_img.GetSpacing()[2]

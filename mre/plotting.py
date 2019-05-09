@@ -43,6 +43,80 @@ def display_images_with_alpha(image_z, alpha, fixed, moving):
     plt.show()
 
 
+def hv_dl_vis(inputs, targets, masks, names, predictions=None):
+    opts.defaults(
+        opts.GridSpace(shared_xaxis=True, shared_yaxis=True),
+        opts.Image(cmap='viridis', width=350, height=350, tools=['hover']),
+        opts.Labels(text_color='white', text_font_size='8pt', text_align='left',
+                    text_baseline='bottom'),
+        opts.Path(color='white'),
+        opts.Spread(width=600),
+        opts.Overlay(show_legend=False))
+
+    inputs = inputs.data.cpu().numpy()
+    targets = targets.data.cpu().numpy()
+    masks = masks.data.cpu().numpy()
+    print(inputs.shape)
+
+    ds_inputs = xr.DataArray(inputs,
+                             dims=['subject', 'sequence', 'y', 'x'],
+                             coords=[list(names), ['T1Pre', 'T1Pos', 'T2SS'],
+                                     range(0, -inputs.shape[2], -1),
+                                     range(inputs.shape[3])
+                                     ],
+                             name='inputs')
+    ds_targets = xr.DataArray(targets,
+                              dims=['subject', 'sequence', 'y', 'x'],
+                              coords=[list(names), ['elast'],
+                                      range(0, -inputs.shape[2], -1),
+                                      range(inputs.shape[3])
+                                      ],
+                              name='targets')
+    ds_masks = xr.DataArray(masks,
+                            dims=['subject', 'sequence', 'y', 'x'],
+                            coords=[list(names), ['mask'],
+                                    range(0, -inputs.shape[2], -1),
+                                    range(inputs.shape[3])
+                                    ],
+                            name='masks')
+    ds_masks = ds_masks.where(ds_masks < 1, 1)
+    ds_masks = ds_masks.where(ds_masks > 0, np.nan)
+
+    hv_ds_inputs = [hv.Dataset(ds_inputs.sel(sequence=seq).copy()) for seq in ds_inputs.sequence]
+    hv_ds_targets = [hv.Dataset(ds_targets.sel(sequence=seq).copy()) for seq in ds_targets.sequence]
+    hv_ds_masks = [hv.Dataset(ds_masks.sel(sequence=seq).copy()) for seq in ds_masks.sequence]
+
+    slider = pn.widgets.FloatSlider(start=0, end=1, value=0.0, name='mask')
+
+    masks = hv_ds_masks[0].to(hv.Image, ['x', 'y'], groupby=['subject'],
+                              dynamic=True).apply.opts(alpha=slider.param.value)
+    masks.opts(cmap='Reds', tools=[])
+    targets = hv_ds_targets[0].to(hv.Image, ['x', 'y'], groupby=['subject'],
+                                  dynamic=True).redim.range(target=(0, 50))*masks
+
+    input_list = [hv_ds.to(hv.Image, ['x', 'y'], groupby=['subject'],
+                           dynamic=True).opts(cmap='viridis')*masks for hv_ds in hv_ds_inputs]
+
+    if predictions is not None:
+        predictions = predictions.data.cpu().numpy()
+        ds_prediction = xr.DataArray(predictions,
+                                     dims=['subject', 'sequence', 'y', 'x'],
+                                     coords=[list(names), ['prediction'],
+                                             range(0, -predictions.shape[2], -1),
+                                             range(predictions.shape[3])
+                                             ],
+                                     name='prediction')
+        hv_ds_predictions = [hv.Dataset(ds_prediction.sel(sequence=seq).copy()) for seq in
+                             ds_prediction.sequence]
+        predictions = hv_ds_predictions[0].to(hv.Image, ['x', 'y'], groupby=['subject'],
+                                              dynamic=True).redim.range(prediction=(0, 50))*masks
+
+        layout = hv.Layout(input_list + [targets] + [predictions]).cols(3)
+    else:
+        layout = hv.Layout(input_list + [targets]).cols(3)
+    return pn.Column(slider, layout)
+
+
 def torch_dl_vis(inputs, targets, masks):
     print('lol')
     # titles = ['T1Pre', 'T1Pos', 'T2SS', 'T2FR', 'elast', 'mask']
