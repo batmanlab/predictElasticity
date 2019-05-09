@@ -45,8 +45,8 @@ def display_images_with_alpha(image_z, alpha, fixed, moving):
 
 def torch_dl_vis(inputs, targets, masks):
     print('lol')
-    titles = ['T1Pre', 'T1Pos', 'T2SS', 'T2FR', 'elast', 'mask']
-    # titles = ['T1Pre', 'T1Pos', 'T2SS', 'elast', 'mask']
+    # titles = ['T1Pre', 'T1Pos', 'T2SS', 'T2FR', 'elast', 'mask']
+    titles = ['T1Pre', 'T1Pos', 'T2SS', 'elast', 'mask']
     n_input = inputs.shape[0]
     n_seq = inputs.shape[1]+targets.shape[1]+masks.shape[1]
     fig, axes = plt.subplots(n_input, n_seq, tight_layout=True,

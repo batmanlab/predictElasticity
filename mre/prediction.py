@@ -54,7 +54,8 @@ class MREDataset(Dataset):
         target = self.target_images[idx]
         if self.clip:
             image = np.where(image >= 750, 750, image)
-            target = np.where(target >= 9000, 9000, target)
+            # target = np.where(target >= 9000, 9000, target)
+            target = np.digitize(target, list(range(0, 20000, 200))+[1e6])
         mask = self.mask_images[idx]
         image = torch.Tensor(image)
         target = torch.Tensor(target)

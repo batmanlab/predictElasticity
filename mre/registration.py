@@ -20,7 +20,7 @@ class MRELiverMask:
 
         self.verbose = verbose
         if fixed_path is None:
-            self.fixed_path = '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/MRE/'
+            self.fixed_path = '/pghbio/dbmi/batmanlab/Data/MRE/'
         else:
             self.fixed_path = fixed_path
         if moving_path is None:
@@ -248,18 +248,28 @@ class MRELiverMask:
             sitk_img.SetOrigin([orig[0], orig[1], spacing*(-layers/1.5)])
 
 
-def add_liver_mask(ds, moving_name='15', extra_name='extra1'):
+def add_liver_mask(ds, moving_name='15', extra_name='extra1', snapmask=False):
     '''Generate a mask from the liver registration method, and place it into the given "extra" slot.
     Assumes you are using an xarray dataset from the MREDataset class.'''
 
     for sub in tqdm(ds.subject):
-        mask_maker = MRELiverMask(str(sub.values), moving_name, verbose=True, center=True,
-                                  fixed_seq='T1Pre', moving_seq='T1_inphase', cut=15)
-        mask_maker.gen_param_map()
-        input()
-        mask_maker.register_imgs()
-        mask_maker.gen_mask(smooth=True)
-        mask = sitk.GetArrayFromImage(mask_maker.moving_mask_result)
+        if snapmask:
+            if str(sub.values) in ['371', '396']:
+                continue
+            fixed_path = '/pghbio/dbmi/batmanlab/Data/MRE/'
+            nifti_name = fixed_path + '/' + str(sub.values) + '/' + 'seg.nii'
+            reader = sitk.ImageFileReader()
+            reader.SetImageIO("NiftiImageIO")
+            reader.SetFileName(nifti_name)
+            mask = sitk.GetArrayFromImage(reader.Execute())
+        else:
+
+            mask_maker = MRELiverMask(str(sub.values), moving_name, verbose=True, center=True,
+                                      fixed_seq='T1Pre', moving_seq='T1_inphase', cut=15)
+            mask_maker.gen_param_map()
+            mask_maker.register_imgs()
+            mask_maker.gen_mask(smooth=True)
+            mask = sitk.GetArrayFromImage(mask_maker.moving_mask_result)
         mask = np.where(mask >= 1, 1, 0)
         ds['image'].loc[dict(sequence=extra_name, subject=sub)] = mask
 
