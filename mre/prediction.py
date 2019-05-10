@@ -21,39 +21,41 @@ class MREDataset(Dataset):
         targets = ['elast']
         masks = ['comboMsk']
 
+        np.random.seed(seed)
+        shuffle_list = np.asarray(xa_ds.subject)
+        np.random.shuffle(shuffle_list)
+
+        if set_type == 'test':
+            # input_set = xa_ds.subject_2d[20:]
+            input_set = list(shuffle_list[0:2])
+        elif set_type == 'val':
+            # input_set = xa_ds.subject_2d[2:20]
+            input_set = list(shuffle_list[2:9])
+        elif set_type == 'train':
+            # input_set = xa_ds.subject_2d[:2]
+            input_set = list(shuffle_list[9:])
+        else:
+            raise AttributeError('Must choose one of ["train", "val", "test"] for `set_type`.')
+
+        # pick correct input set
+        xa_ds = xa_ds.sel(subject=input_set)
+
         # stack subject and z-slices to make 4 2D image groups for each 3D image group
         xa_ds = xa_ds.stack(subject_2d=('subject', 'z')).reset_index('subject_2d')
         subj_2d_coords = [f'{i.subject.values}_{i.z.values}' for i in xa_ds.subject_2d]
         xa_ds = xa_ds.assign_coords(subject_2d=subj_2d_coords)
         print(xa_ds)
         self.name_dict = dict(zip(range(len(subj_2d_coords)), subj_2d_coords))
-        np.random.seed(seed)
-        shuffle_list = np.asarray(xa_ds.subject_2d)
-        np.random.shuffle(shuffle_list)
 
-        if set_type == 'train':
-            # input_set = xa_ds.subject_2d[20:]
-            input_set = list(shuffle_list[20:])
-        elif set_type == 'val':
-            # input_set = xa_ds.subject_2d[2:20]
-            input_set = list(shuffle_list[2:20])
-        elif set_type == 'test':
-            # input_set = xa_ds.subject_2d[:2]
-            input_set = list(shuffle_list[:2])
-        else:
-            raise AttributeError('Must choose one of ["train", "val", "test"] for `set_type`.')
-
-        self.input_images = xa_ds.sel(sequence=inputs, subject_2d=input_set).transpose(
+        self.input_images = xa_ds.sel(sequence=inputs).transpose(
             'subject_2d', 'sequence', 'y', 'x').image.values
-        # ds.sel(sequence=inputs, subject=subjects).stack(subject_2d=('subject','z')).transpose(
-        # 'subject_2d','sequence', 'y', 'x').image.values.shape
-        self.target_images = xa_ds.sel(sequence=targets, subject_2d=input_set).transpose(
+        self.target_images = xa_ds.sel(sequence=targets).transpose(
             'subject_2d', 'sequence', 'y', 'x').image.values
-        self.mask_images = xa_ds.sel(sequence=masks, subject_2d=input_set).transpose(
+        self.mask_images = xa_ds.sel(sequence=masks).transpose(
             'subject_2d', 'sequence', 'y', 'x').image.values
         self.transform = transform
         self.clip = clip
-        self.names = xa_ds.sel(subject_2d=input_set).subject_2d.values
+        self.names = xa_ds.subject_2d.values
 
     def __len__(self):
         return len(self.input_images)
