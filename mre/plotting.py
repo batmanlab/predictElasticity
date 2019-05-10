@@ -43,10 +43,49 @@ def display_images_with_alpha(image_z, alpha, fixed, moving):
     plt.show()
 
 
+def hv_pred_comp(targets, predictions, masks, names):
+    targets = targets.data.cpu().numpy()
+    predictions = predictions.data.cpu().numpy()
+    masks = masks.data.cpu().numpy()
+
+    print(targets.shape)
+    ds_targets = xr.DataArray(targets,
+                              dims=['subject', 'sequence', 'y', 'x'],
+                              coords=[list(names), ['target'],
+                                      range(0, -predictions.shape[2], -1),
+                                      range(predictions.shape[3])
+                                      ],
+                              name='targets')
+    ds_mask_liver = xr.DataArray(np.where(masks<1e-6, np.nan, 1),
+                                 dims=['subject', 'sequence', 'y', 'x'],
+                                 coords=[list(names), ['mask_liver'],
+                                         range(0, -predictions.shape[2], -1),
+                                         range(predictions.shape[3])
+                                         ],
+                                 name='mask_liver')
+    ds_mask_conf = xr.DataArray(np.where(masks<1, np.nan, 1),
+                                dims=['subject', 'sequence', 'y', 'x'],
+                                coords=[list(names), ['mask_conf'],
+                                        range(0, -predictions.shape[2], -1),
+                                        range(predictions.shape[3])
+                                        ],
+                                name='mask_liver')
+    ds_predictions = xr.DataArray(predictions,
+                                  dims=['subject', 'sequence', 'y', 'x'],
+                                  coords=[list(names), ['prediction'],
+                                          range(0, -predictions.shape[2], -1),
+                                          range(predictions.shape[3])
+                                          ],
+                                  name='prediction')
+    for subj in names:
+        print(np.nanmean(ds_mask_liver.sel(subject=subj).values*ds_targets.sel(subject=subj).values))
+        print(np.nanmean(ds_mask_liver.sel(subject=subj).values*ds_predictions.sel(subject=subj).values))
+
+
 def hv_dl_vis(inputs, targets, masks, names, predictions=None):
     opts.defaults(
         opts.GridSpace(shared_xaxis=True, shared_yaxis=True),
-        opts.Image(cmap='viridis', width=350, height=350, tools=['hover']),
+        opts.Image(cmap='viridis', width=350, height=350, tools=['hover'], xaxis=None, yaxis=None),
         opts.Labels(text_color='white', text_font_size='8pt', text_align='left',
                     text_baseline='bottom'),
         opts.Path(color='white'),
@@ -90,11 +129,13 @@ def hv_dl_vis(inputs, targets, masks, names, predictions=None):
     masks = hv_ds_masks[0].to(hv.Image, ['x', 'y'], groupby=['subject'],
                               dynamic=True).apply.opts(alpha=slider.param.value)
     masks.opts(cmap='Reds', tools=[])
-    targets = hv_ds_targets[0].to(hv.Image, ['x', 'y'], groupby=['subject'],
-                                  dynamic=True).redim.range(target=(0, 50))*masks
+    targets = hv_ds_targets[0].to(hv.Image, ['x', 'y'], groupby=['subject'], dynamic=True)
+    targets = targets.redim.range(target=(0, 70)).opts(title='Target')*masks
 
     input_list = [hv_ds.to(hv.Image, ['x', 'y'], groupby=['subject'],
-                           dynamic=True).opts(cmap='viridis')*masks for hv_ds in hv_ds_inputs]
+                           dynamic=True).opts(cmap='viridis',
+                                              title=f'Input {hv_ds.data.sequence.values}')*masks
+                  for hv_ds in hv_ds_inputs]
 
     if predictions is not None:
         predictions = predictions.data.cpu().numpy()
@@ -108,7 +149,8 @@ def hv_dl_vis(inputs, targets, masks, names, predictions=None):
         hv_ds_predictions = [hv.Dataset(ds_prediction.sel(sequence=seq).copy()) for seq in
                              ds_prediction.sequence]
         predictions = hv_ds_predictions[0].to(hv.Image, ['x', 'y'], groupby=['subject'],
-                                              dynamic=True).redim.range(prediction=(0, 50))*masks
+                                              dynamic=True).redim.range(
+                                                  prediction=(0, 50)).opts(title='Prediction')*masks
 
         layout = hv.Layout(input_list + [targets] + [predictions]).cols(3)
     else:

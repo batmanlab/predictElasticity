@@ -15,24 +15,31 @@ import copy
 
 
 class MREDataset(Dataset):
-    def __init__(self, xa_ds, set_type='train', transform=None, clip=False):
+    def __init__(self, xa_ds, set_type='train', transform=None, clip=False, seed=100):
         # inputs = ['T1Pre', 'T1Pos', 'T2SS', 'T2FR']
         inputs = ['T1Pre', 'T1Pos', 'T2SS']
         targets = ['elast']
-        masks = ['liverMsk']
+        masks = ['comboMsk']
 
         # stack subject and z-slices to make 4 2D image groups for each 3D image group
         xa_ds = xa_ds.stack(subject_2d=('subject', 'z')).reset_index('subject_2d')
         subj_2d_coords = [f'{i.subject.values}_{i.z.values}' for i in xa_ds.subject_2d]
-        xa_ds.assign_coords(subject_2d=subj_2d_coords)
+        xa_ds = xa_ds.assign_coords(subject_2d=subj_2d_coords)
+        print(xa_ds)
         self.name_dict = dict(zip(range(len(subj_2d_coords)), subj_2d_coords))
+        np.random.seed(seed)
+        shuffle_list = np.asarray(xa_ds.subject_2d)
+        np.random.shuffle(shuffle_list)
 
         if set_type == 'train':
-            input_set = xa_ds.subject_2d[20:]
+            # input_set = xa_ds.subject_2d[20:]
+            input_set = list(shuffle_list[20:])
         elif set_type == 'val':
-            input_set = xa_ds.subject_2d[2:20]
+            # input_set = xa_ds.subject_2d[2:20]
+            input_set = list(shuffle_list[2:20])
         elif set_type == 'test':
-            input_set = xa_ds.subject_2d[:2]
+            # input_set = xa_ds.subject_2d[:2]
+            input_set = list(shuffle_list[:2])
         else:
             raise AttributeError('Must choose one of ["train", "val", "test"] for `set_type`.')
 
@@ -46,6 +53,7 @@ class MREDataset(Dataset):
             'subject_2d', 'sequence', 'y', 'x').image.values
         self.transform = transform
         self.clip = clip
+        self.names = xa_ds.sel(subject_2d=input_set).subject_2d.values
 
     def __len__(self):
         return len(self.input_images)
@@ -70,7 +78,7 @@ class MREDataset(Dataset):
         target = torch.Tensor(target)
         mask = torch.Tensor(mask)
 
-        return [image, target, mask, self.name_dict[idx]]
+        return [image, target, mask, self.names[idx]]
 
     def affine_transform(self, input_slice, rot_angle=0, translations=0, scale=1):
         input_slice = transforms.ToPILImage()(input_slice)
