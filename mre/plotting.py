@@ -92,7 +92,7 @@ def hv_dl_vis(inputs, targets, masks, names, predictions=None):
         opts.Spread(width=600),
         opts.Overlay(show_legend=False))
 
-    inputs = inputs.data.cpu().numpy()
+    inputs = inputs.data.cpu().numpy()[:, 0:3, :, :]
     targets = targets.data.cpu().numpy()
     masks = masks.data.cpu().numpy()
 

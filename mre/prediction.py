@@ -7,44 +7,56 @@ from torchvision import transforms, datasets, models
 from collections import defaultdict
 import torch.nn.functional as F
 import torchvision.transforms.functional as TF
+from torch.utils.data.sampler import RandomSampler
 import time
 import copy
+from mre import pytorch_unet_tb
+from mre.plotting import hv_dl_vis
+import warnings
+from datetime import datetime
+from tqdm import tqdm_notebook
+from tensorboardX import SummaryWriter
+
 
 # need data to be ordered thusly:
 # image_sequence,width,hight,depth
 
 
 class MREDataset(Dataset):
-    def __init__(self, xa_ds, set_type='train', transform=None, clip=False, seed=100):
+    def __init__(self, xa_ds, set_type='train', transform=None, clip=False, seed=100, test='162',
+                 aug=True):
         # inputs = ['T1Pre', 'T1Pos', 'T2SS', 'T2FR']
         inputs = ['T1Pre', 'T1Pos', 'T2SS']
         targets = ['elast']
         masks = ['comboMsk']
 
+        xa_ds_test = xa_ds.sel(subject=[test])
+        xa_ds = xa_ds.drop(test, dim='subject')
         np.random.seed(seed)
         shuffle_list = np.asarray(xa_ds.subject)
         np.random.shuffle(shuffle_list)
 
         if set_type == 'test':
-            # input_set = xa_ds.subject_2d[20:]
-            input_set = list(shuffle_list[0:2])
+            input_set = list(test)
         elif set_type == 'val':
             # input_set = xa_ds.subject_2d[2:20]
-            input_set = list(shuffle_list[2:9])
+            input_set = list(shuffle_list[0:7])
         elif set_type == 'train':
             # input_set = xa_ds.subject_2d[:2]
-            input_set = list(shuffle_list[9:])
+            input_set = list(shuffle_list[7:])
         else:
             raise AttributeError('Must choose one of ["train", "val", "test"] for `set_type`.')
 
         # pick correct input set
-        xa_ds = xa_ds.sel(subject=input_set)
+        if set_type == 'test':
+            xa_ds = xa_ds_test
+        else:
+            xa_ds = xa_ds.sel(subject=input_set)
 
         # stack subject and z-slices to make 4 2D image groups for each 3D image group
         xa_ds = xa_ds.stack(subject_2d=('subject', 'z')).reset_index('subject_2d')
         subj_2d_coords = [f'{i.subject.values}_{i.z.values}' for i in xa_ds.subject_2d]
         xa_ds = xa_ds.assign_coords(subject_2d=subj_2d_coords)
-        print(xa_ds)
         self.name_dict = dict(zip(range(len(subj_2d_coords)), subj_2d_coords))
 
         self.input_images = xa_ds.sel(sequence=inputs).transpose(
@@ -54,6 +66,7 @@ class MREDataset(Dataset):
         self.mask_images = xa_ds.sel(sequence=masks).transpose(
             'subject_2d', 'sequence', 'y', 'x').image.values
         self.transform = transform
+        self.aug = aug
         self.clip = clip
         self.names = xa_ds.subject_2d.values
 
@@ -68,14 +81,20 @@ class MREDataset(Dataset):
             target = np.float32(np.digitize(target, list(range(0, 20000, 200))+[1e6]))
         mask = self.mask_images[idx]
         if self.transform:
-            rot_angle = np.random.uniform(-5, 5, 1)
-            # rot_angle = 45
-            translations = np.random.uniform(-10, 10, 2)
-            scale = np.random.uniform(0.9, 1.1, 1)
+            if self.aug:
+                rot_angle = np.random.uniform(-5, 5, 1)
+                translations = np.random.uniform(-10, 10, 2)
+                scale = np.random.uniform(0.9, 1.1, 1)
+            else:
+                rot_angle = 0
+                translations = (0, 0)
+                scale = 1
             image = self.input_transform(image, rot_angle, translations, scale)
             mask = self.affine_transform(mask[0], rot_angle, translations, scale)
             target = self.affine_transform(target[0], rot_angle, translations, scale)
 
+        # indexed_values = torch.Tensor(np.reshape(range(0, 256*256), (1, 256, 256)))
+        # image = torch.cat((image, indexed_values))
         image = torch.Tensor(image)
         target = torch.Tensor(target)
         mask = torch.Tensor(mask)
@@ -140,22 +159,25 @@ def print_metrics(metrics, epoch_samples, phase):
     print("{}: {}".format(phase, ", ".join(outputs)))
 
 
-def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25, tb_writer=None):
+def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25, tb_writer=None,
+                verbose=True):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     best_model_wts = copy.deepcopy(model.state_dict())
     best_loss = 1e16
     total_iter = 0
     for epoch in range(num_epochs):
-        print('Epoch {}/{}'.format(epoch, num_epochs - 1))
-        print('-' * 10)
+        if verbose:
+            print('Epoch {}/{}'.format(epoch, num_epochs - 1))
+            print('-' * 10)
+            since = time.time()
 
-        since = time.time()
         # Each epoch has a training and validation phase
         for phase in ['train', 'val']:
             if phase == 'train':
                 scheduler.step()
                 for param_group in optimizer.param_groups:
-                    print("LR", param_group['lr'])
+                    if verbose:
+                        print("LR", param_group['lr'])
 
                 model.train()  # Set model to training mode
             else:
@@ -184,16 +206,91 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                 # statistics
                 epoch_samples += inputs.size(0)
                 total_iter += 1
-            print_metrics(metrics, epoch_samples, phase)
+            if verbose:
+                print_metrics(metrics, epoch_samples, phase)
             epoch_loss = metrics['loss'] / epoch_samples
             # deep copy the model
             if phase == 'val' and epoch_loss < best_loss:
-                print("saving best model")
+                if verbose:
+                    print("saving best model")
                 best_loss = epoch_loss
                 best_model_wts = copy.deepcopy(model.state_dict())
-        time_elapsed = time.time() - since
-        print('{:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
-    print('Best val loss: {:4f}'.format(best_loss))
+        if verbose:
+            time_elapsed = time.time() - since
+            print('{:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+    if verbose:
+        print('Best val loss: {:4f}'.format(best_loss))
+
     # load best model weights
     model.load_state_dict(best_model_wts)
     return model
+
+
+def gen_LOO_models(ds, save_dir, trans=True, clip=True, cap=16, version=None, verbose=False):
+    if version is None:
+        version = datetime.today().strftime('%Y-%m-%d_%H-%M-%S')
+
+    # for subj in tqdm_notebook(['162'], desc='Subject'):
+    for subj in tqdm_notebook(ds.coords['subject'].values, desc='Subject'):
+        train_set = MREDataset(ds, set_type='train', transform=trans, clip=clip, test=subj)
+        val_set = MREDataset(ds, set_type='val', transform=trans, clip=clip, test=subj)
+        test_set = MREDataset(ds, set_type='test', transform=trans, clip=clip, test=subj)
+
+        batch_size = 50
+        dataloaders = {
+            'train': DataLoader(train_set, batch_size=batch_size, shuffle=False,
+                                sampler=RandomSampler(train_set, replacement=True, num_samples=200),
+                                num_workers=0),
+
+            'val': DataLoader(val_set, batch_size=batch_size, shuffle=False,
+                              sampler=RandomSampler(val_set, replacement=True, num_samples=40),
+                              num_workers=0),
+
+            'test': DataLoader(test_set, batch_size=batch_size, shuffle=True, num_workers=0)
+        }
+
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        if device == 'cpu':
+            warnings.warn('Device is running on CPU, not GPU!')
+        model = pytorch_unet_tb.UNet(1, cap=cap).to(device)
+
+        optimizer_ft = optim.Adam(model.parameters(), lr=1e-2)
+        exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=25, gamma=0.1)
+        writer = SummaryWriter(f'runs/{version}_subj_{subj}')
+        model = train_model(model, optimizer_ft, exp_lr_scheduler, device, dataloaders,
+                            num_epochs=70, tb_writer=writer, verbose=verbose)
+        writer.close()
+        model.to('cpu')
+        torch.save(model.state_dict(), save_dir+f'/{subj}/model_{version}.pkl')
+
+        # model.eval()   # Set model to evaluate mode
+        # test_loader = DataLoader(test_set, batch_size=4, shuffle=True, num_workers=0,
+        #                          verbose=verbose)
+        # inputs, labels, masks, names = next(iter(test_loader))
+        # model_pred = model(inputs)
+        # hv_dl_vis(inputs, labels, masks, names, model_pred)
+
+
+def add_LOO_predictions(ds, path='/pghbio/dbmi/batmanlab/Data/MRE/', version='2019-05-13_14-53-50',
+                        extra_name='extra3'):
+
+    for subj in tqdm_notebook(ds.coords['subject'].values, desc='Subject'):
+        test_set = MREDataset(ds, set_type='test', transform=True, clip=True, test=subj, aug=False)
+        test_dl = DataLoader(test_set, batch_size=1, shuffle=False, num_workers=0)
+
+        model_path = path+f'{subj}/model_{version}.pkl'
+        model = pytorch_unet_tb.UNet(1, cap=16)
+        model.load_state_dict(torch.load(model_path))
+        model.eval()
+
+        for data in test_dl:
+            # print(data)
+            pred = model(data[0]).data.numpy()
+            z_slice = data[-1][0].split('_')[-1]
+
+            ds['image'].loc[dict(sequence=extra_name,
+                                 subject=subj, z=int(z_slice))] = pred[0, 0, :, :]*(200)-100
+
+    new_sequence = [a.replace(extra_name, 'mre_pred') for a in ds.sequence.values]
+    ds = ds.assign_coords(sequence=new_sequence)
+    return ds
