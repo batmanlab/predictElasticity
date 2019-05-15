@@ -172,3 +172,79 @@ class ResNetUNet(nn.Module):
         out = self.conv_last(x)
 
         return out
+
+
+class UNet_Partial(nn.Module):
+
+    def __init__(self, n_class, cap=16):
+        super().__init__()
+
+        self.dconv_down1 = double_conv(3, cap)
+        self.dconv_down2 = double_conv(cap, cap)
+        self.dconv_down3 = double_conv(cap, cap)
+        self.dconv_down4 = double_conv(cap, cap)
+        self.dconv_down5 = double_conv(cap, cap)
+        self.dconv_down6 = double_conv(cap, cap)
+        self.dconv_down7 = double_conv(cap, cap)
+
+        self.maxpool = nn.MaxPool2d(2)
+        self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+
+        self.dconv_up6 = double_conv(cap + cap, cap)
+        self.dconv_up5 = double_conv(cap + cap, cap)
+        self.dconv_up4 = double_conv(cap + cap, cap)
+        self.dconv_up3 = double_conv(cap + cap, cap)
+        self.dconv_up2 = double_conv(cap + cap, cap)
+        self.dconv_up1 = double_conv(cap + cap, cap)
+
+        self.conv_last = nn.Conv2d(cap, n_class, 1)
+
+    def forward(self, x):
+        conv1 = self.dconv_down1(x)
+        x = self.maxpool(conv1)
+
+        conv2 = self.dconv_down2(x)
+        x = self.maxpool(conv2)
+
+        conv3 = self.dconv_down3(x)
+        x = self.maxpool(conv3)
+
+        conv4 = self.dconv_down4(x)
+        x = self.maxpool(conv4)
+
+        conv5 = self.dconv_down5(x)
+        x = self.maxpool(conv5)
+
+        conv6 = self.dconv_down6(x)
+        x = self.maxpool(conv6)
+
+        x = self.dconv_down7(x)
+
+        x = self.upsample(x)
+        x = torch.cat([x, conv6], dim=1)
+
+        x = self.dconv_up6(x)
+        x = self.upsample(x)
+        x = torch.cat([x, conv5], dim=1)
+
+        x = self.dconv_up5(x)
+        x = self.upsample(x)
+        x = torch.cat([x, conv4], dim=1)
+
+        x = self.dconv_up4(x)
+        x = self.upsample(x)
+        x = torch.cat([x, conv3], dim=1)
+
+        x = self.dconv_up3(x)
+        x = self.upsample(x)
+        # x = torch.cat([x, conv2], dim=1)
+
+        # x = self.dconv_up2(x)
+        # x = self.upsample(x)
+        # x = torch.cat([x, conv1], dim=1)
+
+        # x = self.dconv_up1(x)
+
+        # out = self.conv_last(x)
+
+        return x
