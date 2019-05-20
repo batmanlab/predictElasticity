@@ -3,6 +3,19 @@ import torch
 import torch.nn as nn
 from torchvision import models
 from tensorboardX import SummaryWriter
+from mre.CoordConv import CoordConv
+
+
+def double_cord_conv(in_channels, out_channels):
+    return nn.Sequential(
+        CoordConv(in_channels, out_channels, False, kernel_size=3, padding=1),
+        # nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
+        nn.BatchNorm2d(out_channels),
+        nn.ReLU(inplace=True),
+        nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
+        nn.BatchNorm2d(out_channels),
+        nn.ReLU(inplace=True)
+    )
 
 
 def double_conv(in_channels, out_channels):
@@ -21,7 +34,8 @@ class UNet(nn.Module):
     def __init__(self, n_class, cap=16):
         super().__init__()
 
-        self.dconv_down1 = double_conv(3, cap)
+        self.dconv_down1 = double_cord_conv(3, cap)
+        # self.dconv_down1 = double_conv(3, cap)
         self.dconv_down2 = double_conv(cap, cap)
         self.dconv_down3 = double_conv(cap, cap)
         self.dconv_down4 = double_conv(cap, cap)
@@ -176,7 +190,7 @@ class ResNetUNet(nn.Module):
 
 class UNet_Partial(nn.Module):
 
-    def __init__(self, n_class, cap=16):
+    def __init__(self, n_class, cap=16, stage='late'):
         super().__init__()
 
         self.dconv_down1 = double_conv(3, cap)
@@ -198,6 +212,7 @@ class UNet_Partial(nn.Module):
         self.dconv_up1 = double_conv(cap + cap, cap)
 
         self.conv_last = nn.Conv2d(cap, n_class, 1)
+        self.stage = stage
 
     def forward(self, x):
         conv1 = self.dconv_down1(x)
@@ -205,6 +220,8 @@ class UNet_Partial(nn.Module):
 
         conv2 = self.dconv_down2(x)
         x = self.maxpool(conv2)
+        if self.stage == 'early':
+            return x
 
         conv3 = self.dconv_down3(x)
         x = self.maxpool(conv3)
@@ -214,6 +231,8 @@ class UNet_Partial(nn.Module):
 
         conv5 = self.dconv_down5(x)
         x = self.maxpool(conv5)
+        if self.stage == 'mid':
+            return x
 
         conv6 = self.dconv_down6(x)
         x = self.maxpool(conv6)
@@ -237,6 +256,8 @@ class UNet_Partial(nn.Module):
 
         x = self.dconv_up3(x)
         x = self.upsample(x)
+        if self.stage == 'late':
+            return x
         # x = torch.cat([x, conv2], dim=1)
 
         # x = self.dconv_up2(x)

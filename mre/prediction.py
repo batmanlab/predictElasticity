@@ -40,10 +40,10 @@ class MREDataset(Dataset):
             input_set = list(test)
         elif set_type == 'val':
             # input_set = xa_ds.subject_2d[2:20]
-            input_set = list(shuffle_list[0:7])
+            input_set = list(shuffle_list[0:8])
         elif set_type == 'train':
             # input_set = xa_ds.subject_2d[:2]
-            input_set = list(shuffle_list[7:])
+            input_set = list(shuffle_list[8:])
         else:
             raise AttributeError('Must choose one of ["train", "val", "test"] for `set_type`.')
 
@@ -82,9 +82,9 @@ class MREDataset(Dataset):
         mask = self.mask_images[idx]
         if self.transform:
             if self.aug:
-                rot_angle = np.random.uniform(-5, 5, 1)
-                translations = np.random.uniform(-10, 10, 2)
-                scale = np.random.uniform(0.9, 1.1, 1)
+                rot_angle = np.random.uniform(-8, 8, 1)
+                translations = np.random.uniform(-15, 15, 2)
+                scale = np.random.uniform(0.85, 1.15, 1)
             else:
                 rot_angle = 0
                 translations = (0, 0)
@@ -279,7 +279,7 @@ def add_LOO_predictions(ds, path='/pghbio/dbmi/batmanlab/Data/MRE/', version='20
         test_dl = DataLoader(test_set, batch_size=1, shuffle=False, num_workers=0)
 
         model_path = path+f'{subj}/model_{version}.pkl'
-        model = pytorch_unet_tb.UNet(1, cap=16)
+        model = pytorch_unet_tb.UNet(1, cap=12)
         model.load_state_dict(torch.load(model_path))
         model.eval()
 
