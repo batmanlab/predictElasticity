@@ -84,9 +84,9 @@ class MREDataset(Dataset):
         mask = self.mask_images[idx]
         if self.transform:
             if self.aug:
-                rot_angle = np.random.uniform(-8, 8, 1)
-                translations = np.random.uniform(-15, 15, 2)
-                scale = np.random.uniform(0.85, 1.15, 1)
+                rot_angle = np.random.uniform(-4, 4, 1)
+                translations = np.random.uniform(-5, 5, 2)
+                scale = np.random.uniform(0.95, 1.05, 1)
             else:
                 rot_angle = 0
                 translations = (0, 0)
@@ -203,8 +203,6 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                 with torch.set_grad_enabled(phase == 'train'):
                     outputs = model(inputs)
                     loss = calc_loss(outputs, labels, masks, metrics)
-                    if tb_writer:
-                        tb_writer.add_scalar(f'loss_{phase}', loss, total_iter)
                     # backward + optimize only if in training phase
                     if phase == 'train':
                         loss.backward()
@@ -221,6 +219,8 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                     print("saving best model")
                 best_loss = epoch_loss
                 best_model_wts = copy.deepcopy(model.state_dict())
+            if tb_writer:
+                tb_writer.add_scalar(f'loss_{phase}', loss, epoch)
         if verbose:
             time_elapsed = time.time() - since
             print('{:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
@@ -249,8 +249,7 @@ def gen_LOO_models(ds, save_dir, trans=True, clip=True, cap=16, version=None, ve
                                 sampler=RandomSampler(train_set, replacement=True, num_samples=200),
                                 num_workers=0),
 
-            'val': DataLoader(val_set, batch_size=batch_size, shuffle=False,
-                              sampler=RandomSampler(val_set, replacement=True, num_samples=40),
+            'val': DataLoader(val_set, batch_size=batch_size, shuffle=True,
                               num_workers=0),
 
             'test': DataLoader(test_set, batch_size=batch_size, shuffle=True, num_workers=0)
@@ -262,10 +261,10 @@ def gen_LOO_models(ds, save_dir, trans=True, clip=True, cap=16, version=None, ve
         model = pytorch_unet_tb.UNet(1, cap=cap).to(device)
 
         optimizer_ft = optim.Adam(model.parameters(), lr=1e-2)
-        exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=25, gamma=0.1)
+        exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=20, gamma=0.1)
         writer = SummaryWriter(f'runs/{version}_subj_{subj}')
         model = train_model(model, optimizer_ft, exp_lr_scheduler, device, dataloaders,
-                            num_epochs=60, tb_writer=writer, verbose=verbose)
+                            num_epochs=45, tb_writer=writer, verbose=verbose)
         writer.close()
         model.to('cpu')
         torch.save(model.state_dict(), save_dir+f'/{subj}/model_{version}.pkl')
