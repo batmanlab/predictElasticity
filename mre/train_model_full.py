@@ -37,6 +37,8 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
     # Load config and data
     cfg = process_kwargs(kwargs)
     ds = pkl.load(open(Path(data_path, data_file), 'rb'))
+    if verbose:
+        print(ds)
     subj = cfg['subj']
     batch_size = cfg['batch_size']
 
@@ -99,7 +101,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         model_dir = Path(output_path, 'trained_models', subj)
         writer_dir.mkdir(parents=True, exist_ok=True)
         model_dir.mkdir(parents=True, exist_ok=True)
-        writer = SummaryWriter(writer_dir+f'/{model_version}_subj_{subj}')
+        writer = SummaryWriter(str(writer_dir)+f'/{model_version}_subj_{subj}')
 
         # Train Model
         model = train_model(model, optimizer, exp_lr_scheduler, device, dataloaders,
@@ -108,13 +110,13 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         # Write outputs and save model
         writer.close()
         model.to('cpu')
-        torch.save(model.state_dict(), model_dir+f'/model_{model_version}.pkl')
+        torch.save(model.state_dict(), str(model_dir)+f'/model_{model_version}.pkl')
 
 
 def process_kwargs(kwargs):
     cfg = default_cfg()
-    for key, val in kwargs:
-        cfg[key] = val
+    for key in kwargs:
+        cfg[key] = kwargs[key]
     return cfg
 
 
@@ -122,7 +124,7 @@ def default_cfg():
     cfg = {'train_trans': True, 'train_clip': True, 'train_aug': True, 'train_sample': 'shuffle',
            'val_trans': True, 'val_clip': True, 'val_aug': False, 'val_sample': 'shuffle',
            'test_trans': True, 'test_clip': True, 'test_aug': False,
-           'subj': 162, 'batch_size': 50, 'model_cap': 16, 'lr': 1e-2, 'step_size': 20,
+           'subj': '162', 'batch_size': 50, 'model_cap': 16, 'lr': 1e-2, 'step_size': 20,
            'gamma': 0.1, 'num_epochs': 40, 'dry_run': False,
            }
     return cfg
@@ -138,16 +140,13 @@ if __name__ == "__main__":
                         default='/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data')
     parser.add_argument('--model_version', type=str, help='Name given to this set of configs'
                         'and corresponding model results.',
-                        default='test')
-    for key, val in default_cfg():
-        parser.add_argument(f'--{key}', action='store_const',
-                            const=val, default=val)
-
-    parser.add_argument('integers', metavar='N', type=int, nargs='+',
-                                            help='an integer for the accumulator')
-    parser.add_argument('--sum', dest='accumulate', action='store_const',
-                        const=sum, default=max,
-                        help='sum the integers (default: find the max)')
+                        default='tmp')
+    parser.add_argument('--verbose', type=bool, help='Verbose printouts.',
+                        default=True)
+    cfg = default_cfg()
+    for key in cfg:
+        parser.add_argument(f'--{key}', action='store', type=type(cfg[key]),
+                            default=cfg[key])
 
     args = parser.parse_args()
-    print(args.accumulate(args.integers))
+    train_model_full(**vars(args))
