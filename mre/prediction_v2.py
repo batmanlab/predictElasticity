@@ -285,7 +285,7 @@ def add_LOO_predictions(ds, path='/pghbio/dbmi/batmanlab/Data/MRE/', version='20
         test_dl = DataLoader(test_set, batch_size=1, shuffle=False, num_workers=0)
 
         model_path = path+f'{subj}/model_{version}.pkl'
-        model = pytorch_unet_tb.UNet(1, cap=16)
+        model = pytorch_unet_tb.UNet(1, cap=12)
         model.load_state_dict(torch.load(model_path), strict=True)
         model.eval()
 
