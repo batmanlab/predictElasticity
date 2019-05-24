@@ -96,10 +96,12 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         summary(model, input_size=(inputs.shape[1:]))
 
     else:
-        # Tensorboardx writer and model paths
+        # Tensorboardx writer, model, config paths
         writer_dir = Path(output_path, 'tb_runs')
+        config_dir = Path(output_path, 'config')
         model_dir = Path(output_path, 'trained_models', subj)
         writer_dir.mkdir(parents=True, exist_ok=True)
+        config_dir.mkdir(parents=True, exist_ok=True)
         model_dir.mkdir(parents=True, exist_ok=True)
         writer = SummaryWriter(str(writer_dir)+f'/{model_version}_subj_{subj}')
 
@@ -108,6 +110,10 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
                             num_epochs=cfg['num_epochs'], tb_writer=writer, verbose=verbose)
 
         # Write outputs and save model
+        config_file = Path(config_dir, f'{model_version}_subj_{subj}.pkl')
+        with open(config_file, 'wb') as f:
+            pkl.dump(cfg, f, pkl.HIGHEST_PROTOCOL)
+
         writer.close()
         model.to('cpu')
         torch.save(model.state_dict(), str(model_dir)+f'/model_{model_version}.pkl')

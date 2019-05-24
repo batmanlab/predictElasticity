@@ -167,10 +167,8 @@ def print_metrics(metrics, epoch_samples, phase):
 
 def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25, tb_writer=None,
                 verbose=True):
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     best_model_wts = copy.deepcopy(model.state_dict())
     best_loss = 1e16
-    total_iter = 0
     for epoch in range(num_epochs):
         if verbose:
             print('Epoch {}/{}'.format(epoch, num_epochs - 1))
@@ -191,7 +189,7 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
             metrics = defaultdict(float)
             epoch_samples = 0
 
-            # for inputs, labels, masks in dataloaders[phase]:
+            # iterate through batches of data for each epoch
             for data in dataloaders[phase]:
                 inputs = data[0].to(device)
                 labels = data[1].to(device)
@@ -207,18 +205,20 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                     if phase == 'train':
                         loss.backward()
                         optimizer.step()
-                # statistics
+                # accrue total number of samples
                 epoch_samples += inputs.size(0)
-                total_iter += 1
+
             if verbose:
                 print_metrics(metrics, epoch_samples, phase)
             epoch_loss = metrics['loss'] / epoch_samples
-            # deep copy the model
+
+            # deep copy the model if is it best
             if phase == 'val' and epoch_loss < best_loss:
                 if verbose:
                     print("saving best model")
                 best_loss = epoch_loss
                 best_model_wts = copy.deepcopy(model.state_dict())
+
             if tb_writer:
                 tb_writer.add_scalar(f'loss_{phase}', loss, epoch)
         if verbose:
