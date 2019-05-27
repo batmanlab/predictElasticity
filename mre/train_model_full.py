@@ -106,10 +106,12 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         writer = SummaryWriter(str(writer_dir)+f'/{model_version}_subj_{subj}')
 
         # Train Model
-        model = train_model(model, optimizer, exp_lr_scheduler, device, dataloaders,
-                            num_epochs=cfg['num_epochs'], tb_writer=writer, verbose=verbose)
+        model, best_loss = train_model(model, optimizer, exp_lr_scheduler, device, dataloaders,
+                                       num_epochs=cfg['num_epochs'], tb_writer=writer,
+                                       verbose=verbose)
 
         # Write outputs and save model
+        cfg['best_loss'] = best_loss
         config_file = Path(config_dir, f'{model_version}_subj_{subj}.pkl')
         with open(config_file, 'wb') as f:
             pkl.dump(cfg, f, pkl.HIGHEST_PROTOCOL)

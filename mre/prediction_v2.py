@@ -229,7 +229,7 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
 
     # load best model weights
     model.load_state_dict(best_model_wts)
-    return model
+    return model, best_loss
 
 
 def gen_LOO_models(ds, save_dir, trans=True, clip=True, cap=16, version=None, verbose=False):

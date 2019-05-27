@@ -20,11 +20,12 @@ class SlurmMaster:
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self.parse_config()
 
-    def generate_slurm_script(self, number, conf):
+    def generate_slurm_script(self, number, conf, subj, date):
         '''Make a slurm submission script.'''
 
         arg_string = ' '.join(f'--{i}={conf[i]}' for i in conf)
-        script_name = f'/tmp/slurm_script_{self.date}_n{number}'
+        arg_string += f' --subj={subj} --model_version={date}_n{number}'
+        script_name = f'/tmp/slurm_script_{self.date}_n{number}_subj{subj}'
         script = open(script_name, 'w')
         script.write('#!/bin/bash\n')
         script.write('#SBATCH -A ac5616p\n')
@@ -50,26 +51,37 @@ class SlurmMaster:
 
     def parse_config(self):
         config = configparser.ConfigParser()
-        config.read('test_config.ini')
+        config.read('config_inis/test_config.ini')
         section = config.sections()[0]
         self.config_dict = {}
+        self.subj_list = {}
 
         # Iterate through config and convert all scalars to lists
         for c in config[section]:
             val = json.loads(config[section][c])
-            if type(val) == list:
-                self.config_dict[c] = val
+            if c == 'subj':
+                if type(val) == list:
+                    self.subj_list  = val
+                else:
+                    self.subj_list.append(val)
+
             else:
-                self.config_dict[c] = [val]
+                if type(val) == list:
+                    self.config_dict[c] = val
+                else:
+                    self.config_dict[c] = [val]
+        if len(self.subj_list) == 0:
+            self.subj_list.append('162')
 
         # Make every possible combo of config items
         self.config_combos = product_dict(**self.config_dict)
 
     def submit_scripts(self):
         for i, conf in enumerate(self.config_combos):
-            script_name = self.generate_slurm_script(i, conf)
-            print(script_name)
-            subprocess.call(f'sbatch {script_name}', shell=True)
+            for subj in self.subj_list:
+                script_name = self.generate_slurm_script(i, conf, subj, self.date)
+                print(script_name)
+                subprocess.call(f'sbatch {script_name}', shell=True)
 
 
 def product_dict(**kwargs):
