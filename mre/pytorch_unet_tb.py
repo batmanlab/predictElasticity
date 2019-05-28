@@ -31,11 +31,13 @@ def double_conv(in_channels, out_channels):
 
 class UNet(nn.Module):
 
-    def __init__(self, n_class, cap=16):
+    def __init__(self, n_class, cap=16, coord_conv=True):
         super().__init__()
 
-        self.dconv_down1 = double_cord_conv(3, cap)
-        # self.dconv_down1 = double_conv(3, cap)
+        if coord_conv:
+            self.dconv_down1 = double_cord_conv(3, cap)
+        else:
+            self.dconv_down1 = double_conv(3, cap)
         self.dconv_down2 = double_conv(cap, cap)
         self.dconv_down3 = double_conv(cap, cap)
         self.dconv_down4 = double_conv(cap, cap)

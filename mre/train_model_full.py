@@ -4,7 +4,10 @@ from pathlib import Path
 import warnings
 import argparse
 import pickle as pkl
+import numpy as np
+from itertools import chain
 import torch
+import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import RandomSampler
@@ -13,6 +16,7 @@ from tensorboardX import SummaryWriter
 from mre.prediction_v2 import MREDataset
 from mre.prediction_v2 import train_model
 from mre import pytorch_unet_tb
+from mre.robust_loss_pytorch import adaptive
 
 
 def train_model_full(data_path: str, data_file: str, output_path: str, model_version: str = 'tmp',
@@ -36,11 +40,14 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
     '''
     # Load config and data
     cfg = process_kwargs(kwargs)
+    if verbose:
+        print(cfg)
     ds = pkl.load(open(Path(data_path, data_file), 'rb'))
     if verbose:
         print(ds)
     subj = cfg['subj']
     batch_size = cfg['batch_size']
+    loss_type = cfg['loss']
 
     # Start filling dataloaders
     dataloaders = {}
@@ -77,10 +84,19 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         warnings.warn('Device is running on CPU, not GPU!')
 
     # Define model
-    model = pytorch_unet_tb.UNet(1, cap=cfg['model_cap']).to(device)
+    model = pytorch_unet_tb.UNet(1, cap=cfg['model_cap'], coord_conv=cfg['coord_conv']).to(device)
+
+    # Set up adaptive loss if selected
+    loss = None
+    if loss_type == 'robust':
+        n_dims = train_set.target_images.shape[-1]*train_set.target_images.shape[-2]
+        loss = adaptive.AdaptiveLossFunction(n_dims, np.float32)
+        loss_params = torch.nn.ParameterList(loss.parameters())
+        optimizer = optim.Adam(chain(model.parameters(), loss_params), lr=cfg['lr'])
+    else:
+        optimizer = optim.Adam(model.parameters(), lr=cfg['lr'])
 
     # Define optimizer
-    optimizer = optim.Adam(model.parameters(), lr=cfg['lr'])
     exp_lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=cfg['step_size'],
                                                  gamma=cfg['gamma'])
 
@@ -108,7 +124,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         # Train Model
         model, best_loss = train_model(model, optimizer, exp_lr_scheduler, device, dataloaders,
                                        num_epochs=cfg['num_epochs'], tb_writer=writer,
-                                       verbose=verbose)
+                                       verbose=verbose, loss_func=loss)
 
         # Write outputs and save model
         cfg['best_loss'] = best_loss
@@ -124,8 +140,20 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
 def process_kwargs(kwargs):
     cfg = default_cfg()
     for key in kwargs:
-        cfg[key] = kwargs[key]
+        val = str2bool(kwargs[key])
+        cfg[key] = val
     return cfg
+
+
+def str2bool(val):
+    if type(val) is not str:
+        return val
+    elif val.lower() in ("yes", "true", "t"):
+        return True
+    elif val.lower() in ("no", "false", "f"):
+        return False
+    else:
+        return val
 
 
 def default_cfg():
@@ -133,7 +161,7 @@ def default_cfg():
            'val_trans': True, 'val_clip': True, 'val_aug': False, 'val_sample': 'shuffle',
            'test_trans': True, 'test_clip': True, 'test_aug': False,
            'subj': '162', 'batch_size': 50, 'model_cap': 16, 'lr': 1e-2, 'step_size': 20,
-           'gamma': 0.1, 'num_epochs': 40, 'dry_run': False,
+           'gamma': 0.1, 'num_epochs': 40, 'dry_run': False, 'coord_conv': True, 'loss': 'l2',
            }
     return cfg
 
@@ -153,8 +181,13 @@ if __name__ == "__main__":
                         default=True)
     cfg = default_cfg()
     for key in cfg:
-        parser.add_argument(f'--{key}', action='store', type=type(cfg[key]),
-                            default=cfg[key])
+        val = str2bool(cfg[key])
+        if type(val) is bool:
+            parser.add_argument(f'--{key}', action='store', type=str2bool,
+                                default=val)
+        else:
+            parser.add_argument(f'--{key}', action='store', type=type(val),
+                                default=val)
 
     args = parser.parse_args()
     train_model_full(**vars(args))

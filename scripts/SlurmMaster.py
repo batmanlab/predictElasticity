@@ -6,18 +6,21 @@
 import sys
 import os
 from pathlib import Path
+import argparse
 import configparser
 import json
+import ast
 import subprocess
 import itertools
 from datetime import datetime
 
 
 class SlurmMaster:
-    def __init__(self):
+    def __init__(self, config):
         self.date = datetime.today().strftime('%Y-%m-%d_%H-%M-%S')
         self.log_dir = Path('/pylon5/ac5616p/bpollack/mre_slurm', self.date)
         self.log_dir.mkdir(parents=True, exist_ok=True)
+        self.config = Path(config)
         self.parse_config()
 
     def generate_slurm_script(self, number, conf, subj, date):
@@ -44,21 +47,23 @@ class SlurmMaster:
         script.write('conda activate new_mre\n')
         script.write('\n')
 
-        script.write(f'python mre/train_model_full.py {arg_string}\n')
+        script.write(f'python /pghbio/dbmi/batmanlab/bpollack/predictElasticity/'
+                     f'mre/train_model_full.py {arg_string}\n')
 
         script.close()
         return script_name
 
     def parse_config(self):
         config = configparser.ConfigParser()
-        config.read('config_inis/test_config.ini')
+        # config.read('config_inis/test_config.ini')
+        config.read(str(self.config))
         section = config.sections()[0]
         self.config_dict = {}
         self.subj_list = {}
 
         # Iterate through config and convert all scalars to lists
         for c in config[section]:
-            val = json.loads(config[section][c])
+            val = ast.literal_eval(config[section][c])
             if c == 'subj':
                 if type(val) == list:
                     self.subj_list  = val
@@ -94,5 +99,9 @@ def product_dict(**kwargs):
 
 
 if __name__ == "__main__":
-    SM = SlurmMaster()
+    parser = argparse.ArgumentParser(description='Submit a series of SLURM jobs.')
+    parser.add_argument('config', type=str, help='Path to config_file.')
+    args = parser.parse_args()
+
+    SM = SlurmMaster(args.config)
     SM.submit_scripts()

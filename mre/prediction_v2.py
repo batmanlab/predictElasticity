@@ -12,6 +12,7 @@ import time
 import copy
 from mre import pytorch_unet_tb
 from mre.plotting import hv_dl_vis
+from mre.robust_loss_pytorch import adaptive
 import warnings
 from datetime import datetime
 from tqdm import tqdm_notebook
@@ -127,6 +128,15 @@ class MREDataset(Dataset):
         return torch.cat((image0, image1, image2))
 
 
+def masked_resid(pred, target, mask):
+    pred = pred.contiguous()
+    target = target.contiguous()
+    mask = mask.contiguous()
+
+    resid = (pred - target)*mask
+    return torch.flatten(resid, start_dim=1)
+
+
 def masked_mse(pred, target, mask):
     pred = pred.contiguous()
     target = target.contiguous()
@@ -139,16 +149,13 @@ def masked_mse(pred, target, mask):
     return masked_mse
 
 
-def calc_loss(pred, target, mask, metrics, bce_weight=0.5):
+def calc_loss(pred, target, mask, metrics, loss_func=None):
 
-    # bce = F.binary_cross_entropy_with_logits(pred, target)
-
-    # pred = F.sigmoid(pred)
-    # dice = dice_loss(pred, target)
-
-    # loss = bce * bce_weight + dice * (1 - bce_weight)
-    # loss = F.mse_loss(pred, target)
-    loss = masked_mse(pred, target, mask)
+    if loss_func is None:
+        loss = masked_mse(pred, target, mask)
+    else:
+        resid = masked_resid(pred, target, mask)
+        loss = torch.sum(loss_func.lossfun(resid))/mask.ceil().sum()
 
     # metrics['bce'] += bce.data.cpu().numpy() * target.size(0)
     # metrics['dice'] += dice.data.cpu().numpy() * target.size(0)
@@ -166,7 +173,7 @@ def print_metrics(metrics, epoch_samples, phase):
 
 
 def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25, tb_writer=None,
-                verbose=True):
+                verbose=True, loss_func=None):
     best_model_wts = copy.deepcopy(model.state_dict())
     best_loss = 1e16
     for epoch in range(num_epochs):
@@ -200,7 +207,7 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                 # track history if only in train
                 with torch.set_grad_enabled(phase == 'train'):
                     outputs = model(inputs)
-                    loss = calc_loss(outputs, labels, masks, metrics)
+                    loss = calc_loss(outputs, labels, masks, metrics, loss_func)
                     # backward + optimize only if in training phase
                     if phase == 'train':
                         loss.backward()
