@@ -12,7 +12,7 @@ import time
 import copy
 from mre import pytorch_unet_tb
 from mre.plotting import hv_dl_vis
-from mre.robust_loss_pytorch import adaptive
+from robust_loss_pytorch import adaptive
 import warnings
 from datetime import datetime
 from tqdm import tqdm_notebook
@@ -25,7 +25,7 @@ from tensorboardX import SummaryWriter
 
 class MREDataset(Dataset):
     def __init__(self, xa_ds, set_type='train', transform=None, clip=False, seed=100, test='162',
-                 aug=True):
+                 aug=True, mask_mixer='mixed', mask_trimmer=False):
         # inputs = ['T1Pre', 'T1Pos', 'T2SS', 'T2FR']
         inputs = ['T1Pre', 'T1Pos', 'T2SS']
         targets = ['elast']
@@ -58,7 +58,17 @@ class MREDataset(Dataset):
         xa_ds = xa_ds.stack(subject_2d=('subject', 'z')).reset_index('subject_2d')
         subj_2d_coords = [f'{i.subject.values}_{i.z.values}' for i in xa_ds.subject_2d]
         xa_ds = xa_ds.assign_coords(subject_2d=subj_2d_coords)
-        self.name_dict = dict(zip(range(len(subj_2d_coords)), subj_2d_coords))
+
+        # Remove data that doesn't have enough target pixels
+        if mask_trimmer:
+            bad_subj2d = []
+            for subj2d in xa_ds.subject_2d.values:
+                tmp_msk = xa_ds.sel(subject_2d=subj2d, sequence=masks).image
+                mask_val = np.max(np.unique(tmp_msk))
+                if tmp_msk.where(tmp_msk >= mask_val).sum()/mask_val < 1000:
+                    bad_subj2d.append(subj2d)
+            xa_ds = xa_ds.drop(bad_subj2d, dim='subject_2d')
+        self.name_dict = dict(zip(range(len(xa_ds.subject_2d)), xa_ds.subject_2d.values))
 
         self.input_images = xa_ds.sel(sequence=inputs).transpose(
             'subject_2d', 'sequence', 'y', 'x').image.values
@@ -70,11 +80,20 @@ class MREDataset(Dataset):
         self.aug = aug
         self.clip = clip
         self.names = xa_ds.subject_2d.values
+        self.mask_mixer = mask_mixer
 
     def __len__(self):
         return len(self.input_images)
 
     def __getitem__(self, idx):
+        mask = self.mask_images[idx]
+        if self.mask_mixer == 'mixed':
+            pass
+        elif self.mask_mixer == 'intersection':
+            mask = np.where(mask >= 0.5, 1.0, 0.0).astype(mask.dtype)
+        elif self.mask_mixer == 'union':
+            mask = np.where(mask > 0, 1.0, 0.0).astype(mask.dtype)
+
         image = self.input_images[idx]
         target = self.target_images[idx]
         if self.clip:
@@ -82,7 +101,7 @@ class MREDataset(Dataset):
             image[1, :, :]  = np.where(image[1, :, :] >= 1250, 1250, image[1, :, :])
             image[2, :, :]  = np.where(image[2, :, :] >= 600, 600, image[2, :, :])
             target = np.float32(np.digitize(target, list(range(0, 20000, 200))+[1e6]))
-        mask = self.mask_images[idx]
+
         if self.transform:
             if self.aug:
                 rot_angle = np.random.uniform(-4, 4, 1)
@@ -228,6 +247,11 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
 
             if tb_writer:
                 tb_writer.add_scalar(f'loss_{phase}', loss, epoch)
+                if loss_func is not None:
+                    alpha = loss_func.alpha()[0, 0].detach().numpy()
+                    scale = loss_func.scale()[0, 0].detach().numpy()
+                    tb_writer.add_scalar(f'alpha', alpha, epoch)
+                    tb_writer.add_scalar(f'scale', scale, epoch)
         if verbose:
             time_elapsed = time.time() - since
             print('{:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))

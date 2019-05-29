@@ -16,7 +16,7 @@ from tensorboardX import SummaryWriter
 from mre.prediction_v2 import MREDataset
 from mre.prediction_v2 import train_model
 from mre import pytorch_unet_tb
-from mre.robust_loss_pytorch import adaptive
+from robust_loss_pytorch import adaptive
 
 
 def train_model_full(data_path: str, data_file: str, output_path: str, model_version: str = 'tmp',
@@ -52,11 +52,21 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
     # Start filling dataloaders
     dataloaders = {}
     train_set = MREDataset(ds, set_type='train', transform=cfg['train_trans'],
-                           clip=cfg['train_clip'], aug=cfg['train_aug'], test=subj)
+                           clip=cfg['train_clip'], aug=cfg['train_aug'],
+                           mask_trimmer=cfg['mask_trimmer'], mask_mixer=cfg['mask_mixer'],
+                           test=subj)
     val_set = MREDataset(ds, set_type='val', transform=cfg['val_trans'],
-                         clip=cfg['val_clip'], aug=cfg['val_aug'], test=subj)
+                         clip=cfg['val_clip'], aug=cfg['val_aug'],
+                         mask_trimmer=cfg['mask_trimmer'], mask_mixer=cfg['mask_mixer'],
+                         test=subj)
     test_set = MREDataset(ds, set_type='test', transform=cfg['test_trans'],
-                          clip=cfg['test_clip'], aug=cfg['test_aug'], test=subj)
+                          clip=cfg['test_clip'], aug=cfg['test_aug'],
+                          mask_trimmer=cfg['mask_trimmer'], mask_mixer=cfg['mask_mixer'],
+                          test=subj)
+    if verbose:
+        print('train: ', len(train_set))
+        print('val: ', len(val_set))
+        print('test: ', len(test_set))
     if cfg['train_sample'] == 'shuffle':
         dataloaders['train'] = DataLoader(train_set, batch_size=batch_size, shuffle=True,
                                           num_workers=0)
@@ -90,7 +100,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
     loss = None
     if loss_type == 'robust':
         n_dims = train_set.target_images.shape[-1]*train_set.target_images.shape[-2]
-        loss = adaptive.AdaptiveLossFunction(n_dims, np.float32)
+        loss = adaptive.AdaptiveLossFunction(n_dims, np.float32, alpha_init=1.5, scale_lo=0.5)
         loss_params = torch.nn.ParameterList(loss.parameters())
         optimizer = optim.Adam(chain(model.parameters(), loss_params), lr=cfg['lr'])
     else:
@@ -110,6 +120,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
 
         print('Model Summary:')
         summary(model, input_size=(inputs.shape[1:]))
+        return inputs, targets, masks, names
 
     else:
         # Tensorboardx writer, model, config paths
@@ -128,13 +139,26 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
 
         # Write outputs and save model
         cfg['best_loss'] = best_loss
+        inputs, targets, masks, names = next(iter(dataloaders['test']))
+        model.eval()
+        model.to('cpu')
+        model_pred = model(inputs)
+        masked_target = targets.detach().numpy()*masks.numpy()
+        masked_pred = model_pred.detach().numpy()*masks.numpy()
+        test_mse = ((masked_target-masked_pred)**2).sum()/masks.numpy().sum()
+        cfg['test_mse'] = test_mse
+        masked_target = np.where(masked_target > 0, masked_target, np.nan)
+        masked_pred = np.where(masked_pred > 0, masked_pred, np.nan)
+        cfg['true_ave_stiff'] = np.nanmean(masked_target)
+        cfg['test_ave_stiff'] = np.nanmean(masked_pred)
+
         config_file = Path(config_dir, f'{model_version}_subj_{subj}.pkl')
         with open(config_file, 'wb') as f:
             pkl.dump(cfg, f, pkl.HIGHEST_PROTOCOL)
 
         writer.close()
-        model.to('cpu')
         torch.save(model.state_dict(), str(model_dir)+f'/model_{model_version}.pkl')
+        return inputs, targets, masks, names, model
 
 
 def process_kwargs(kwargs):
@@ -162,7 +186,7 @@ def default_cfg():
            'test_trans': True, 'test_clip': True, 'test_aug': False,
            'subj': '162', 'batch_size': 50, 'model_cap': 16, 'lr': 1e-2, 'step_size': 20,
            'gamma': 0.1, 'num_epochs': 40, 'dry_run': False, 'coord_conv': True, 'loss': 'l2',
-           }
+           'mask_trimmer': False, 'mask_mixer': 'mixed'}
     return cfg
 
 

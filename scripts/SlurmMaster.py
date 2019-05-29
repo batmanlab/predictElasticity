@@ -63,6 +63,7 @@ class SlurmMaster:
 
         # Iterate through config and convert all scalars to lists
         for c in config[section]:
+            print(c)
             val = ast.literal_eval(config[section][c])
             if c == 'subj':
                 if type(val) == list:
