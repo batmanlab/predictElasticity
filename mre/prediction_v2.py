@@ -309,14 +309,16 @@ def gen_LOO_models(ds, save_dir, trans=True, clip=True, cap=16, version=None, ve
 
 
 def add_LOO_predictions(ds, path='/pghbio/dbmi/batmanlab/Data/MRE/', version='2019-05-13_14-53-50',
-                        extra_name='extra3'):
+                        extra_name='extra3', mask_trimmer=False, mask_mixer='mixed', cap=12,
+                        coord_conv=False):
 
     for subj in tqdm_notebook(ds.coords['subject'].values, desc='Subject'):
-        test_set = MREDataset(ds, set_type='test', transform=True, clip=True, test=subj, aug=False)
+        test_set = MREDataset(ds, set_type='test', transform=True, clip=True, test=subj, aug=False,
+                              mask_mixer=mask_mixer, mask_trimmer=mask_trimmer)
         test_dl = DataLoader(test_set, batch_size=1, shuffle=False, num_workers=0)
 
-        model_path = path+f'{subj}/model_{version}.pkl'
-        model = pytorch_unet_tb.UNet(1, cap=12)
+        model_path = path+f'/{subj}/model_{version}.pkl'
+        model = pytorch_unet_tb.UNet(1, cap=cap, coord_conv=coord_conv)
         model.load_state_dict(torch.load(model_path), strict=True)
         model.eval()
 

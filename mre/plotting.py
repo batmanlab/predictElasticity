@@ -20,7 +20,10 @@ def grid_plots(ds, rows, cols, title=None, xlabel=None, ylabel=None):
     for i, row in enumerate(ds[rows]):
         for j, col in enumerate(ds[cols]):
             image = ds.sel(dict(zip([rows, cols], [row, col]))).image
-            axs[i][j].imshow(image)
+            if j in [3, 4]:
+                axs[i][j].imshow(image, vmin=0, vmax=9000)
+            else:
+                axs[i][j].imshow(image)
             plt.xticks([])
             plt.yticks([])
             if i == 0:
@@ -228,3 +231,37 @@ def hv_alpha_plots(ds, seq_list=None):
 
     return pn.Column(*slider_dict.values(), overlay)
     # return slider_dict, hv_dict, overlay, dmap_dict
+
+
+def hv_comp_plots(ds, seq_list=None, mask=None):
+    if seq_list is None:
+        seq_list = [seq for seq in ds.sequence.values if 'extra' not in seq]
+
+    hv_dict = {}
+    dmap_dict = {}
+
+    for i, seq in enumerate(seq_list):
+        hv_dict[seq] = hv.Dataset(ds['image'].sel(sequence=seq).copy())
+        dmap_dict[seq] = hv_dict[seq].to(hv.Image, groupby=['z', 'subject'], dynamic=True)
+        dmap_dict[seq] = dmap_dict[seq].opts(style=dict(cmap='viridis'),
+                                             plot=dict(width=500, height=500, tools=['hover']))
+        if seq in ['elast', 'elastMsk', 'mre_pred']:
+            dmap_dict[seq] = dmap_dict[seq].redim(image='mre')
+            dmap_dict[seq] = dmap_dict[seq].redim.range(mre=(0, 10000))
+        else:
+            dmap_dict[seq] = dmap_dict[seq].redim(image=f'image{i}')
+    if mask is not None:
+        hv_mask = hv.Dataset(ds['image'].sel(sequence=mask).copy())
+        dmap_mask = hv_mask.to(hv.Image, groupby=['z', 'subject'], dynamic=True)
+        dmap_mask = dmap_mask.opts(style=dict(cmap='reds'),
+                                   plot=dict(width=500, height=500, tools=[]))
+        slider = pn.widgets.FloatSlider(start=0, end=1, value=0.0, name='mask')
+        dmap_mask = dmap_mask.apply.opts(alpha=slider.param.value)
+        dmap_mask = dmap_mask.redim(image='mask')
+        dmap_mask = dmap_mask.redim.range(mask=(0, 2))
+        overlay = reduce((lambda x, y: x*dmap_mask + y*dmap_mask), dmap_dict.values())
+
+        return pn.Column(slider, hv.Layout(overlay).cols(3))
+    else:
+        overlay = reduce((lambda x, y: x + y), dmap_dict.values())
+        return pn.Column(hv.Layout(overlay).cols(3))
