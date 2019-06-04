@@ -39,6 +39,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         None
     '''
     # Load config and data
+    torch.manual_seed(100)
     cfg = process_kwargs(kwargs)
     if verbose:
         print(cfg)
@@ -54,14 +55,17 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
     train_set = MREDataset(ds, set_type='train', transform=cfg['train_trans'],
                            clip=cfg['train_clip'], aug=cfg['train_aug'],
                            mask_trimmer=cfg['mask_trimmer'], mask_mixer=cfg['mask_mixer'],
+                           target_max=cfg['target_max'], target_bins=cfg['target_bins'],
                            test=subj)
     val_set = MREDataset(ds, set_type='val', transform=cfg['val_trans'],
                          clip=cfg['val_clip'], aug=cfg['val_aug'],
                          mask_trimmer=cfg['mask_trimmer'], mask_mixer=cfg['mask_mixer'],
+                         target_max=cfg['target_max'], target_bins=cfg['target_bins'],
                          test=subj)
     test_set = MREDataset(ds, set_type='test', transform=cfg['test_trans'],
                           clip=cfg['test_clip'], aug=cfg['test_aug'],
                           mask_trimmer=cfg['mask_trimmer'], mask_mixer=cfg['mask_mixer'],
+                          target_max=cfg['target_max'], target_bins=cfg['target_bins'],
                           test=subj)
     if verbose:
         print('train: ', len(train_set))
@@ -94,13 +98,18 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         warnings.warn('Device is running on CPU, not GPU!')
 
     # Define model
-    model = pytorch_unet_tb.UNet(1, cap=cfg['model_cap'], coord_conv=cfg['coord_conv']).to(device)
+    if cfg['model_arch'] == 'base':
+        model = pytorch_unet_tb.UNet(1, cap=cfg['model_cap'],
+                                     coord_conv=cfg['coord_conv']).to(device)
+    elif cfg['model_arch'] == 'transfer':
+        model = pytorch_unet_tb.UNet_Transfer(1, cap=cfg['model_cap'],
+                                              coord_conv=cfg['coord_conv']).to(device)
 
     # Set up adaptive loss if selected
     loss = None
     if loss_type == 'robust':
         n_dims = train_set.target_images.shape[-1]*train_set.target_images.shape[-2]
-        loss = adaptive.AdaptiveLossFunction(n_dims, np.float32, alpha_init=1.5, scale_lo=0.5)
+        loss = adaptive.AdaptiveLossFunction(n_dims, np.float32, alpha_init=1.9, scale_lo=0.5)
         loss_params = torch.nn.ParameterList(loss.parameters())
         optimizer = optim.Adam(chain(model.parameters(), loss_params), lr=cfg['lr'])
     else:
@@ -119,8 +128,9 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         print('names', names)
 
         print('Model Summary:')
-        summary(model, input_size=(inputs.shape[1:]))
-        return inputs, targets, masks, names
+        summary(model, input_size=(3, 244, 244))
+        # summary(model, input_size=(inputs.shape[1:]))
+        return inputs, targets, masks, names, None
 
     else:
         # Tensorboardx writer, model, config paths
@@ -186,7 +196,8 @@ def default_cfg():
            'test_trans': True, 'test_clip': True, 'test_aug': False,
            'subj': '162', 'batch_size': 50, 'model_cap': 16, 'lr': 1e-2, 'step_size': 20,
            'gamma': 0.1, 'num_epochs': 40, 'dry_run': False, 'coord_conv': True, 'loss': 'l2',
-           'mask_trimmer': False, 'mask_mixer': 'mixed'}
+           'mask_trimmer': False, 'mask_mixer': 'mixed', 'target_max': None, 'target_bins': 100,
+           'model_arch': 'base'}
     return cfg
 
 

@@ -271,3 +271,20 @@ class UNet_Partial(nn.Module):
         # out = self.conv_last(x)
 
         return x
+
+
+class UNet_Transfer(nn.Module):
+    def __init__(self, n_class, cap=16, coord_conv=True):
+        super().__init__()
+        model_trans = models.resnet50(pretrained=True)
+        self.transfer_layers = nn.Sequential(*list(model_trans.children())[0:5])
+        # self.classifier = nn.Sequential(
+        #    *[list(model.classifier.children())[i] for i in [1, 2, 4, 5]],
+        #    nn.Linear(4096, num_classes),
+        #    nn.Sigmoid()
+        # )
+
+    def forward(self, x):
+        x = self.transfer_layers(x)
+        # x = self.classifier(x)
+        return x

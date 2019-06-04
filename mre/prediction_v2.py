@@ -25,7 +25,8 @@ from tensorboardX import SummaryWriter
 
 class MREDataset(Dataset):
     def __init__(self, xa_ds, set_type='train', transform=None, clip=False, seed=100, test='162',
-                 aug=True, mask_mixer='mixed', mask_trimmer=False):
+                 aug=True, mask_mixer='mixed', mask_trimmer=False,
+                 target_max=None, target_bins=100):
         # inputs = ['T1Pre', 'T1Pos', 'T2SS', 'T2FR']
         inputs = ['T1Pre', 'T1Pos', 'T2SS']
         targets = ['elast']
@@ -81,6 +82,8 @@ class MREDataset(Dataset):
         self.clip = clip
         self.names = xa_ds.subject_2d.values
         self.mask_mixer = mask_mixer
+        self.target_max = target_max
+        self.target_bins = target_bins
 
     def __len__(self):
         return len(self.input_images)
@@ -100,7 +103,13 @@ class MREDataset(Dataset):
             image[0, :, :]  = np.where(image[0, :, :] >= 700, 700, image[0, :, :])
             image[1, :, :]  = np.where(image[1, :, :] >= 1250, 1250, image[1, :, :])
             image[2, :, :]  = np.where(image[2, :, :] >= 600, 600, image[2, :, :])
-            target = np.float32(np.digitize(target, list(range(0, 20000, 200))+[1e6]))
+            if self.target_max is None:
+                target = np.float32(np.digitize(target, list(range(0, 20000, 200))+[1e6]))
+            else:
+                target = np.where(target >= self.target_max, self.target_max, target)
+                spacing = int(self.target_max/self.target_bins)
+                cut_points = list(range(0, self.target_max, spacing)) + [1e6]
+                target = np.float32(np.digitize(target, cut_points))
 
         if self.transform:
             if self.aug:
