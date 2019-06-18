@@ -233,7 +233,16 @@ def hv_alpha_plots(ds, seq_list=None):
     # return slider_dict, hv_dict, overlay, dmap_dict
 
 
-def hv_comp_plots(ds, seq_list=None, mask=None):
+def hv_comp_plots(ds, seq_list=None, mask=None, mask_trim=0):
+    opts.defaults(
+        opts.GridSpace(shared_xaxis=True, shared_yaxis=True),
+        opts.Image(cmap='viridis', width=350, height=350, tools=['hover'], xaxis=None,
+                   yaxis=None),
+        opts.Labels(text_color='white', text_font_size='8pt', text_align='left',
+                    text_baseline='bottom'),
+        opts.Path(color='white'),
+        opts.Spread(width=600),
+        opts.Overlay(show_legend=False))
     if seq_list is None:
         seq_list = [seq for seq in ds.sequence.values if 'extra' not in seq]
 
@@ -252,6 +261,7 @@ def hv_comp_plots(ds, seq_list=None, mask=None):
             dmap_dict[seq] = dmap_dict[seq].redim(image=f'image{i}')
     if mask is not None:
         hv_mask = hv.Dataset(ds['image'].sel(sequence=mask).copy())
+        hv_mask.data = hv_mask.data.where(hv_mask.data > mask_trim)
         dmap_mask = hv_mask.to(hv.Image, groupby=['z', 'subject'], dynamic=True)
         dmap_mask = dmap_mask.opts(style=dict(cmap='reds'),
                                    plot=dict(width=500, height=500, tools=[]))

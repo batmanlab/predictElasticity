@@ -56,16 +56,19 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
                            clip=cfg['train_clip'], aug=cfg['train_aug'],
                            mask_trimmer=cfg['mask_trimmer'], mask_mixer=cfg['mask_mixer'],
                            target_max=cfg['target_max'], target_bins=cfg['target_bins'],
+                           resize=cfg['resize'],
                            test=subj)
     val_set = MREDataset(ds, set_type='val', transform=cfg['val_trans'],
                          clip=cfg['val_clip'], aug=cfg['val_aug'],
                          mask_trimmer=cfg['mask_trimmer'], mask_mixer=cfg['mask_mixer'],
                          target_max=cfg['target_max'], target_bins=cfg['target_bins'],
+                         resize=cfg['resize'],
                          test=subj)
     test_set = MREDataset(ds, set_type='test', transform=cfg['test_trans'],
                           clip=cfg['test_clip'], aug=cfg['test_aug'],
                           mask_trimmer=cfg['mask_trimmer'], mask_mixer=cfg['mask_mixer'],
                           target_max=cfg['target_max'], target_bins=cfg['target_bins'],
+                          resize=cfg['resize'],
                           test=subj)
     if verbose:
         print('train: ', len(train_set))
@@ -128,8 +131,8 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         print('names', names)
 
         print('Model Summary:')
-        summary(model, input_size=(3, 244, 244))
-        # summary(model, input_size=(inputs.shape[1:]))
+        # summary(model, input_size=(3, 224, 224))
+        summary(model, input_size=(inputs.shape[1:]))
         return inputs, targets, masks, names, None
 
     else:
@@ -197,7 +200,7 @@ def default_cfg():
            'subj': '162', 'batch_size': 50, 'model_cap': 16, 'lr': 1e-2, 'step_size': 20,
            'gamma': 0.1, 'num_epochs': 40, 'dry_run': False, 'coord_conv': True, 'loss': 'l2',
            'mask_trimmer': False, 'mask_mixer': 'mixed', 'target_max': None, 'target_bins': 100,
-           'model_arch': 'base'}
+           'model_arch': 'base', 'resize': False}
     return cfg
 
 

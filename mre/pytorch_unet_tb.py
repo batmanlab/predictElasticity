@@ -276,15 +276,82 @@ class UNet_Partial(nn.Module):
 class UNet_Transfer(nn.Module):
     def __init__(self, n_class, cap=16, coord_conv=True):
         super().__init__()
-        model_trans = models.resnet50(pretrained=True)
-        self.transfer_layers = nn.Sequential(*list(model_trans.children())[0:5])
-        # self.classifier = nn.Sequential(
-        #    *[list(model.classifier.children())[i] for i in [1, 2, 4, 5]],
-        #    nn.Linear(4096, num_classes),
-        #    nn.Sigmoid()
-        # )
+        self.model_trans = models.resnet50(pretrained=True)
+        self.transfer_layer1 = nn.Sequential(*list(self.model_trans.children())[0:3])
+        self.transfer_layer2 = nn.Sequential(*list(self.model_trans.children())[3:5])
+        if coord_conv:
+            self.dconv_down1 = double_cord_conv(256, cap)
+        else:
+            self.dconv_down1 = double_conv(256, cap)
+        self.dconv_down2 = double_conv(cap, cap)
+        self.dconv_down3 = double_conv(cap, cap)
+        self.dconv_down4 = double_conv(cap, cap)
+        self.dconv_down5 = double_conv(cap, cap)
+        self.dconv_down6 = double_conv(cap, cap)
+        self.dconv_down7 = double_conv(cap, cap)
+
+        self.maxpool = nn.MaxPool2d(2)
+        self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+
+        self.dconv_up6 = double_conv(cap + cap, cap)
+        self.dconv_up5 = double_conv(cap + 256, 256)
+        self.dconv_up4 = double_conv(cap + cap, cap)
+        self.dconv_up3 = double_conv(cap + cap, cap)
+        self.dconv_up2 = double_conv(cap + cap, cap)
+        self.dconv_up1 = double_conv(256 + 64, cap)
+
+        self.conv_last = nn.Conv2d(cap, n_class, 1)
 
     def forward(self, x):
-        x = self.transfer_layers(x)
-        # x = self.classifier(x)
+        t_layer1 = self.transfer_layer1(x)
+        t_layer2 = self.transfer_layer2(t_layer1)
+        x = self.maxpool(t_layer2)
+
+        conv1 = self.dconv_down1(x)
+        x = self.maxpool(conv1)
+
+        x = self.dconv_down2(x)
+        # x = self.maxpool(conv2)
+
+        # conv3 = self.dconv_down3(x)
+        # x = self.maxpool(conv3)
+
+        # x = self.dconv_down4(x)
+        # x = self.maxpool(conv4)
+
+        # conv5 = self.dconv_down5(x)
+        # x = self.maxpool(conv5)
+
+        # conv6 = self.dconv_down6(x)
+        # x = self.maxpool(conv6)
+
+        # x = self.dconv_down7(x)
+
+        x = self.upsample(x)
+        x = torch.cat([x, conv1], dim=1)
+
+        x = self.dconv_up6(x)
+        x = self.upsample(x)
+        x = torch.cat([x, t_layer2], dim=1)
+
+        x = self.dconv_up5(x)
+        x = self.upsample(x)
+        x = torch.cat([x, t_layer1], dim=1)
+
+        # x = self.dconv_up4(x)
+        # x = self.upsample(x)
+        # x = torch.cat([x, conv3], dim=1)
+
+        # x = self.dconv_up3(x)
+        # x = self.upsample(x)
+        # x = torch.cat([x, conv2], dim=1)
+
+        # x = self.dconv_up2(x)
+        # x = self.upsample(x)
+        # x = torch.cat([x, conv1], dim=1)
+
+        x = self.dconv_up1(x)
+
+        x = self.conv_last(x)
+
         return x

@@ -26,7 +26,7 @@ from tensorboardX import SummaryWriter
 class MREDataset(Dataset):
     def __init__(self, xa_ds, set_type='train', transform=None, clip=False, seed=100, test='162',
                  aug=True, mask_mixer='mixed', mask_trimmer=False,
-                 target_max=None, target_bins=100):
+                 target_max=None, target_bins=100, resize=False):
         # inputs = ['T1Pre', 'T1Pos', 'T2SS', 'T2FR']
         inputs = ['T1Pre', 'T1Pos', 'T2SS']
         targets = ['elast']
@@ -84,6 +84,7 @@ class MREDataset(Dataset):
         self.mask_mixer = mask_mixer
         self.target_max = target_max
         self.target_bins = target_bins
+        self.resize = resize
 
     def __len__(self):
         return len(self.input_images)
@@ -124,8 +125,17 @@ class MREDataset(Dataset):
             mask = self.affine_transform(mask[0], rot_angle, translations, scale)
             target = self.affine_transform(target[0], rot_angle, translations, scale)
 
-        # indexed_values = torch.Tensor(np.reshape(range(0, 256*256), (1, 256, 256)))
-        # image = torch.cat((image, indexed_values))
+        if self.resize:
+            image = transforms.ToPILImage()(image)
+            image = transforms.Resize((224, 224))(image)
+            image = transforms.ToTensor()(image)
+            target = transforms.ToPILImage()(target)
+            target = transforms.Resize((224, 224))(target)
+            target = transforms.ToTensor()(target)
+            mask = transforms.ToPILImage()(mask)
+            mask = transforms.Resize((224, 224))(mask)
+            mask = transforms.ToTensor()(mask)
+
         image = torch.Tensor(image)
         target = torch.Tensor(target)
         mask = torch.Tensor(mask)
