@@ -16,6 +16,7 @@ from tensorboardX import SummaryWriter
 from mre.prediction_v2 import MREDataset
 from mre.prediction_v2 import train_model
 from mre import pytorch_unet_tb
+from mre import pytorch_arch
 from robust_loss_pytorch import adaptive
 
 
@@ -107,6 +108,8 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
     elif cfg['model_arch'] == 'transfer':
         model = pytorch_unet_tb.UNet_Transfer(1, cap=cfg['model_cap'],
                                               coord_conv=cfg['coord_conv']).to(device)
+    elif cfg['model_arch'] == 'modular':
+        model = pytorch_arch.GeneralUNet(4, 3, 16, 1, False, cfg['coord_conv']).to(device)
 
     # Set up adaptive loss if selected
     loss = None

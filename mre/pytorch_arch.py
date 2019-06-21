@@ -34,12 +34,17 @@ def down_layer(in_channels, out_channels):
 
 
 class up_layer(nn.Module):
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels, channel_growth=True):
         '''Up layers require a class instead of a function in order to define a forward function
         that takes two inputs instead of 1 (for concat)'''
+        super().__init__()
 
-        # Note: may have to revist upsampling options (ConvTranspose2D instead of upsample)
-        self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+        # Note: may have to revist upsampling options (ConvTranspose2D might have padding issues?)
+        if channel_growth:
+            self.upsample = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2)
+        else:
+            self.upsample = nn.ConvTranspose2d(out_channels, out_channels, kernel_size=2, stride=2)
+
         self.dconv = double_conv(in_channels, out_channels)
 
     def forward(self, x1, x2):
@@ -75,7 +80,8 @@ class GeneralUNet(nn.Module):
         self.in_layer = double_conv(in_channels, out_channels_init, coord_conv)
         self.out_layer = nn.Conv2d(out_channels_init, out_channels_final, 1)
         self.maxpool = nn.MaxPool2d(2)
-        self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+        # self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+        # self.upsample = nn.ConvTranspose2d(
 
         if channel_growth:
             for i in range(n_layers):
@@ -84,10 +90,9 @@ class GeneralUNet(nn.Module):
                     down_layer(out_channels_init*(2**i),
                                out_channels_init*(2**(i+1)))
                 )
-
                 # Quarter number of channels for each up layer (due to concats)
                 self.up_layers.append(
-                    up_layer(out_channels_init*(2**(i+2)),
+                    up_layer(out_channels_init*(2**(i+1)),
                              out_channels_init*(2**i))
                 )
         else:
@@ -100,7 +105,7 @@ class GeneralUNet(nn.Module):
                 # Half number of channels for each up layer (due to concats)
                 self.up_layers.append(
                     up_layer(out_channels_init*2,
-                             out_channels_init)
+                             out_channels_init, channel_growth)
                 )
 
         # Reverse the order of up layers for easier iteration
