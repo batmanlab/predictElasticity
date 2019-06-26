@@ -56,7 +56,7 @@ class up_layer(nn.Module):
 
 class GeneralUNet(nn.Module):
     def __init__(self, n_layers, in_channels, out_channels_init, out_channels_final,
-                 channel_growth, coord_conv):
+                 channel_growth, coord_conv, transfer_layer=False):
         '''Generalized UNet class, meant to be highly modular.  Allows for variable number of layers
         and other features, but is less human-readable as a result.
 
@@ -75,13 +75,15 @@ class GeneralUNet(nn.Module):
         '''
         super().__init__()
 
+        self.transfer_layer = transfer_layer
+        if self.transfer_layer:
+            self.pretrained = PretrainedModel('resnet50')
+
         self.down_layers = nn.ModuleList()
         self.up_layers = nn.ModuleList()
         self.in_layer = double_conv(in_channels, out_channels_init, coord_conv)
         self.out_layer = nn.Conv2d(out_channels_init, out_channels_final, 1)
         self.maxpool = nn.MaxPool2d(2)
-        # self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-        # self.upsample = nn.ConvTranspose2d(
 
         if channel_growth:
             for i in range(n_layers):
@@ -112,14 +114,39 @@ class GeneralUNet(nn.Module):
         self.up_layers = self.up_layers[::-1]
 
     def forward(self, x):
+        if self.transfer_layer:
+            x = self.pretrained(x)
         skip_connects = []
+        # Generate the input layer and save for skip connection
         skip_connects.append(self.in_layer(x))
+        # Generate the down-sampling layers and save for skip connections
         for down in self.down_layers:
             skip_connects.append(down(skip_connects[-1]))
 
         # revese skip connects for easier iteration
         skip_connects = skip_connects[::-1]
         x = skip_connects[0]
+        # Generate the up-sampling layers and include skip connections
         for i, up in enumerate(self.up_layers):
             x = up(x, skip_connects[i+1])
+        # Return the final layer
         return self.out_layer(x)
+
+
+class PretrainedModel(nn.Module):
+    def __init__(self, arch_name):
+        super().__init__()
+        self.model_trans = models.resnet50(pretrained=True)
+        self.transfer_layer1 = nn.Sequential(*list(self.model_trans.children())[0:3])
+        self.transfer_layer2 = nn.Sequential(*list(self.model_trans.children())[3:5])
+        for param in self.transfer_layer1:
+            param.requires_grad = False
+        for param in self.transfer_layer2:
+            param.requires_grad = False
+
+    def forward(self, x):
+        t_layer1 = self.transfer_layer1(x)
+        t_layer2 = self.transfer_layer2(t_layer1)
+        r_layer1 = torch.reshape(t_layer1, (t_layer1.shape[0], -1, 224, 224))
+        r_layer2 = torch.reshape(t_layer2, (t_layer2.shape[0], -1, 224, 224))
+        return torch.cat([r_layer1, r_layer2], dim=1)

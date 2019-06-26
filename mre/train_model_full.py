@@ -106,10 +106,12 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         model = pytorch_unet_tb.UNet(1, cap=cfg['model_cap'],
                                      coord_conv=cfg['coord_conv']).to(device)
     elif cfg['model_arch'] == 'transfer':
-        model = pytorch_unet_tb.UNet_Transfer(1, cap=cfg['model_cap'],
-                                              coord_conv=cfg['coord_conv']).to(device)
+        model = pytorch_arch.PretrainedModel('name').to(device)
     elif cfg['model_arch'] == 'modular':
-        model = pytorch_arch.GeneralUNet(4, 3, 16, 1, False, cfg['coord_conv']).to(device)
+        # model = pytorch_arch.GeneralUNet(4, 3, 16, 1, False, cfg['coord_conv'],
+        #                                  transfer_layer=False).to(device)
+        model = pytorch_arch.GeneralUNet(4, 32, 8, 1, True, cfg['coord_conv'],
+                                         transfer_layer=True).to(device)
 
     # Set up adaptive loss if selected
     loss = None
