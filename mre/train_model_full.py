@@ -108,10 +108,11 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
     elif cfg['model_arch'] == 'transfer':
         model = pytorch_arch.PretrainedModel('name').to(device)
     elif cfg['model_arch'] == 'modular':
-        # model = pytorch_arch.GeneralUNet(4, 3, 16, 1, False, cfg['coord_conv'],
-        #                                  transfer_layer=False).to(device)
-        model = pytorch_arch.GeneralUNet(4, 32, 8, 1, True, cfg['coord_conv'],
-                                         transfer_layer=True).to(device)
+        model = pytorch_arch.GeneralUNet(cfg['n_layers'], cfg['in_channels'], cfg['model_cap'],
+                                         cfg['out_channels_final'], cfg['channel_growth'],
+                                         cfg['coord_conv'], cfg['transfer_layer']).to(device)
+        # model = pytorch_arch.GeneralUNet(4, 32, 8, 1, True, cfg['coord_conv'],
+        #                                  transfer_layer=True).to(device)
 
     # Set up adaptive loss if selected
     loss = None
@@ -149,6 +150,8 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         config_dir.mkdir(parents=True, exist_ok=True)
         model_dir.mkdir(parents=True, exist_ok=True)
         writer = SummaryWriter(str(writer_dir)+f'/{model_version}_subj_{subj}')
+        # Model graph is useless without additional tweaks to name layers appropriately
+        # writer.add_graph(model, torch.zeros(1, 3, 256, 256).to(device), verbose=True)
 
         # Train Model
         model, best_loss = train_model(model, optimizer, exp_lr_scheduler, device, dataloaders,
@@ -205,7 +208,9 @@ def default_cfg():
            'subj': '162', 'batch_size': 50, 'model_cap': 16, 'lr': 1e-2, 'step_size': 20,
            'gamma': 0.1, 'num_epochs': 40, 'dry_run': False, 'coord_conv': True, 'loss': 'l2',
            'mask_trimmer': False, 'mask_mixer': 'mixed', 'target_max': None, 'target_bins': 100,
-           'model_arch': 'base', 'resize': False}
+           'model_arch': 'base', 'n_layers': 3, 'in_channels': 3, 'out_channels_final': 1,
+           'channel_growth': False, 'transfer_layer': False,
+           'resize': False}
     return cfg
 
 

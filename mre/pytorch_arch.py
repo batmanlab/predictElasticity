@@ -140,9 +140,9 @@ class PretrainedModel(nn.Module):
         self.transfer_layer1 = nn.Sequential(*list(self.model_trans.children())[0:3])
         self.transfer_layer2 = nn.Sequential(*list(self.model_trans.children())[3:5])
         for param in self.transfer_layer1:
-            param.requires_grad = False
+            param.requires_grad = True
         for param in self.transfer_layer2:
-            param.requires_grad = False
+            param.requires_grad = True
 
     def forward(self, x):
         t_layer1 = self.transfer_layer1(x)
