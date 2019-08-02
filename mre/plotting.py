@@ -1,12 +1,15 @@
-import matplotlib.pyplot as plt
+from functools import reduce
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import xarray as xr
+import matplotlib.pyplot as plt
 import SimpleITK as sitk
 import panel as pn
 import holoviews as hv
 from holoviews import opts
-from functools import reduce
+from holoviews.operation.datashader import datashade, shade, dynspread, rasterize
+
 hv.extension('bokeh')
 
 
@@ -59,20 +62,20 @@ def hv_pred_comp(targets, predictions, masks, names):
                                       range(predictions.shape[3])
                                       ],
                               name='targets')
-    ds_mask_liver = xr.DataArray(np.where(masks<1e-6, np.nan, 1),
+    ds_mask_liver = xr.DataArray(np.where(masks < 1e-6, np.nan, 1),
                                  dims=['subject', 'sequence', 'y', 'x'],
                                  coords=[list(names), ['mask_liver'],
                                          range(0, -predictions.shape[2], -1),
                                          range(predictions.shape[3])
                                          ],
                                  name='mask_liver')
-    ds_mask_conf = xr.DataArray(np.where(masks<1, np.nan, 1),
-                                dims=['subject', 'sequence', 'y', 'x'],
-                                coords=[list(names), ['mask_conf'],
-                                        range(0, -predictions.shape[2], -1),
-                                        range(predictions.shape[3])
-                                        ],
-                                name='mask_liver')
+    # ds_mask_conf = xr.DataArray(np.where(masks < 1, np.nan, 1),
+    #                             dims=['subject', 'sequence', 'y', 'x'],
+    #                             coords=[list(names), ['mask_conf'],
+    #                                     range(0, -predictions.shape[2], -1),
+    #                                     range(predictions.shape[3])
+    #                                     ],
+    #                             name='mask_liver')
     ds_predictions = xr.DataArray(predictions,
                                   dims=['subject', 'sequence', 'y', 'x'],
                                   coords=[list(names), ['prediction'],
@@ -81,8 +84,10 @@ def hv_pred_comp(targets, predictions, masks, names):
                                           ],
                                   name='prediction')
     for subj in names:
-        print(np.nanmean(ds_mask_liver.sel(subject=subj).values*ds_targets.sel(subject=subj).values))
-        print(np.nanmean(ds_mask_liver.sel(subject=subj).values*ds_predictions.sel(subject=subj).values))
+        print(np.nanmean(ds_mask_liver.sel(subject=subj).values *
+                         ds_targets.sel(subject=subj).values))
+        print(np.nanmean(ds_mask_liver.sel(subject=subj).values *
+                         ds_predictions.sel(subject=subj).values))
 
 
 def hv_dl_vis(inputs, targets, masks, names, predictions=None):
@@ -275,3 +280,66 @@ def hv_comp_plots(ds, seq_list=None, mask=None, mask_trim=0):
     else:
         overlay = reduce((lambda x, y: x + y), dmap_dict.values())
         return pn.Column(hv.Layout(overlay).cols(3))
+
+
+def patient_series_viewer(path, patient, img_type='DICOM', info=''):
+    '''Similar to pybreast viewer, but must natively handle a mix of 2d, 3d, scalar, and vector'''
+
+    imopts = {'tools': ['hover'], 'width': 500, 'height': 500, 'cmap': 'viridis'}
+    full_path = Path(path, patient)
+
+    if img_type == 'NIFTI':
+        img_folders = full_path.iterdir()
+        reader = sitk.ImageFileReader()
+        reader.SetImageIO("NiftiImageIO")
+    elif img_type == 'DICOM':
+        img_folders = sorted(list(full_path.iterdir()), key=lambda a: int(a.stem[2:]))
+        reader = sitk.ImageSeriesReader()
+    else:
+        raise KeyError(f'img_type must be one of ["DICOM", "NIFTI"], got {img_type}')
+
+    hv_images = []
+    for img_files in img_folders:
+        print(img_files)
+        hvds_list = []
+        if img_type == 'DICOM':
+            dicom_names = reader.GetGDCMSeriesFileNames(str(img_files))
+            reader.SetFileNames(dicom_names)
+            reader.MetaDataDictionaryArrayUpdateOn()  # Get DICOM Info
+            reader.LoadPrivateTagsOn()  # Get DICOM Info
+            image = reader.Execute()
+            # description = reader.GetMetaData('0008|103e').strip()
+            description = img_files.stem
+        npimg = sitk.GetArrayFromImage(image)
+        print(npimg.shape)
+        if npimg.shape[0] == 1:
+            hv_images.append(hv.Image(npimg[0, :]).opts(**imopts, title=description))
+        # elif description in ['SE2']:
+        # elif description in ['SE13', 'SE1']:
+        elif npimg.shape[-1] > 3:
+            hvds_list.append(hv.Dataset(
+                (np.arange(npimg.shape[2]), np.arange(npimg.shape[1]), np.arange(npimg.shape[0]),
+                 npimg), [f'x{description}', f'y{description}', f'z{description}'],
+                f'MRI{description}'))
+            print(hvds_list[-1])
+            hv_images.append(hvds_list[-1].to(hv.Image, [f'x{description}', f'y{description}'],
+                                              groupby=[f'z{description}'],
+                                              dynamic=True).opts(**imopts, title=description))
+        else:
+            hv_images.append(hv.Image(npimg[0, :]).opts(**imopts, title=description))
+            # continue
+            # hvds_list.append(hv.Dataset(
+            #     (np.arange(npimg.shape[3]), np.arange(npimg.shape[2]), np.arange(npimg.shape[1]), np.arange(npimg.shape[0]),
+            #      npimg), [f'x{description}', f'y{description}', f'z{description}',
+            #               f'rgb{description}'],
+            #     f'MRI{description}'))
+            # print(hvds_list[-1])
+            # hv_images.append(hvds_list[-1].to(hv.RGB, [f'x{description}', f'y{description}'],
+            #                                   [f'rgb{description}'
+            #                                   groupby=[f'z{description}'],
+            #                                   dynamic=True).opts(**imopts, title=description))
+            # hvds.to(hv.Image, ['x', 'y'], groupby=['z'],
+            #         dynamic=False).opts(**imopts, title=description)
+    layout = [rasterize(i) for i in hv_images]
+    return hv.Layout(layout).opts(shared_axes=False, merge_tools=False, normalize=False,
+                                  title=' '.join([patient, info])).cols(3)
