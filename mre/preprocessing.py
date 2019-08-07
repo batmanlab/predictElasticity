@@ -403,35 +403,43 @@ def make_nifti_atlas(path=None):
                             path + f'/{subj}/{nifti_name}')
 
 
-def dicom_to_pandas(patient_path):
+def dicom_to_pandas(data_path, subdirs):
 
     def process_index(k):
         return tuple(k.split("_"))
 
-    img_folders = sorted(list(patient_path.iterdir()), key=lambda a: int(a.stem[2:]))
-    reader = sitk.ImageSeriesReader()
     s_list = []
-    for img_files in img_folders:
-        dicom_names = reader.GetGDCMSeriesFileNames(str(img_files))
-        reader.SetFileNames(dicom_names)
-        reader.MetaDataDictionaryArrayUpdateOn()  # Get DICOM Info
-        reader.LoadPrivateTagsOn()  # Get DICOM Info
-        reader.Execute()
-        # description = reader.GetMetaData('0008|103e').strip()
-        desc = img_files.stem
-        desc = re.match(r'(\D*)(\d*)', desc, re.I)
-        desc = ''.join([desc.groups()[0], desc.groups()[1].zfill(2)])
-        for i, name in enumerate(dicom_names):
-            name = Path(name).stem
-            name = re.match(r'(\D*)(\d*)', name, re.I)
-            name = ''.join([name.groups()[0], name.groups()[1].zfill(2)])
-            index = []
-            vals = []
-            for k in reader.GetMetaDataKeys(i):
-                v = reader.GetMetaData(i, k)
-                index.append(k)
-                vals.append(v)
-            s_list.append(pd.Series(index=index, data=vals, name=f'{desc}_{name}'))
+    for subdir in tqdm_notebook(subdirs, desc='subdir'):
+        semi_path = Path(data_path, subdir)
+        for patient in tqdm_notebook(list(semi_path.iterdir()), desc='patient'):
+            patient_path = Path(semi_path, patient, 'ST0')
+            img_folders = sorted(list(patient_path.iterdir()), key=lambda a: int(a.stem[2:]))
+            reader = sitk.ImageSeriesReader()
+            for img_files in img_folders:
+                dicom_names = reader.GetGDCMSeriesFileNames(str(img_files))
+                reader.SetFileNames(dicom_names)
+                reader.MetaDataDictionaryArrayUpdateOn()  # Get DICOM Info
+                reader.LoadPrivateTagsOn()  # Get DICOM Info
+                try:
+                    reader.Execute()
+                except RuntimeError as e:
+                    print(e)
+                    continue
+                pid = reader.GetMetaData(0, '0010|0010').strip()
+                desc = img_files.stem
+                desc = re.match(r'(\D*)(\d*)', desc, re.I)
+                desc = ''.join([desc.groups()[0], desc.groups()[1].zfill(2)])
+                for i, name in enumerate(dicom_names):
+                    name = Path(name).stem
+                    name = re.match(r'(\D*)(\d*)', name, re.I)
+                    name = ''.join([name.groups()[0], name.groups()[1].zfill(2)])
+                    index = []
+                    vals = []
+                    for k in reader.GetMetaDataKeys(i):
+                        v = reader.GetMetaData(i, k)
+                        index.append(k)
+                        vals.append(v)
+                    s_list.append(pd.Series(index=index, data=vals, name=f'{pid}_{desc}_{name}'))
     df = pd.concat(s_list, axis=1).T
     df.index = pd.MultiIndex.from_tuples([process_index(k) for k, v in df.iterrows()])
     df.sort_index(inplace=True)

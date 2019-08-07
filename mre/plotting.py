@@ -313,7 +313,7 @@ def patient_series_viewer(path, patient, img_type='DICOM', info=''):
         npimg = sitk.GetArrayFromImage(image)
         print(npimg.shape)
         if npimg.shape[0] == 1:
-            hv_images.append(hv.Image(npimg[0, :]).opts(**imopts, title=desc))
+            hv_images.append(hv.Image(npimg[0, :], label=desc).opts(**imopts))
         # elif desc in ['SE2']:
         # elif desc in ['SE13', 'SE1']:
         elif npimg.shape[-1] > 3:
@@ -324,9 +324,10 @@ def patient_series_viewer(path, patient, img_type='DICOM', info=''):
             print(hvds_list[-1])
             hv_images.append(hvds_list[-1].to(hv.Image, [f'x{desc}', f'y{desc}'],
                                               groupby=[f'z{desc}'],
-                                              dynamic=True).opts(**imopts, title=desc))
+                                              dynamic=True, label=desc).opts(**imopts,
+                                                                             invert_yaxis=True))
         else:
-            hv_images.append(hv.Image(npimg[0, :]).opts(**imopts, title=desc))
+            hv_images.append(hv.Image(npimg[0, :], label=desc).opts(**imopts))
             # continue
             # hvds_list.append(hv.Dataset(
             #     (np.arange(npimg.shape[3]), np.arange(npimg.shape[2]), np.arange(npimg.shape[1]), np.arange(npimg.shape[0]),
@@ -340,6 +341,6 @@ def patient_series_viewer(path, patient, img_type='DICOM', info=''):
             #                                   dynamic=True).opts(**imopts, title=desc))
             # hvds.to(hv.Image, ['x', 'y'], groupby=['z'],
             #         dynamic=False).opts(**imopts, title=desc)
-    layout = [rasterize(i) for i in hv_images]
-    return hv.Layout(layout).opts(shared_axes=False, merge_tools=False, normalize=False,
-                                  title=' '.join([patient, info])).cols(3)
+    # layout = [i for i in hv_images]
+    return hv.Layout(hv_images).opts(shared_axes=False, merge_tools=False, normalize=False,
+                                     title=' '.join([patient, info])).cols(2)
