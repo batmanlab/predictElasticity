@@ -308,8 +308,9 @@ def patient_series_viewer(path, patient, img_type='DICOM', info=''):
             reader.MetaDataDictionaryArrayUpdateOn()  # Get DICOM Info
             reader.LoadPrivateTagsOn()  # Get DICOM Info
             image = reader.Execute()
-            desc = reader.GetMetaData(0, '0008|103e').strip()
-            desc = ' '.join([img_files.stem, desc])
+            desc = reader.GetMetaData(0, '0008|103e').strip().encode('utf-8', 'ignore').decode()
+            pid = reader.GetMetaData(0, '0010|0010').strip()
+            desc = ' '.join([img_files.stem, desc, pid])
         npimg = sitk.GetArrayFromImage(image)
         print(npimg.shape)
         if npimg.shape[0] == 1:
@@ -343,4 +344,4 @@ def patient_series_viewer(path, patient, img_type='DICOM', info=''):
             #         dynamic=False).opts(**imopts, title=desc)
     # layout = [i for i in hv_images]
     return hv.Layout(hv_images).opts(shared_axes=False, merge_tools=False, normalize=False,
-                                     title=' '.join([patient, info])).cols(2)
+                                     title=' '.join([patient, info])).cols(3)

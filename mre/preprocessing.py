@@ -435,8 +435,13 @@ def dicom_to_pandas(data_path, subdirs):
                     name = ''.join([name.groups()[0], name.groups()[1].zfill(2)])
                     index = []
                     vals = []
+                    index.append('pathname')
+                    pathname = '/'.join(patient.parts[-2:])
+                    vals.append(pathname)
                     for k in reader.GetMetaDataKeys(i):
                         v = reader.GetMetaData(i, k)
+                        if type(v) == str:
+                            v = v.encode('utf-8', 'ignore').decode()
                         index.append(k)
                         vals.append(v)
                     s_list.append(pd.Series(index=index, data=vals, name=f'{pid}_{desc}_{name}'))
@@ -444,3 +449,217 @@ def dicom_to_pandas(data_path, subdirs):
     df.index = pd.MultiIndex.from_tuples([process_index(k) for k, v in df.iterrows()])
     df.sort_index(inplace=True)
     return df
+
+
+def dicom_to_nifti(data_path, subdirs):
+    '''Code for determining which dicom to keep, and then save it as a nifti.'''
+
+    for subdir in tqdm_notebook(subdirs, desc='subdir'):
+        semi_path = Path(data_path, subdir)
+        for patient in tqdm_notebook(list(semi_path.iterdir()), desc='patient'):
+            patient_path = Path(semi_path, patient, 'ST0')
+            img_folders = sorted(list(patient_path.iterdir()), key=lambda a: int(a.stem[2:]))
+            reader = sitk.ImageSeriesReader()
+
+            sel_dict = dict(t1_pre_water=False,
+                            t1_pre_fat=False,
+                            t1_pre_in=False,
+                            t1_pre_out=False,
+                            t1_pos_water=False,
+                            t1_pos_fat=False,
+                            t1_pos_in=False,
+                            t1_pos_out=False,
+                            t2=False,
+                            mre_raw=False,
+                            mre=False,
+                            mre_mask=False)
+
+            for img_files in img_folders:
+                dicom_names = reader.GetGDCMSeriesFileNames(str(img_files))
+                reader.SetFileNames(dicom_names)
+                reader.MetaDataDictionaryArrayUpdateOn()  # Get DICOM Info
+                reader.LoadPrivateTagsOn()  # Get DICOM Info
+                try:
+                    img = reader.Execute()
+                except RuntimeError as e:
+                    print(e)
+                    continue
+                pid = reader.GetMetaData(0, '0010|0010').strip()
+                desc = reader.GetMetaData(0, '0008|103e').strip().encode('utf-8',
+                                                                         'ignore').decode().lower()
+                # print(pid, desc, img.GetSize(), img.GetNumberOfComponentsPerPixel())
+
+                name = select_image(img, desc, sel_dict)
+                if name:
+                    # print(name)
+
+                    patient_path = Path(data_path, 'NIFTI', pid)
+                    patient_path.mkdir(exist_ok=True)
+
+                    sitk.WriteImage(img, str(patient_path) + '/' + name + '.nii')
+            # print(sel_dict)
+
+
+def select_image(img, desc, sel_dict):
+    if img.GetNumberOfComponentsPerPixel() == 3:
+        return False
+    elif 'cor' in desc:
+        return False
+
+    if not sel_dict['t1_pre_water'] and is_t1_pre_water(desc):
+        sel_dict['t1_pre_water'] = desc
+        return 't1_pre_water'
+
+    if not sel_dict['t1_pre_fat'] and is_t1_pre_fat(desc):
+        sel_dict['t1_pre_fat'] = desc
+        return 't1_pre_fat'
+
+    if not sel_dict['t1_pre_in'] and is_t1_pre_in(desc):
+        sel_dict['t1_pre_in'] = desc
+        return 't1_pre_in'
+
+    if not sel_dict['t1_pre_out'] and is_t1_pre_out(desc):
+        sel_dict['t1_pre_out'] = desc
+        return 't1_pre_out'
+
+    if not sel_dict['t1_pos_water'] and is_t1_pos_water(desc):
+        sel_dict['t1_pos_water'] = desc
+        return 't1_pos_water'
+
+    if not sel_dict['t1_pos_fat'] and is_t1_pos_fat(desc):
+        sel_dict['t1_pos_fat'] = desc
+        return 't1_pos_fat'
+
+    if not sel_dict['t1_pos_in'] and is_t1_pos_in(desc):
+        sel_dict['t1_pos_in'] = desc
+        return 't1_pos_in'
+
+    if not sel_dict['t1_pos_out'] and is_t1_pos_out(desc):
+        sel_dict['t1_pos_out'] = desc
+        return 't1_pos_out'
+
+    if not sel_dict['t2'] and is_t2(desc):
+        sel_dict['t2'] = desc
+        return 't2'
+
+    if not sel_dict['mre_raw'] and is_mre_raw(desc):
+        sel_dict['mre_raw'] = desc
+        return 'mre_raw'
+
+    if not sel_dict['mre'] and is_mre(desc):
+        sel_dict['mre'] = desc
+        return 'mre'
+
+    if not sel_dict['mre_mask'] and is_mre_mask(desc):
+        sel_dict['mre_mask'] = desc
+        return 'mre_mask'
+
+    return False
+
+
+def is_t1_pre_water(desc):
+    if 'lava' in desc:
+        if 'water' in desc:
+            if 'pre' in desc:
+                return True
+            elif 'min' in desc or '+c' in desc:
+                return False
+            else:
+                return True
+    return False
+
+
+def is_t1_pre_fat(desc):
+    if 'lava' in desc:
+        if 'fat' in desc:
+            if 'pre' in desc:
+                return True
+            elif 'min' in desc or '+c' in desc:
+                return False
+            else:
+                return True
+    return False
+
+
+def is_t1_pre_in(desc):
+    if 'lava' in desc:
+        if 'inphase' in desc:
+            if 'pre' in desc:
+                return True
+            elif 'min' in desc or '+c' in desc:
+                return False
+            else:
+                return True
+    return False
+
+
+def is_t1_pre_out(desc):
+    if 'lava' in desc:
+        if 'outphase' in desc:
+            if 'pre' in desc:
+                return True
+            elif 'min' in desc or '+c' in desc:
+                return False
+            else:
+                return True
+    return False
+
+
+def is_t1_pos_water(desc):
+    if 'lava' in desc:
+        if 'water' in desc:
+            if '5min' in desc:
+                return True
+    return False
+
+
+def is_t1_pos_fat(desc):
+    if 'lava' in desc:
+        if 'fat' in desc:
+            if '5min' in desc:
+                return True
+    return False
+
+
+def is_t1_pos_in(desc):
+    if 'lava' in desc:
+        if 'inphase' in desc:
+            if '5min' in desc:
+                return True
+    return False
+
+
+def is_t1_pos_out(desc):
+    if 'lava' in desc:
+        if 'outphase' in desc:
+            if '5min' in desc:
+                return True
+    return False
+
+
+def is_t2(desc):
+    if 't2' in desc and 'ssfse' in desc:
+        return True
+    return False
+
+
+def is_mre_raw(desc):
+    if 'mr touch' in desc:
+        return True
+    return False
+
+
+def is_mre(desc):
+    if 'elastogram' in desc and 'mask' not in desc:
+        return True
+    elif 'stgry' in desc and 'stgrym' not in desc:
+        return True
+    return False
+
+
+def is_mre_mask(desc):
+    if 'elastogram' in desc and 'mask' in desc:
+        return True
+    elif 'stgrym' in desc:
+        return True
+    return False
