@@ -345,3 +345,33 @@ def patient_series_viewer(path, patient, img_type='DICOM', info=''):
     # layout = [i for i in hv_images]
     return hv.Layout(hv_images).opts(shared_axes=False, merge_tools=False, normalize=False,
                                      title=' '.join([patient, info])).cols(3)
+
+
+def patient_reg_comparison(fixed, moving_init, moving_final, grid=None):
+    '''Comparing 3 images at once for alpha blending.  Expects sitk input format.'''
+
+    imopts = {'tools': ['hover'], 'width': 500, 'height': 500}
+    hv_fixed = hv.Image(sitk.GetArrayFromImage(fixed)).opts(**imopts, cmap='Blues')
+    hv_moving_init = hv.Image(sitk.GetArrayFromImage(moving_init), groupby=['z']).opts(**imopts,
+                                                                                       cmap='Greens')
+    hv_moving_final = hv.Image(sitk.GetArrayFromImage(moving_final), groupby=['z']).opts(**imopts,
+                                                                                         cmap='Reds')
+    if grid:
+        hv_grid = hv.Image(sitk.GetArrayFromImage(grid), groupby=['z']).opts(**imopts,
+                                                                             cmap='Greys_r')
+
+    # Make an alpha slider
+    slider1 = pn.widgets.FloatSlider(start=0, end=1, value=0.0, name='moving_init')
+    slider2 = pn.widgets.FloatSlider(start=0, end=1, value=0.0, name='moving_final')
+    # Plot the slider and the overlayed images using the '*' operator
+    if grid:
+        return pn.Column(slider1, slider2,
+                         rasterize(hv_fixed) *
+                         rasterize(hv_moving_init.apply.opts(alpha=slider1.param.value)) *
+                         rasterize(hv_moving_final.apply.opts(alpha=slider2.param.value)) +
+                         rasterize(hv_grid))
+    else:
+        return pn.Column(slider1, slider2,
+                         rasterize(hv_fixed) *
+                         rasterize(hv_moving_init.apply.opts(alpha=slider1.param.value)) *
+                         rasterize(hv_moving_final.apply.opts(alpha=slider2.param.value)))
