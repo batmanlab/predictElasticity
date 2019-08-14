@@ -312,6 +312,11 @@ def patient_series_viewer(path, patient, img_type='DICOM', info=''):
             desc = reader.GetMetaData(0, '0008|103e').strip().encode('utf-8', 'ignore').decode()
             pid = reader.GetMetaData(0, '0010|0010').strip()
             desc = ' '.join([img_files.stem, desc, pid])
+        elif img_type == 'NIFTI':
+            reader.SetFileName(str(img_files))
+            desc = ' '.join(img_files.parts[-2:])
+            image = reader.Execute()
+
         npimg = sitk.GetArrayFromImage(image)
         print(npimg.shape)
         if npimg.shape[0] == 1:
@@ -359,15 +364,15 @@ def patient_reg_comparison(fixed, moving_init, moving_final, grid=None):
     print(hvds_moving_init)
     hvds_moving_final = hv.Dataset(MRIImage(moving_final, 'moving_final', 'moving_final').da)
 
-    hv_fixed = hvds_fixed.to(hv.Image, kdims=['x', 'y'], groupby=['z'], dynamic=False)
-    hv_fixed.opts(**imopts, cmap='Blues')
+    hv_fixed = hvds_fixed.to(hv.Image, kdims=['x', 'y'], groupby=['z'], dynamic=True)
+    hv_fixed.opts(**imopts, cmap='Blues', title='fixed and moving_final')
     # hv_fixed.redim.range(fixed=(hvds_fixed.data.min().values, hvds_fixed.data.max().values))
 
     hv_moving_init = hvds_moving_init.to(hv.Image, kdims=['x', 'y'], groupby=['z1'], dynamic=True)
-    hv_moving_init.opts(**imopts, cmap='Greens')
+    hv_moving_init.opts(**imopts, cmap='Greens', title='moving_init')
 
-    hv_moving_final = hvds_moving_final.to(hv.Image, kdims=['x', 'y'], groupby=['z'], dynamic=False)
-    hv_moving_final.opts(**imopts, cmap='Reds')
+    hv_moving_final = hvds_moving_final.to(hv.Image, kdims=['x', 'y'], groupby=['z'], dynamic=True)
+    hv_moving_final.opts(**imopts, cmap='Reds', title='moving_final')
     if grid:
         hv_grid = hv.Image(sitk.GetArrayFromImage(grid), groupby=['z']).opts(**imopts,
                                                                              cmap='Greys_r')
