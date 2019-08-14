@@ -9,6 +9,7 @@ import panel as pn
 import holoviews as hv
 from holoviews import opts
 from holoviews.operation.datashader import datashade, shade, dynspread, rasterize
+from mre.preprocessing import MRIImage
 
 hv.extension('bokeh')
 
@@ -331,7 +332,8 @@ def patient_series_viewer(path, patient, img_type='DICOM', info=''):
             hv_images.append(hv.Image(npimg[0, :], label=desc).opts(**imopts))
             # continue
             # hvds_list.append(hv.Dataset(
-            #     (np.arange(npimg.shape[3]), np.arange(npimg.shape[2]), np.arange(npimg.shape[1]), np.arange(npimg.shape[0]),
+            #     (np.arange(npimg.shape[3]), np.arange(npimg.shape[2]), np.arange(npimg.shape[1]),
+            #      np.arange(npimg.shape[0]),
             #      npimg), [f'x{desc}', f'y{desc}', f'z{desc}',
             #               f'rgb{desc}'],
             #     f'MRI{desc}'))
@@ -351,11 +353,21 @@ def patient_reg_comparison(fixed, moving_init, moving_final, grid=None):
     '''Comparing 3 images at once for alpha blending.  Expects sitk input format.'''
 
     imopts = {'tools': ['hover'], 'width': 500, 'height': 500}
-    hv_fixed = hv.Image(sitk.GetArrayFromImage(fixed)).opts(**imopts, cmap='Blues')
-    hv_moving_init = hv.Image(sitk.GetArrayFromImage(moving_init), groupby=['z']).opts(**imopts,
-                                                                                       cmap='Greens')
-    hv_moving_final = hv.Image(sitk.GetArrayFromImage(moving_final), groupby=['z']).opts(**imopts,
-                                                                                         cmap='Reds')
+    hvds_fixed = hv.Dataset(MRIImage(fixed, 'fixed', 'fixed').da)
+    hvds_moving_init = hv.Dataset(MRIImage(moving_init, 'moving_init', 'moving_init').da)
+    hvds_moving_init = hvds_moving_init.redim(z='z1')
+    print(hvds_moving_init)
+    hvds_moving_final = hv.Dataset(MRIImage(moving_final, 'moving_final', 'moving_final').da)
+
+    hv_fixed = hvds_fixed.to(hv.Image, kdims=['x', 'y'], groupby=['z'], dynamic=False)
+    hv_fixed.opts(**imopts, cmap='Blues')
+    # hv_fixed.redim.range(fixed=(hvds_fixed.data.min().values, hvds_fixed.data.max().values))
+
+    hv_moving_init = hvds_moving_init.to(hv.Image, kdims=['x', 'y'], groupby=['z1'], dynamic=True)
+    hv_moving_init.opts(**imopts, cmap='Greens')
+
+    hv_moving_final = hvds_moving_final.to(hv.Image, kdims=['x', 'y'], groupby=['z'], dynamic=False)
+    hv_moving_final.opts(**imopts, cmap='Reds')
     if grid:
         hv_grid = hv.Image(sitk.GetArrayFromImage(grid), groupby=['z']).opts(**imopts,
                                                                              cmap='Greys_r')
@@ -371,7 +383,7 @@ def patient_reg_comparison(fixed, moving_init, moving_final, grid=None):
                          rasterize(hv_moving_final.apply.opts(alpha=slider2.param.value)) +
                          rasterize(hv_grid))
     else:
-        return pn.Column(slider1, slider2,
-                         rasterize(hv_fixed) *
-                         rasterize(hv_moving_init.apply.opts(alpha=slider1.param.value)) *
-                         rasterize(hv_moving_final.apply.opts(alpha=slider2.param.value)))
+        return pn.Column(slider2,
+                         hv_fixed *
+                         hv_moving_final.apply.opts(alpha=slider2.param.value) +
+                         hv_moving_init)

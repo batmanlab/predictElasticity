@@ -30,6 +30,29 @@ import matplotlib.pyplot as plt
 # '0018|0087': Mag Field Strength
 
 
+class MRIImage:
+    '''Class for taking a NIFTI 3D MRI and converting it to an xarray object.'''
+
+    def __init__(self, image, patient, sequence):
+        npimage = sitk.GetArrayFromImage(image)
+
+        x = np.full(image.GetSize()[0], image.GetSpacing()[0])
+        x[0] = image.GetOrigin()[0]
+        x = np.cumsum(x)
+
+        y = np.full(image.GetSize()[1], image.GetSpacing()[1])
+        y[0] = image.GetOrigin()[1]
+        y = np.cumsum(y)[::-1]
+
+        z = np.full(image.GetSize()[2], image.GetSpacing()[2])
+        z[0] = image.GetOrigin()[2]
+        z = np.cumsum(z)
+
+        self.da = xr.DataArray(npimage, coords=[('z', z), ('y', y), ('x', x)])
+        self.da.name = sequence
+        self.da.attrs['patient'] = patient
+
+
 class MREDataset:
     '''Wrapper of xarray.Dataset for loading MRE data.  Appropriately interpolates images.'''
 

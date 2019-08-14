@@ -69,7 +69,7 @@ class Register:
         if self.verbose:
             sitk.PrintParameterMap(self.p_map_vector)
 
-    def register_imgs(self, grid=True):
+    def register_imgs(self, grid=False):
         self.elastixImageFilter = sitk.ElastixImageFilter()
         self.elastixImageFilter.SetFixedImage(self.fixed_img)
 
