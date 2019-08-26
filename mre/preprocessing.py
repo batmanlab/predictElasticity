@@ -426,6 +426,34 @@ def make_nifti_atlas(path=None):
                             path + f'/{subj}/{nifti_name}')
 
 
+def make_nifti_atlas_v2(data_path=None, subdirs=None):
+    if data_path is None:
+        data_path = Path(
+            '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/CHAOS/Train_Sets/MR')
+    if subdirs is None:
+        subdirs = [1, 10, 13, 15, 19, 2, 20, 21, 22, 3, 31, 32, 33, 34, 36, 37, 38, 39, 5, 8]
+
+    for subdir in subdirs:
+        for seq in ['t1_pre_in', 't1_pre_out', 't2']:
+            if seq == 't1_pre_in':
+                mr_path = Path(data_path, subdir, 'T1DUAL/DICOM_anon/InPhase')
+                seg_path = Path(data_path, subdir, 'T1DUAL/Ground')
+            elif seq == 't1_pre_out':
+                mr_path = Path(data_path, subdir, 'T1DUAL/DICOM_anon/OutPhase')
+                seg_path = Path(data_path, subdir, 'T1DUAL/Ground')
+            elif seq == 't2':
+                mr_path = Path(data_path, subdir, 'T2SPIR/DICOM_anon')
+                seg_path = Path(data_path, subdir, 'T2SPIR/Ground')
+
+            reader = sitk.ImageSeriesReader()
+            dicom_names = reader.GetGDCMSeriesFileNames(str(mr_path))
+            reader.SetFileNames(dicom_names)
+            reader.MetaDataDictionaryArrayUpdateOn()  # Get DICOM Info
+            reader.LoadPrivateTagsOn()  # Get DICOM Info
+            image = reader.Execute()
+
+
+
 def dicom_to_pandas(data_path, subdirs):
 
     def process_index(k):

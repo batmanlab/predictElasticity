@@ -290,12 +290,18 @@ def patient_series_viewer(path, patient, img_type='DICOM', info=''):
     full_path = Path(path, patient)
 
     if img_type == 'NIFTI':
-        img_folders = full_path.iterdir()
+        img_folders = sorted(list(full_path.glob('*.nii')), key=lambda a: a.stem.split('_'))
         reader = sitk.ImageFileReader()
         reader.SetImageIO("NiftiImageIO")
     elif img_type == 'DICOM':
         img_folders = sorted(list(full_path.iterdir()), key=lambda a: int(a.stem[2:]))
         reader = sitk.ImageSeriesReader()
+    elif img_type == 'DICOM_CHAOS':
+        img_folders = [Path(full_path, 'T1DUAL/DICOM_anon/InPhase'),
+                       Path(full_path, 'T1DUAL/DICOM_anon/OutPhase'),
+                       Path(full_path, 'T2SPIR/DICOM_anon')]
+        reader = sitk.ImageSeriesReader()
+
     else:
         raise KeyError(f'img_type must be one of ["DICOM", "NIFTI"], got {img_type}')
 
@@ -303,7 +309,7 @@ def patient_series_viewer(path, patient, img_type='DICOM', info=''):
     for img_files in img_folders:
         print(img_files)
         hvds_list = []
-        if img_type == 'DICOM':
+        if 'DICOM' in img_type:
             dicom_names = reader.GetGDCMSeriesFileNames(str(img_files))
             reader.SetFileNames(dicom_names)
             reader.MetaDataDictionaryArrayUpdateOn()  # Get DICOM Info
@@ -351,7 +357,7 @@ def patient_series_viewer(path, patient, img_type='DICOM', info=''):
             #         dynamic=False).opts(**imopts, title=desc)
     # layout = [i for i in hv_images]
     return hv.Layout(hv_images).opts(shared_axes=False, merge_tools=False, normalize=False,
-                                     title=' '.join([patient, info])).cols(3)
+                                     title=' '.join([patient, info])).cols(2)
 
 
 def patient_reg_comparison(fixed, moving_init, moving_final, grid=None):
@@ -365,11 +371,11 @@ def patient_reg_comparison(fixed, moving_init, moving_final, grid=None):
     hvds_moving_final = hv.Dataset(MRIImage(moving_final, 'moving_final', 'moving_final').da)
 
     hv_fixed = hvds_fixed.to(hv.Image, kdims=['x', 'y'], groupby=['z'], dynamic=True)
-    hv_fixed.opts(**imopts, cmap='Blues', title='fixed and moving_final')
+    hv_fixed.opts(**imopts, cmap='viridis', title='fixed and moving_final')
     # hv_fixed.redim.range(fixed=(hvds_fixed.data.min().values, hvds_fixed.data.max().values))
 
     hv_moving_init = hvds_moving_init.to(hv.Image, kdims=['x', 'y'], groupby=['z1'], dynamic=True)
-    hv_moving_init.opts(**imopts, cmap='Greens', title='moving_init')
+    hv_moving_init.opts(**imopts, cmap='Reds', title='moving_init')
 
     hv_moving_final = hvds_moving_final.to(hv.Image, kdims=['x', 'y'], groupby=['z'], dynamic=True)
     hv_moving_final.opts(**imopts, cmap='Reds', title='moving_final')
