@@ -434,6 +434,7 @@ def make_nifti_atlas_v2(data_path=None, subdirs=None):
         subdirs = [1, 10, 13, 15, 19, 2, 20, 21, 22, 3, 31, 32, 33, 34, 36, 37, 38, 39, 5, 8]
 
     for subdir in subdirs:
+        subdir = str(subdir)
         for seq in ['t1_pre_in', 't1_pre_out', 't2']:
             if seq == 't1_pre_in':
                 mr_path = Path(data_path, subdir, 'T1DUAL/DICOM_anon/InPhase')
@@ -452,6 +453,29 @@ def make_nifti_atlas_v2(data_path=None, subdirs=None):
             reader.LoadPrivateTagsOn()  # Get DICOM Info
             image = reader.Execute()
 
+            png_list = sorted(list(seg_path.glob('*.png')))
+            for i, png in enumerate(png_list):
+                print(png)
+                seg_img_slice = sitk.GetArrayFromImage(sitk.ReadImage(str(png)))
+                if i == 0:
+                    seg_img_array = np.zeros((len(png_list), seg_img_slice.shape[0],
+                                              seg_img_slice.shape[1]), dtype=int)
+                seg_img_array[i, :, :] = seg_img_slice
+
+            # mask out all organs besides the liver (val = 63)
+            seg_img_array = np.where((seg_img_array >= 55) & (seg_img_array <= 70), 63, 0)
+            seg_img = sitk.GetImageFromArray(seg_img_array)
+            seg_img.CopyInformation(image)
+
+            mr_name = '_'.join([subdir.zfill(2), seq, 'MR', '.nii'])
+            seg_name = '_'.join([subdir.zfill(2), seq, 'mask', '.nii'])
+            patient_path = Path(data_path, 'NIFTI', subdir.zfill(2))
+            patient_path.mkdir(exist_ok=True)
+
+            mr_path = Path(patient_path, mr_name)
+            seg_path = Path(patient_path, seg_name)
+            sitk.WriteImage(image, str(mr_path))
+            sitk.WriteImage(seg_img, str(seg_path))
 
 
 def dicom_to_pandas(data_path, subdirs):
