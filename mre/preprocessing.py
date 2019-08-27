@@ -433,7 +433,7 @@ def make_nifti_atlas_v2(data_path=None, subdirs=None):
     if subdirs is None:
         subdirs = [1, 10, 13, 15, 19, 2, 20, 21, 22, 3, 31, 32, 33, 34, 36, 37, 38, 39, 5, 8]
 
-    for subdir in subdirs:
+    for subdir in tqdm_notebook(subdirs, desc='Patients'):
         subdir = str(subdir)
         for seq in ['t1_pre_in', 't1_pre_out', 't2']:
             if seq == 't1_pre_in':
@@ -455,7 +455,6 @@ def make_nifti_atlas_v2(data_path=None, subdirs=None):
 
             png_list = sorted(list(seg_path.glob('*.png')))
             for i, png in enumerate(png_list):
-                print(png)
                 seg_img_slice = sitk.GetArrayFromImage(sitk.ReadImage(str(png)))
                 if i == 0:
                     seg_img_array = np.zeros((len(png_list), seg_img_slice.shape[0],

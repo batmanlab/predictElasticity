@@ -327,8 +327,6 @@ def patient_series_viewer(path, patient, img_type='DICOM', info=''):
         print(npimg.shape)
         if npimg.shape[0] == 1:
             hv_images.append(hv.Image(npimg[0, :], label=desc).opts(**imopts))
-        # elif desc in ['SE2']:
-        # elif desc in ['SE13', 'SE1']:
         elif npimg.shape[-1] > 3:
             hvds_list.append(hv.Dataset(
                 (np.arange(npimg.shape[2]), np.arange(npimg.shape[1]), np.arange(npimg.shape[0]),
@@ -341,23 +339,65 @@ def patient_series_viewer(path, patient, img_type='DICOM', info=''):
                                                                              invert_yaxis=True))
         else:
             hv_images.append(hv.Image(npimg[0, :], label=desc).opts(**imopts))
-            # continue
-            # hvds_list.append(hv.Dataset(
-            #     (np.arange(npimg.shape[3]), np.arange(npimg.shape[2]), np.arange(npimg.shape[1]),
-            #      np.arange(npimg.shape[0]),
-            #      npimg), [f'x{desc}', f'y{desc}', f'z{desc}',
-            #               f'rgb{desc}'],
-            #     f'MRI{desc}'))
-            # print(hvds_list[-1])
-            # hv_images.append(hvds_list[-1].to(hv.RGB, [f'x{desc}', f'y{desc}'],
-            #                                   [f'rgb{desc}'
-            #                                   groupby=[f'z{desc}'],
-            #                                   dynamic=True).opts(**imopts, title=desc))
-            # hvds.to(hv.Image, ['x', 'y'], groupby=['z'],
-            #         dynamic=False).opts(**imopts, title=desc)
-    # layout = [i for i in hv_images]
     return hv.Layout(hv_images).opts(shared_axes=False, merge_tools=False, normalize=False,
                                      title=' '.join([patient, info])).cols(2)
+
+
+def chaos_viewer(path, patient):
+    '''Specifically for viewing CHAOS images with masks, assumes NIFTI'''
+
+    clipping = {'min': 'transparent', 'max': 'red', 'NaN': 'transparent'}
+    imopts = {'tools': ['hover'], 'width': 500, 'height': 500, 'cmap': 'viridis'}
+    full_path = Path(path, patient)
+
+    img_files = sorted(list(full_path.glob('*MR*.nii')))
+    mask_files = sorted(list(full_path.glob('*mask*.nii')))
+
+    hv_images = []
+    sliders = []
+    for f_img, f_mask in zip(img_files, mask_files):
+        img_reader = sitk.ImageFileReader()
+        img_reader.SetImageIO("NiftiImageIO")
+        img_reader.SetFileName(str(f_img))
+        mask_reader = sitk.ImageFileReader()
+        mask_reader.SetImageIO("NiftiImageIO")
+        mask_reader.SetFileName(str(f_mask))
+        desc = ' '.join(f_img.parts[-2:])
+        img = img_reader.Execute()
+        mask = mask_reader.Execute()
+
+        np_img = sitk.GetArrayFromImage(img)
+        np_mask = sitk.GetArrayFromImage(mask)
+        np_mask = np.where(np_mask < 1, np.nan, np_mask)
+
+        ds_img = hv.Dataset(
+            (np.arange(np_img.shape[2]), np.arange(np_img.shape[1]), np.arange(np_img.shape[0]),
+             np_img), [f'x{desc}', f'y{desc}', f'z{desc}'],
+            f'MRI{desc}')
+        ds_mask = hv.Dataset(
+            (np.arange(np_mask.shape[2]), np.arange(np_mask.shape[1]), np.arange(np_mask.shape[0]),
+             np_mask), [f'x{desc}', f'y{desc}', f'z{desc}'],
+            f'mask{desc}')
+        slider = pn.widgets.FloatSlider(start=0, end=1, value=0.5, name=f'{desc}')
+        sliders.append(slider)
+
+        hv_img = ds_img.to(hv.Image, [f'x{desc}', f'y{desc}'],
+                           groupby=[f'z{desc}'],
+                           dynamic=True, label=desc).opts(**imopts, invert_yaxis=True)
+
+        hv_mask = ds_mask.to(hv.Image, [f'x{desc}', f'y{desc}'],
+                             groupby=[f'z{desc}'],
+                             dynamic=True, label=desc).opts(cmap='Reds', invert_yaxis=True,
+                                                            clipping_colors=clipping)
+
+        hv_mask = hv_mask.apply.opts(alpha=slider.param.value)
+        vrange = {f'mask{desc}': (0, 10)}
+        hv_mask = hv_mask.redim.range(**vrange)
+
+        hv_images.append(hv_img * hv_mask)
+
+    return pn.Column(*sliders, hv.Layout(hv_images).opts(shared_axes=False, normalize=False,
+                                                         title=' '.join(patient)).cols(2))
 
 
 def patient_reg_comparison(fixed, moving_init, moving_final, grid=None):
