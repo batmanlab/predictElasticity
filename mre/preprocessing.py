@@ -737,3 +737,84 @@ def is_mre_mask(desc):
     elif 'stgrym' in desc:
         return True
     return False
+
+
+def make_xr_dataset_for_chaos(patients, nx, ny, nz, output_name):
+    '''Given a list of patient IDs, make an xarray object from the niftis.
+    Only minimal checks are done here, assumptions are:
+        1. Patients exist
+        2. All 3 default-view niftis exist
+        3. All 3 default-view masks exist
+        4. All nifti data is stored in the expected location
+        5. All images are same size
+    '''
+
+    data_dir = Path(
+        '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/CHAOS/Train_Sets/MR/NIFTI')
+
+    # Initialize empty ds
+    n_seq = 4
+    ds = init_new_ds(patients, n_seq, nx, ny)
+
+    for i, pat in enumerate(tqdm_notebook(patients, desc='Patients')):
+        full_path = Path(data_dir, pat)
+        img_files = list(full_path.iterdir())
+
+        t1_in = get_image_match(img_files, 't1_pre_in_MR', pat)
+        t1_out = get_image_match(img_files, 't1_pre_out_MR', pat)
+        t2 = get_image_match(img_files, 't2_MR', pat)
+        t1_in_mask = get_image_match(img_files, 't1_pre_in_mask', pat)
+        t1_out_mask = get_image_match(img_files, 't1_pre_out_mask', pat)
+        t2_mask = get_image_match(img_files, 't2_mask', pat)
+
+        ds['image'].loc[{'subject': pat, 'sequence': 't1_in'}] = (
+            sitk.GetArrayFromImage(t1_in).T)
+        ds['image'].loc[{'subject': pat, 'sequence': 't1_out'}] = (
+            sitk.GetArrayFromImage(t1_out).T)
+        ds['image'].loc[{'subject': pat, 'sequence': 't2'}] = (
+            sitk.GetArrayFromImage(t2)[1:, :, :].T)
+
+        ds['mask'].loc[{'subject': pat, 'sequence': 't1_in_mask'}] = (
+            sitk.GetArrayFromImage(t1_in_mask).T)
+        ds['mask'].loc[{'subject': pat, 'sequence': 't1_out_mask'}] = (
+            sitk.GetArrayFromImage(t1_out_mask).T)
+        ds['mask'].loc[{'subject': pat, 'sequence': 't2_mask'}] = (
+            sitk.GetArrayFromImage(t2_mask)[1:, :, :].T)
+
+    # return ds
+    if ds is not None:
+        print(f'Writing file disk...')
+        ds.to_netcdf(Path(data_dir.parents[0], 'xarrays', f'{output_name}.nc'))
+
+
+def init_new_ds(subj_list, n_seq, nx, ny, nz):
+    if len(subj_list) == 0:
+        return None
+
+    ds = xr.Dataset({'image': (['subject', 'sequence', 'x', 'y', 'z'],
+                               np.zeros((len(subj_list), n_seq, nx, ny, nz), dtype=np.int16)),
+                     },
+                    {'mask': (['subject', 'sequence', 'x', 'y', 'z'],
+                              np.zeros((len(subj_list), n_seq, nx, ny, nz), dtype=np.int16)),
+                     },
+
+                    coords={'subject': subj_list,
+                            'sequence': ['t1_pre', 't1_pos', 't2'],
+                            'x': range(nx),
+                            'y': range(ny)[::-1],
+                            'z': range(nz)
+                            }
+                    )
+    return ds
+
+
+def get_image_match(img_file_list, name, pat):
+    for img_file in img_file_list:
+        if name in img_file.stem:
+            reader = sitk.ImageFileReader()
+            reader.SetImageIO("NiftiImageIO")
+            reader.SetFileName(str(img_file))
+            img = reader.Execute()
+            return img
+    print(f'Could not find matching image for {pat}, {name}')
+    return None
