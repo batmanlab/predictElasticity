@@ -458,7 +458,7 @@ def make_nifti_atlas_v2(data_path=None, subdirs=None):
                 seg_img_slice = sitk.GetArrayFromImage(sitk.ReadImage(str(png)))
                 if i == 0:
                     seg_img_array = np.zeros((len(png_list), seg_img_slice.shape[0],
-                                              seg_img_slice.shape[1]), dtype=int)
+                                              seg_img_slice.shape[1]), dtype=np.uint16)
                 seg_img_array[i, :, :] = seg_img_slice
 
             # mask out all organs besides the liver (val = 63)
@@ -746,45 +746,46 @@ def make_xr_dataset_for_chaos(patients, nx, ny, nz, output_name):
         2. All 3 default-view niftis exist
         3. All 3 default-view masks exist
         4. All nifti data is stored in the expected location
-        5. All images are same size
+    All images must be resized before used.
     '''
 
     data_dir = Path(
         '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/CHAOS/Train_Sets/MR/NIFTI')
 
     # Initialize empty ds
-    n_seq = 4
-    ds = init_new_ds(patients, n_seq, nx, ny)
+    n_seq = 3
+    ds = init_new_ds(patients, n_seq, nx, ny, nz)
 
     for i, pat in enumerate(tqdm_notebook(patients, desc='Patients')):
         full_path = Path(data_dir, pat)
         img_files = list(full_path.iterdir())
 
-        t1_in = get_image_match(img_files, 't1_pre_in_MR', pat)
-        t1_out = get_image_match(img_files, 't1_pre_out_MR', pat)
-        t2 = get_image_match(img_files, 't2_MR', pat)
-        t1_in_mask = get_image_match(img_files, 't1_pre_in_mask', pat)
-        t1_out_mask = get_image_match(img_files, 't1_pre_out_mask', pat)
-        t2_mask = get_image_match(img_files, 't2_mask', pat)
+        t1_in = get_image_match(img_files, 't1_pre_in_MR', pat, nx, ny, nz)
+        t1_out = get_image_match(img_files, 't1_pre_out_MR', pat, nx, ny, nz)
+        t2 = get_image_match(img_files, 't2_MR', pat, nx, ny, nz)
+        t1_in_mask = get_image_match(img_files, 't1_pre_in_mask', pat, nx, ny, nz)
+        t1_out_mask = get_image_match(img_files, 't1_pre_out_mask', pat, nx, ny, nz)
+        t2_mask = get_image_match(img_files, 't2_mask', pat, nx, ny, nz)
 
         ds['image'].loc[{'subject': pat, 'sequence': 't1_in'}] = (
             sitk.GetArrayFromImage(t1_in).T)
         ds['image'].loc[{'subject': pat, 'sequence': 't1_out'}] = (
             sitk.GetArrayFromImage(t1_out).T)
         ds['image'].loc[{'subject': pat, 'sequence': 't2'}] = (
-            sitk.GetArrayFromImage(t2)[1:, :, :].T)
+            sitk.GetArrayFromImage(t2).T)
 
-        ds['mask'].loc[{'subject': pat, 'sequence': 't1_in_mask'}] = (
+        ds['mask'].loc[{'subject': pat, 'sequence': 't1_in'}] = (
             sitk.GetArrayFromImage(t1_in_mask).T)
-        ds['mask'].loc[{'subject': pat, 'sequence': 't1_out_mask'}] = (
+        ds['mask'].loc[{'subject': pat, 'sequence': 't1_out'}] = (
             sitk.GetArrayFromImage(t1_out_mask).T)
-        ds['mask'].loc[{'subject': pat, 'sequence': 't2_mask'}] = (
-            sitk.GetArrayFromImage(t2_mask)[1:, :, :].T)
+        ds['mask'].loc[{'subject': pat, 'sequence': 't2'}] = (
+            sitk.GetArrayFromImage(t2_mask).T)
 
     # return ds
     if ds is not None:
         print(f'Writing file disk...')
-        ds.to_netcdf(Path(data_dir.parents[0], 'xarrays', f'{output_name}.nc'))
+        with open(Path(data_dir.parents[0], f'xarray_{output_name}.p'), 'wb') as f:
+            pkl.dump(ds, f, protocol=-1)
 
 
 def init_new_ds(subj_list, n_seq, nx, ny, nz):
@@ -793,13 +794,12 @@ def init_new_ds(subj_list, n_seq, nx, ny, nz):
 
     ds = xr.Dataset({'image': (['subject', 'sequence', 'x', 'y', 'z'],
                                np.zeros((len(subj_list), n_seq, nx, ny, nz), dtype=np.int16)),
-                     },
-                    {'mask': (['subject', 'sequence', 'x', 'y', 'z'],
-                              np.zeros((len(subj_list), n_seq, nx, ny, nz), dtype=np.int16)),
+                    'mask': (['subject', 'sequence', 'x', 'y', 'z'],
+                             np.zeros((len(subj_list), n_seq, nx, ny, nz), dtype=np.int16)),
                      },
 
                     coords={'subject': subj_list,
-                            'sequence': ['t1_pre', 't1_pos', 't2'],
+                            'sequence': ['t1_in', 't1_out', 't2'],
                             'x': range(nx),
                             'y': range(ny)[::-1],
                             'z': range(nz)
@@ -808,13 +808,33 @@ def init_new_ds(subj_list, n_seq, nx, ny, nz):
     return ds
 
 
-def get_image_match(img_file_list, name, pat):
+def get_image_match(img_file_list, name, pat, nx, ny, nz, resample=True):
     for img_file in img_file_list:
         if name in img_file.stem:
             reader = sitk.ImageFileReader()
             reader.SetImageIO("NiftiImageIO")
             reader.SetFileName(str(img_file))
             img = reader.Execute()
+            img = sitk.Cast(img, sitk.sitkUInt16)
+            if resample:
+                init_size = img.GetSize()
+                init_spacing = img.GetSpacing()
+                xy_change = nx/init_size[0]
+                z_change = nz/init_size[-1]
+                ref_img = sitk.GetImageFromArray(np.ones((nz, ny, nx), dtype=np.uint16))
+                ref_img.SetSpacing((init_spacing[0]*xy_change, init_spacing[1]*xy_change,
+                                   init_spacing[2]*z_change))
+                ref_img.SetOrigin(img.GetOrigin())
+
+                center = sitk.CenteredTransformInitializer(
+                    ref_img, img, sitk.AffineTransform(3),
+                    sitk.CenteredTransformInitializerFilter.GEOMETRY,
+                )
+                if 'mask' in name:
+                    interp_method = sitk.sitkNearestNeighbor
+                else:
+                    interp_method = sitk.sitkLinear
+                img = sitk.Resample(img, ref_img, center, interp_method)
             return img
     print(f'Could not find matching image for {pat}, {name}')
     return None
