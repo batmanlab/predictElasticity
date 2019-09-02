@@ -783,9 +783,10 @@ def make_xr_dataset_for_chaos(patients, nx, ny, nz, output_name):
 
     # return ds
     if ds is not None:
-        print(f'Writing file disk...')
-        with open(Path(data_dir.parents[0], f'xarray_{output_name}.p'), 'wb') as f:
-            pkl.dump(ds, f, protocol=-1)
+        # print(f'Writing file disk...')
+        # with open(Path(data_dir.parents[0], f'xarray_{output_name}.p'), 'wb') as f:
+        #     pkl.dump(ds, f, protocol=-1)
+        return ds
 
 
 def init_new_ds(subj_list, n_seq, nx, ny, nz):
