@@ -24,11 +24,8 @@ from tensorboardX import SummaryWriter
 
 class ChaosDataset(Dataset):
     def __init__(self, xa_ds, set_type='train', transform=None, clip=False, seed=100, test='01',
-                 aug=True, target_max=None, target_bins=100, resize=False):
-        # inputs = ['T1Pre', 'T1Pos', 'T2SS', 'T2FR']
-        inputs = ['T1Pre', 'T1Pos', 'T2SS']
-        targets = ['elast']
-        masks = ['comboMsk']
+                 aug=True, sequence='random', resize=False):
+        inputs = ['t1_in', 't1_out', 't2']
 
         xa_ds_test = xa_ds.sel(subject=[test])
         xa_ds = xa_ds.drop(test, dim='subject')
@@ -53,34 +50,15 @@ class ChaosDataset(Dataset):
         else:
             xa_ds = xa_ds.sel(subject=input_set)
 
-        # stack subject and z-slices to make 4 2D image groups for each 3D image group
-        xa_ds = xa_ds.stack(subject_2d=('subject', 'z')).reset_index('subject_2d')
-        subj_2d_coords = [f'{i.subject.values}_{i.z.values}' for i in xa_ds.subject_2d]
-        xa_ds = xa_ds.assign_coords(subject_2d=subj_2d_coords)
+        self.input_images = xa_ds.sel(sequence=inputs)['image'].transpose(
+            'subject', 'sequence', 'z', 'y', 'x').image.values
+        self.target_images = xa_ds.sel(sequence=inputs)['mask'].transpose(
+            'subject', 'sequence', 'z', 'y', 'x').image.values
 
-        # Remove data that doesn't have enough target pixels
-        if mask_trimmer:
-            bad_subj2d = []
-            for subj2d in xa_ds.subject_2d.values:
-                tmp_msk = xa_ds.sel(subject_2d=subj2d, sequence=masks).image
-                mask_val = np.max(np.unique(tmp_msk))
-                if tmp_msk.where(tmp_msk >= mask_val).sum()/mask_val < 1000:
-                    bad_subj2d.append(subj2d)
-            xa_ds = xa_ds.drop(bad_subj2d, dim='subject_2d')
-        self.name_dict = dict(zip(range(len(xa_ds.subject_2d)), xa_ds.subject_2d.values))
-
-        self.input_images = xa_ds.sel(sequence=inputs).transpose(
-            'subject_2d', 'sequence', 'y', 'x').image.values
-        self.target_images = xa_ds.sel(sequence=targets).transpose(
-            'subject_2d', 'sequence', 'y', 'x').image.values
-        self.mask_images = xa_ds.sel(sequence=masks).transpose(
-            'subject_2d', 'sequence', 'y', 'x').image.values
         self.transform = transform
         self.aug = aug
         self.clip = clip
-        self.names = xa_ds.subject_2d.values
-        self.mask_mixer = mask_mixer
-        self.target_max = target_max
+        self.names = xa_ds.subject.values
         self.target_bins = target_bins
         self.resize = resize
 
@@ -88,27 +66,13 @@ class ChaosDataset(Dataset):
         return len(self.input_images)
 
     def __getitem__(self, idx):
-        mask = self.mask_images[idx]
-        if self.mask_mixer == 'mixed':
-            pass
-        elif self.mask_mixer == 'intersection':
-            mask = np.where(mask >= 0.5, 1.0, 0.0).astype(mask.dtype)
-        elif self.mask_mixer == 'union':
-            mask = np.where(mask > 0, 1.0, 0.0).astype(mask.dtype)
-
         image = self.input_images[idx]
         target = self.target_images[idx]
         if self.clip:
-            image[0, :, :]  = np.where(image[0, :, :] >= 700, 700, image[0, :, :])
-            image[1, :, :]  = np.where(image[1, :, :] >= 1250, 1250, image[1, :, :])
-            image[2, :, :]  = np.where(image[2, :, :] >= 600, 600, image[2, :, :])
-            if self.target_max is None:
-                target = np.float32(np.digitize(target, list(range(0, 20000, 200))+[1e6]))
-            else:
-                target = np.where(target >= self.target_max, self.target_max, target)
-                spacing = int(self.target_max/self.target_bins)
-                cut_points = list(range(0, self.target_max, spacing)) + [1e6]
-                target = np.float32(np.digitize(target, cut_points))
+            image[0, :, :, :]  = np.where(image[0, :, :, :] >= 1500, 1500, image[0, :, :, :])
+            image[1, :, :, :]  = np.where(image[1, :, :, :] >= 1500, 1500, image[1, :, :, :])
+            image[2, :, :, :]  = np.where(image[2, :, :, :] >= 2000, 2000, image[2, :, :, :])
+            target = np.where(target > 0, 1, 0)
 
         if self.transform:
             if self.aug:
@@ -120,8 +84,7 @@ class ChaosDataset(Dataset):
                 translations = (0, 0)
                 scale = 1
             image = self.input_transform(image, rot_angle, translations, scale)
-            mask = self.affine_transform(mask[0], rot_angle, translations, scale)
-            target = self.affine_transform(target[0], rot_angle, translations, scale)
+            target = self.affine_transform(target, rot_angle, translations, scale)
 
         if self.resize:
             image_0 = transforms.ToPILImage()(image.numpy()[0])

@@ -440,12 +440,12 @@ def patient_reg_comparison(fixed, moving_init, moving_final, grid=None):
                          hv_moving_init)
 
 
-def xr_viewer(xr_ds, grid_coords=None, group_coords=None, overlay_data=None, selection=None):
+def xr_viewer(xr_ds, grid_coords=None, group_coords=None, overlay_data='default', selection=None):
     '''generic xr ds viewer for pollack-format image holders'''
     opts.defaults(
         opts.GridSpace(shared_xaxis=True, shared_yaxis=True,
                        fontsize={'title': 16, 'labels': 16, 'xticks': 12, 'yticks': 12},
-                       plot_size=250),
+                       plot_size=300),
         opts.Image(cmap='viridis', width=550, height=550, tools=['hover'], xaxis=None,
                    yaxis=None),
         opts.Labels(text_color='white', text_font_size='20pt', text_align='left',
@@ -455,6 +455,7 @@ def xr_viewer(xr_ds, grid_coords=None, group_coords=None, overlay_data=None, sel
         opts.Overlay(show_legend=True))
 
     # Make holoviews dataset from xarray
+    xr_ds = xr_ds.sel(subject=['01', '03'])
     hv_ds = hv.Dataset(xr_ds)
     vdims = [v.name for v in hv_ds.vdims]
     kdims = [k.name for k in hv_ds.kdims]
@@ -463,30 +464,39 @@ def xr_viewer(xr_ds, grid_coords=None, group_coords=None, overlay_data=None, sel
         if 'sequence' in kdims:
             grid_coords = 'sequence'
 
-    if overlay_data is None:
+    if overlay_data == 'default':
         if 'mask' in vdims:
             overlay_data = 'mask'
 
     hv_ds_main_dict = {}
     for v in vdims:
-        if v in overlay_data:
+        if (overlay_data is not None) and (v in overlay_data):
             continue
         else:
-            hv_ds_main_dict[v] = hv_ds.to(hv.Image, kdims=['x', 'y'], vdims='image', dynamic=True)
+            hv_ds_main_dict[v] = hv_ds.to(hv.Image, kdims=['x', 'y'], vdims='image',
+                                          dynamic=True)
 
     if overlay_data is not None:
+
         slider = pn.widgets.FloatSlider(start=0, end=1, value=0.5, name=overlay_data)
         hv_ds_over = hv_ds.to(hv.Image, kdims=['x', 'y'], vdims=overlay_data, dynamic=True)
-        hv_ds_over = hv_ds_over.apply.opts(alpha=slider.param.value)
-        hv_ds_over = hv_ds_over.opts(cmap='Reds', clipping_colors={'min':'transparent'})
-        redim = {overlay_data: (0.1, max(hv_ds_over.data))}
+        hv_ds_over = hv_ds_over.opts(cmap='Category10', clipping_colors={'min': 'transparent'},
+                                     color_levels=10)
+        redim = {overlay_data: (0.1, 256)}
         hv_ds_over = hv_ds_over.redim.range(**redim)
+        hv_ds_over = hv_ds_over.apply.opts(alpha=slider.param.value)
 
+        if len(hv_ds_main_dict) == 1:
+            layout = (hv_ds_main_dict[vdims[0]] * hv_ds_over).grid('sequence')
+            # layout = (hv_ds_main_dict[vdims[0]] * hv_ds_over)
+            # layout = (hv_ds_over).grid('sequence', dynamic=True)
+    else:
+        layout = (hv_ds_main_dict[vdims[0]]).grid('sequence', dynamic=False)
 
-    layout = (hv_ds.to(hv.Image, kdims=['x', 'y'], vdims='image', dynamic=True) *
-              hv_ds.to(hv.Image, kdims=['x', 'y'], vdims='mask', dynamic=True).apply.opts(alpha=slider.param.value).opts(width=550,
-                                                                                         height=550,)).grid('sequence',
-                                                                                                            dynamic=True)
-    pn.Column(slider, layout)
+    # layout = (hv_ds.to(hv.Image, kdims=['x', 'y'], vdims='image', dynamic=True) *
+    #           hv_ds.to(hv.Image, kdims=['x', 'y'], vdims='mask', dynamic=True).apply.opts(alpha=slider.param.value).opts(width=550,
+    #                                                                                      height=550,)).grid('sequence',
+    #                                                                                                         dynamic=True)
+    return pn.Column(slider, layout)
 
 
