@@ -487,16 +487,11 @@ def xr_viewer(xr_ds, grid_coords=None, group_coords=None, overlay_data='default'
         hv_ds_over = hv_ds_over.apply.opts(alpha=slider.param.value)
 
         if len(hv_ds_main_dict) == 1:
+            # layout = (hv_ds_main_dict[vdims[0]] * hv_ds_over)
             layout = (hv_ds_main_dict[vdims[0]] * hv_ds_over).grid('sequence')
             # layout = (hv_ds_main_dict[vdims[0]] * hv_ds_over)
             # layout = (hv_ds_over).grid('sequence', dynamic=True)
     else:
         layout = (hv_ds_main_dict[vdims[0]]).grid('sequence', dynamic=False)
 
-    # layout = (hv_ds.to(hv.Image, kdims=['x', 'y'], vdims='image', dynamic=True) *
-    #           hv_ds.to(hv.Image, kdims=['x', 'y'], vdims='mask', dynamic=True).apply.opts(alpha=slider.param.value).opts(width=550,
-    #                                                                                      height=550,)).grid('sequence',
-    #                                                                                                         dynamic=True)
     return pn.Column(slider, layout)
-
-
