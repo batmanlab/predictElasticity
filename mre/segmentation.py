@@ -51,12 +51,16 @@ class ChaosDataset(Dataset):
 
         self.all_sequences = xr_ds.sequence.values
         if sequence_mode == 'random':
-            self.my_sequence = list(np.random.choice(self.all_sequences))
+            self.my_sequence = np.random.choice(self.all_sequences)
+        else:
+            raise NotImplementedError('Only sequence_mode "random" is implemented')
 
         self.input_images = xr_ds.sel(sequence=self.my_sequence)['image'].transpose(
-            'subject', 'sequence', 'z', 'y', 'x').image.values
+            'subject', 'z', 'y', 'x').values
+        self.input_images = self.input_images.astype(int)
         self.target_images = xr_ds.sel(sequence=self.my_sequence)['mask'].transpose(
-            'subject', 'sequence', 'z', 'y', 'x').image.values
+            'subject', 'z', 'y', 'x').values
+        self.target_images = self.target_images.astype(int)
 
         self.transform = transform
         self.aug = aug
@@ -76,6 +80,7 @@ class ChaosDataset(Dataset):
             else:
                 image = np.where(image >= 2000, 2000, image)
             target = np.where(target > 0, 1, 0)
+            print(image.dtype)
 
         if self.transform:
             if self.aug:
@@ -94,13 +99,6 @@ class ChaosDataset(Dataset):
 
         return [image, target, self.names[idx]]
 
-    def affine_transform(self, input_slice, rot_angle=0, translations=0, scale=1):
-        input_slice = transforms.ToPILImage()(input_slice)
-        input_slice = TF.affine(input_slice, angle=rot_angle,
-                                translate=list(translations), scale=scale, shear=0)
-        input_slice = transforms.ToTensor()(input_slice)
-        return input_slice
-
     def input_transform(self, input_image, rot_angle=0, translations=0, scale=1):
         # normalize and offset image
         image = input_image
@@ -113,3 +111,17 @@ class ChaosDataset(Dataset):
         # perform affine transfomrations
         image = self.affine_transform(image, rot_angle, translations, scale)
         return image
+
+    def affine_transform(self, image, rot_angle=0, translations=0, scale=1):
+        output_image = image.copy()
+        for i in range(output_image.shape[0]):
+            output_image[i] = self.affine_transform_slice(output_image[i], rot_angle, translations,
+                                                          scale)
+        return output_image
+
+    def affine_transform_slice(self, input_slice, rot_angle=0, translations=0, scale=1):
+        input_slice = transforms.ToPILImage()(np.uint8(input_slice))
+        input_slice = TF.affine(input_slice, angle=rot_angle,
+                                translate=list(translations), scale=scale, shear=0)
+        input_slice = transforms.ToTensor()(input_slice)
+        return input_slice

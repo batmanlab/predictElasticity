@@ -6,6 +6,7 @@ import argparse
 import pickle as pkl
 import numpy as np
 from itertools import chain
+import xarray as xr
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -13,15 +14,15 @@ from torch.utils.data import DataLoader
 from torch.utils.data.sampler import RandomSampler
 from torchsummary import summary
 from tensorboardX import SummaryWriter
-from mre.prediction_v2 import MREDataset
+from mre.segmentation import ChaosDataset
 from mre.prediction_v2 import train_model
 from mre import pytorch_arch
 from robust_loss_pytorch import adaptive
 
 
-def train_model_full(data_path: str, data_file: str, output_path: str, model_version: str = 'tmp',
-                     verbose: str = True, **kwargs) -> None:
-    '''Function to start training MRE model given a user-defined set of parameters.
+def train_seg_model(data_path: str, data_file: str, output_path: str, model_version: str = 'tmp',
+                    verbose: str = True, **kwargs) -> None:
+    '''Function to start training liver segmentation.
 
     This function is intended to be imported and called in interactive sessions, from the command
     line, or by a slurm job submission script.  This function should be able to tweak any part of
@@ -43,7 +44,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
     cfg = process_kwargs(kwargs)
     if verbose:
         print(cfg)
-    ds = pkl.load(open(Path(data_path, data_file), 'rb'))
+    ds = xr.open_dataset(Path(data_path, data_file))
     if verbose:
         print(ds)
     subj = cfg['subj']
@@ -52,24 +53,21 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
 
     # Start filling dataloaders
     dataloaders = {}
-    train_set = MREDataset(ds, set_type='train', transform=cfg['train_trans'],
-                           clip=cfg['train_clip'], aug=cfg['train_aug'],
-                           mask_trimmer=cfg['mask_trimmer'], mask_mixer=cfg['mask_mixer'],
-                           target_max=cfg['target_max'], target_bins=cfg['target_bins'],
+    train_set = ChaosDataset(ds, set_type='train', transform=cfg['train_trans'],
+                             clip=cfg['train_clip'], aug=cfg['train_aug'],
+                             sequence_mode=cfg['train_seq_mode'],
+                             resize=cfg['resize'],
+                             test=subj)
+    val_set = ChaosDataset(ds, set_type='val', transform=cfg['val_trans'],
+                           clip=cfg['val_clip'], aug=cfg['val_aug'],
+                           sequence_mode=cfg['val_seq_mode'],
                            resize=cfg['resize'],
                            test=subj)
-    val_set = MREDataset(ds, set_type='val', transform=cfg['val_trans'],
-                         clip=cfg['val_clip'], aug=cfg['val_aug'],
-                         mask_trimmer=cfg['mask_trimmer'], mask_mixer=cfg['mask_mixer'],
-                         target_max=cfg['target_max'], target_bins=cfg['target_bins'],
-                         resize=cfg['resize'],
-                         test=subj)
-    test_set = MREDataset(ds, set_type='test', transform=cfg['test_trans'],
-                          clip=cfg['test_clip'], aug=cfg['test_aug'],
-                          mask_trimmer=cfg['mask_trimmer'], mask_mixer=cfg['mask_mixer'],
-                          target_max=cfg['target_max'], target_bins=cfg['target_bins'],
-                          resize=cfg['resize'],
-                          test=subj)
+    test_set = ChaosDataset(ds, set_type='test', transform=cfg['test_trans'],
+                            clip=cfg['test_clip'], aug=cfg['test_aug'],
+                            sequence_mode=cfg['test_seq_mode'],
+                            resize=cfg['resize'],
+                            test=subj)
     if verbose:
         print('train: ', len(train_set))
         print('val: ', len(val_set))
@@ -101,44 +99,33 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         warnings.warn('Device is running on CPU, not GPU!')
 
     # Define model
-    if cfg['model_arch'] == 'base':
-        model = pytorch_unet_tb.UNet(1, cap=cfg['model_cap'],
-                                     coord_conv=cfg['coord_conv']).to(device)
-    elif cfg['model_arch'] == 'transfer':
-        model = pytorch_arch.PretrainedModel('name').to(device)
-    elif cfg['model_arch'] == 'modular':
+    if cfg['model_arch'] == 'modular':
         model = pytorch_arch.GeneralUNet(cfg['n_layers'], cfg['in_channels'], cfg['model_cap'],
                                          cfg['out_channels_final'], cfg['channel_growth'],
                                          cfg['coord_conv'], cfg['transfer_layer']).to(device)
-        # model = pytorch_arch.GeneralUNet(4, 32, 8, 1, True, cfg['coord_conv'],
-        #                                  transfer_layer=True).to(device)
 
     # Set up adaptive loss if selected
     loss = None
-    if loss_type == 'robust':
-        n_dims = train_set.target_images.shape[-1]*train_set.target_images.shape[-2]
-        loss = adaptive.AdaptiveLossFunction(n_dims, np.float32, alpha_init=1.9, scale_lo=0.5)
-        loss_params = torch.nn.ParameterList(loss.parameters())
-        optimizer = optim.Adam(chain(model.parameters(), loss_params), lr=cfg['lr'])
-    else:
+    if loss_type == 'dice':
         optimizer = optim.Adam(model.parameters(), lr=cfg['lr'])
+    else:
+        raise NotImplementedError('Only Dice loss currently implemented')
 
     # Define optimizer
     exp_lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=cfg['step_size'],
                                                  gamma=cfg['gamma'])
 
     if cfg['dry_run']:
-        inputs, targets, masks, names = next(iter(dataloaders['test']))
+        inputs, targets, names = next(iter(dataloaders['test']))
         print('test set info:')
         print('inputs', inputs.shape)
         print('targets', targets.shape)
-        print('masks', masks.shape)
         print('names', names)
 
         print('Model Summary:')
         # summary(model, input_size=(3, 224, 224))
         summary(model, input_size=(inputs.shape[1:]))
-        return inputs, targets, masks, names, None
+        return inputs, targets, names, None
 
     else:
         # Tensorboardx writer, model, config paths
@@ -204,10 +191,10 @@ def default_cfg():
     cfg = {'train_trans': True, 'train_clip': True, 'train_aug': True, 'train_sample': 'shuffle',
            'val_trans': True, 'val_clip': True, 'val_aug': False, 'val_sample': 'shuffle',
            'test_trans': True, 'test_clip': True, 'test_aug': False,
-           'subj': '162', 'batch_size': 50, 'model_cap': 16, 'lr': 1e-2, 'step_size': 20,
-           'gamma': 0.1, 'num_epochs': 40, 'dry_run': False, 'coord_conv': True, 'loss': 'l2',
-           'mask_trimmer': False, 'mask_mixer': 'mixed', 'target_max': None, 'target_bins': 100,
-           'model_arch': 'base', 'n_layers': 3, 'in_channels': 3, 'out_channels_final': 1,
+           'train_seq_mode': 'random', 'val_seq_mode': 'random', 'test_seq_mode': 'random',
+           'subj': '01', 'batch_size': 50, 'model_cap': 16, 'lr': 1e-2, 'step_size': 20,
+           'gamma': 0.1, 'num_epochs': 40, 'dry_run': False, 'coord_conv': True, 'loss': 'dice',
+           'model_arch': 'base', 'n_layers': 3, 'in_channels': 1, 'out_channels_final': 1,
            'channel_growth': False, 'transfer_layer': False,
            'resize': False}
     return cfg
@@ -237,4 +224,4 @@ if __name__ == "__main__":
                                 default=val)
 
     args = parser.parse_args()
-    train_model_full(**vars(args))
+    train_seg_model(**vars(args))
