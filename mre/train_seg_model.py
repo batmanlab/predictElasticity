@@ -100,9 +100,9 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
 
     # Define model
     if cfg['model_arch'] == 'modular':
-        model = pytorch_arch.GeneralUNet(cfg['n_layers'], cfg['in_channels'], cfg['model_cap'],
-                                         cfg['out_channels_final'], cfg['channel_growth'],
-                                         cfg['coord_conv'], cfg['transfer_layer']).to(device)
+        model = pytorch_arch.GeneralUNet3D(cfg['n_layers'], cfg['in_channels'], cfg['model_cap'],
+                                           cfg['out_channels_final'], cfg['channel_growth'],
+                                           cfg['coord_conv'], cfg['transfer_layer']).to(device)
 
     # Set up adaptive loss if selected
     loss = None

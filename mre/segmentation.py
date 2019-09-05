@@ -51,15 +51,15 @@ class ChaosDataset(Dataset):
 
         self.all_sequences = xr_ds.sequence.values
         if sequence_mode == 'random':
-            self.my_sequence = np.random.choice(self.all_sequences)
+            self.my_sequence = [np.random.choice(self.all_sequences)]
         else:
             raise NotImplementedError('Only sequence_mode "random" is implemented')
 
         self.input_images = xr_ds.sel(sequence=self.my_sequence)['image'].transpose(
-            'subject', 'z', 'y', 'x').values
+            'subject', 'sequence', 'z', 'y', 'x').values
         self.input_images = self.input_images.astype(int)
         self.target_images = xr_ds.sel(sequence=self.my_sequence)['mask'].transpose(
-            'subject', 'z', 'y', 'x').values
+            'subject', 'sequence', 'z', 'y', 'x').values
         self.target_images = self.target_images.astype(int)
 
         self.transform = transform
@@ -74,6 +74,7 @@ class ChaosDataset(Dataset):
     def __getitem__(self, idx):
         image = self.input_images[idx]
         target = self.target_images[idx]
+        print(image.shape)
         if self.clip:
             if 't1' in self.my_sequence[0]:
                 image = np.where(image >= 1500, 1500, image)
@@ -103,16 +104,18 @@ class ChaosDataset(Dataset):
         # normalize and offset image
         image = input_image
         image = np.where(input_image <= 1e-9, np.nan, input_image)
-        mean = np.nanmean(image, axis=(1, 2))
-        std = np.nanstd(image, axis=(1, 2))
-        image = ((image.T - mean)/std).T + 4
+        mean = np.nanmean(image)
+        std = np.nanstd(image)
+        image = ((image - mean)/std) + 4
         image = np.where(image != image, 0, image)
+        print(image.shape)
 
         # perform affine transfomrations
         image = self.affine_transform(image, rot_angle, translations, scale)
         return image
 
     def affine_transform(self, image, rot_angle=0, translations=0, scale=1):
+        print(image.shape)
         output_image = image.copy()
         for i in range(output_image.shape[0]):
             output_image[i] = self.affine_transform_slice(output_image[i], rot_angle, translations,
@@ -120,7 +123,7 @@ class ChaosDataset(Dataset):
         return output_image
 
     def affine_transform_slice(self, input_slice, rot_angle=0, translations=0, scale=1):
-        input_slice = transforms.ToPILImage()(np.uint8(input_slice))
+        input_slice = transforms.ToPILImage()(np.int32(input_slice))
         input_slice = TF.affine(input_slice, angle=rot_angle,
                                 translate=list(translations), scale=scale, shear=0)
         input_slice = transforms.ToTensor()(input_slice)
