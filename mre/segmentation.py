@@ -74,14 +74,12 @@ class ChaosDataset(Dataset):
     def __getitem__(self, idx):
         image = self.input_images[idx]
         target = self.target_images[idx]
-        print(image.shape)
         if self.clip:
             if 't1' in self.my_sequence[0]:
                 image = np.where(image >= 1500, 1500, image)
             else:
                 image = np.where(image >= 2000, 2000, image)
             target = np.where(target > 0, 1, 0)
-            print(image.dtype)
 
         if self.transform:
             if self.aug:
@@ -108,17 +106,15 @@ class ChaosDataset(Dataset):
         std = np.nanstd(image)
         image = ((image - mean)/std) + 4
         image = np.where(image != image, 0, image)
-        print(image.shape)
 
         # perform affine transfomrations
         image = self.affine_transform(image, rot_angle, translations, scale)
         return image
 
     def affine_transform(self, image, rot_angle=0, translations=0, scale=1):
-        print(image.shape)
         output_image = image.copy()
         for i in range(output_image.shape[0]):
-            output_image[i] = self.affine_transform_slice(output_image[i], rot_angle, translations,
+            output_image[0, i] = self.affine_transform_slice(output_image[0, i], rot_angle, translations,
                                                           scale)
         return output_image
 

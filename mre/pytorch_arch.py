@@ -85,7 +85,7 @@ class up_layer3d(nn.Module):
 
         # Note: may have to revist upsampling options (ConvTranspose3D might have padding issues?)
         if channel_growth:
-            self.upsample = nn.ConvTranspose3d(in_channels, out_channels, kernel_size=2, stride=2)
+            self.upsample = nn.ConvTranspose3d(in_channels, out_channels, kernel_size=2, stride=2,)
         else:
             self.upsample = nn.ConvTranspose3d(out_channels, out_channels, kernel_size=2, stride=2)
 
@@ -241,6 +241,7 @@ class GeneralUNet3D(nn.Module):
             x = self.pretrained(x)
         skip_connects = []
         # Generate the input layer and save for skip connection
+        # import pdb; pdb.set_trace()
         skip_connects.append(self.in_layer(x))
         # Generate the down-sampling layers and save for skip connections
         for down in self.down_layers:
