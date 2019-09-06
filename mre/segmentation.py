@@ -36,10 +36,10 @@ class ChaosDataset(Dataset):
             input_set = list(test)
         elif set_type == 'val':
             # input_set = xr_ds.subject_2d[2:20]
-            input_set = list(shuffle_list[0:8])
+            input_set = list(shuffle_list[0:4])
         elif set_type == 'train':
             # input_set = xr_ds.subject_2d[:2]
-            input_set = list(shuffle_list[8:])
+            input_set = list(shuffle_list[4:])
         else:
             raise AttributeError('Must choose one of ["train", "val", "test"] for `set_type`.')
 
@@ -114,8 +114,8 @@ class ChaosDataset(Dataset):
     def affine_transform(self, image, rot_angle=0, translations=0, scale=1):
         output_image = image.copy()
         for i in range(output_image.shape[0]):
-            output_image[0, i] = self.affine_transform_slice(output_image[0, i], rot_angle, translations,
-                                                          scale)
+            output_image[0, i] = self.affine_transform_slice(output_image[0, i], rot_angle,
+                                                             translations, scale)
         return output_image
 
     def affine_transform_slice(self, input_slice, rot_angle=0, translations=0, scale=1):

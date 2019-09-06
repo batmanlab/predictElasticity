@@ -1,21 +1,24 @@
 #!/usr/bin/env python
 
+import time
+import copy
 from pathlib import Path
 import warnings
 import argparse
+from collections import defaultdict
 import pickle as pkl
 import numpy as np
 from itertools import chain
 import xarray as xr
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import RandomSampler
 from torchsummary import summary
 from tensorboardX import SummaryWriter
 from mre.segmentation import ChaosDataset
-from mre.prediction_v2 import train_model
 from mre import pytorch_arch
 from robust_loss_pytorch import adaptive
 
@@ -140,9 +143,9 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
         # writer.add_graph(model, torch.zeros(1, 3, 256, 256).to(device), verbose=True)
 
         # Train Model
-        model, best_loss = train_model(model, optimizer, exp_lr_scheduler, device, dataloaders,
-                                       num_epochs=cfg['num_epochs'], tb_writer=writer,
-                                       verbose=verbose, loss_func=loss)
+        model, best_loss = train_model_core(model, optimizer, exp_lr_scheduler, device, dataloaders,
+                                            num_epochs=cfg['num_epochs'], tb_writer=writer,
+                                            verbose=verbose, loss_func=loss)
 
         # Write outputs and save model
         cfg['best_loss'] = best_loss
@@ -198,6 +201,108 @@ def default_cfg():
            'channel_growth': False, 'transfer_layer': False,
            'resize': False}
     return cfg
+
+
+def train_model_core(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
+                     loss_func='dice', tb_writer=None, verbose=True):
+    best_model_wts = copy.deepcopy(model.state_dict())
+    best_loss = 1e16
+    for epoch in range(num_epochs):
+        if verbose:
+            print('Epoch {}/{}'.format(epoch, num_epochs - 1))
+            print('-' * 10)
+            since = time.time()
+
+        # Each epoch has a training and validation phase
+        for phase in ['train', 'val']:
+            if phase == 'train':
+                scheduler.step()
+                for param_group in optimizer.param_groups:
+                    if verbose:
+                        print("LR", param_group['lr'])
+
+                model.train()  # Set model to training mode
+            else:
+                model.eval()   # Set model to evaluate mode
+            metrics = defaultdict(float)
+            epoch_samples = 0
+
+            # iterate through batches of data for each epoch
+            for data in dataloaders[phase]:
+                inputs = data[0].to(device)
+                labels = data[1].to(device)
+                # zero the parameter gradients
+                optimizer.zero_grad()
+                # forward
+                # track history if only in train
+                with torch.set_grad_enabled(phase == 'train'):
+                    outputs = model(inputs)
+                    loss = calc_loss(outputs, labels, metrics)
+                    # backward + optimize only if in training phase
+                    if phase == 'train':
+                        loss.backward()
+                        optimizer.step()
+                # accrue total number of samples
+                epoch_samples += inputs.size(0)
+
+            if verbose:
+                print_metrics(metrics, epoch_samples, phase)
+            epoch_loss = metrics['loss'] / epoch_samples
+
+            # deep copy the model if is it best
+            if phase == 'val' and epoch_loss < best_loss:
+                if verbose:
+                    print("saving best model")
+                best_loss = epoch_loss
+                best_model_wts = copy.deepcopy(model.state_dict())
+
+            if tb_writer:
+                tb_writer.add_scalar(f'loss_{phase}', loss, epoch)
+        if verbose:
+            time_elapsed = time.time() - since
+            print('{:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+    if verbose:
+        print('Best val loss: {:4f}'.format(best_loss))
+
+    # load best model weights
+    model.load_state_dict(best_model_wts)
+    return model, best_loss
+
+
+def calc_loss(pred, target, metrics, bce_weight=0.5):
+    bce = F.binary_cross_entropy_with_logits(pred, target)
+
+    pred = F.sigmoid(pred)
+    dice = dice_loss(pred, target)
+
+    loss = bce * bce_weight + dice * (1 - bce_weight)
+
+    metrics['bce'] += bce.data.cpu().numpy() * target.size(0)
+    metrics['dice'] += dice.data.cpu().numpy() * target.size(0)
+    metrics['loss'] += loss.data.cpu().numpy() * target.size(0)
+
+    return loss
+
+
+def dice_loss(pred, target, smooth=1.):
+    pred = pred.contiguous()
+    target = target.contiguous()
+
+    print(pred.shape)
+    intersection = (pred * target).sum(dim=(2,3,4)).sum(dim=(2,3,4))
+
+    loss = (1 - ((2. * intersection + smooth) / (pred.sum(dim=(2,3,4)).sum(dim=(2,3,4)) +
+                                                 target.sum(dim=(2,3,4)).sum(dim=(2,3,4)) + smooth)))
+
+    return loss.mean()
+
+
+def print_metrics(metrics, epoch_samples, phase):
+    outputs = []
+    for k in metrics.keys():
+        outputs.append("{}: {:4f}".format(k, metrics[k] / epoch_samples))
+
+    print("{}: {}".format(phase, ", ".join(outputs)))
 
 
 if __name__ == "__main__":

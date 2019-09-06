@@ -91,6 +91,66 @@ def hv_pred_comp(targets, predictions, masks, names):
                          ds_predictions.sel(subject=subj).values))
 
 
+def hv_dl_vis_chaos(inputs, targets, names, predictions=None):
+    opts.defaults(
+        opts.GridSpace(shared_xaxis=True, shared_yaxis=True),
+        opts.Image(cmap='viridis', width=350, height=350, tools=['hover'], xaxis=None, yaxis=None),
+        opts.Labels(text_color='white', text_font_size='8pt', text_align='left',
+                    text_baseline='bottom'),
+        opts.Path(color='white'),
+        opts.Spread(width=600),
+        opts.Overlay(show_legend=False))
+
+    inputs = inputs.data.cpu().numpy()
+    targets = targets.data.cpu().numpy()
+
+    ds_inputs = xr.DataArray(inputs,
+                             dims=['subject', 'sequence', 'z', 'y', 'x'],
+                             coords=[list(names), ['seq'],
+                                     range(inputs.shape[2]),
+                                     range(0, -inputs.shape[3], -1),
+                                     range(inputs.shape[4])
+                                     ],
+                             name='inputs')
+    ds_targets = xr.DataArray(targets,
+                              dims=['subject', 'sequence', 'z', 'y', 'x'],
+                              coords=[list(names), ['mask'],
+                                      range(inputs.shape[2]),
+                                      range(0, -inputs.shape[3], -1),
+                                      range(inputs.shape[4])
+                                      ],
+                              name='targets')
+
+    hv_ds_inputs = [hv.Dataset(ds_inputs.sel(sequence=seq).copy()) for seq in ds_inputs.sequence]
+    hv_ds_targets = [hv.Dataset(ds_targets.sel(sequence=seq).copy()) for seq in ds_targets.sequence]
+
+    targets = hv_ds_targets[0].to(hv.Image, ['x', 'y'], groupby=['subject', 'z'], dynamic=True)
+
+    input_list = [hv_ds.to(hv.Image, ['x', 'y'], groupby=['subject', 'z'],
+                           dynamic=True).opts(cmap='viridis',
+                                              title=f'Input {hv_ds.data.sequence.values}')
+                  for hv_ds in hv_ds_inputs]
+
+    if predictions is not None:
+        predictions = predictions.data.cpu().numpy()
+        ds_prediction = xr.DataArray(predictions,
+                                     dims=['subject', 'sequence', 'y', 'x'],
+                                     coords=[list(names), ['prediction'],
+                                             range(0, -predictions.shape[2], -1),
+                                             range(predictions.shape[3])
+                                             ],
+                                     name='prediction')
+        hv_ds_predictions = [hv.Dataset(ds_prediction.sel(sequence=seq).copy()) for seq in
+                             ds_prediction.sequence]
+        predictions = hv_ds_predictions[0].to(hv.Image, ['x', 'y'], groupby=['subject'],
+                                              dynamic=True).redim.range(
+                                                  prediction=(0, 50)).opts(title='Prediction')
+
+        layout = hv.Layout(input_list + [targets] + [predictions]).cols(3)
+    else:
+        layout = hv.Layout(input_list + [targets]).cols(3)
+    return layout
+
 def hv_dl_vis(inputs, targets, masks, names, predictions=None):
     opts.defaults(
         opts.GridSpace(shared_xaxis=True, shared_yaxis=True),
