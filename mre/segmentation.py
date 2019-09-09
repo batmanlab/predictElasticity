@@ -57,10 +57,10 @@ class ChaosDataset(Dataset):
 
         self.input_images = xr_ds.sel(sequence=self.my_sequence)['image'].transpose(
             'subject', 'sequence', 'z', 'y', 'x').values
-        self.input_images = self.input_images.astype(float)
+        self.input_images = self.input_images.astype(np.float32)
         self.target_images = xr_ds.sel(sequence=self.my_sequence)['mask'].transpose(
             'subject', 'sequence', 'z', 'y', 'x').values
-        self.target_images = self.target_images.astype(int)
+        self.target_images = self.target_images.astype(np.int32)
 
         self.transform = transform
         self.aug = aug
@@ -79,47 +79,53 @@ class ChaosDataset(Dataset):
                 image = np.where(image >= 1500, 1500, image)
             else:
                 image = np.where(image >= 2000, 2000, image)
-            target = np.where(target > 0, 1, 0)
+            target = np.where(target > 0, 1, 0).astype(np.int32)
 
         if self.transform:
             if self.aug:
                 rot_angle = np.random.uniform(-4, 4, 1)
                 translations = np.random.uniform(-5, 5, 2)
                 scale = np.random.uniform(0.95, 1.05, 1)
+                restack = np.random.randint(-5, 5)
             else:
                 rot_angle = 0
                 translations = (0, 0)
                 scale = 1
-            image = self.input_transform(image, rot_angle, translations, scale)
-            target = self.affine_transform(target, rot_angle, translations, scale)
+                restack = 0
+            image = self.input_transform(image, rot_angle, translations, scale, restack)
+            target = self.affine_transform(target, rot_angle, translations, scale, restack)
 
         image = torch.Tensor(image)
         target = torch.Tensor(target)
 
         return [image, target, self.names[idx]]
 
-    def input_transform(self, input_image, rot_angle=0, translations=0, scale=1):
+    def input_transform(self, input_image, rot_angle=0, translations=0, scale=1, restack=0):
         # normalize and offset image
         image = input_image
         image = np.where(input_image <= 1e-9, np.nan, input_image)
         mean = np.nanmean(image)
         std = np.nanstd(image)
         image = ((image - mean)/std) + 4
+        # image = ((image - mean)/std)
         image = np.where(image != image, 0, image)
 
         # perform affine transfomrations
-        image = self.affine_transform(image, rot_angle, translations, scale)
+        image = self.affine_transform(image, rot_angle, translations, scale, restack)
         return image
 
-    def affine_transform(self, image, rot_angle=0, translations=0, scale=1):
+    def affine_transform(self, image, rot_angle=0, translations=0, scale=1, restack=0):
         output_image = image.copy()
         for i in range(output_image.shape[0]):
-            output_image[0, i] = self.affine_transform_slice(output_image[0, i], rot_angle,
-                                                             translations, scale)
+            if (i+restack < 0) or (i+restack > output_image.shape[0]):
+                output_image[0, i] = np.zeros_like(output_image[0, 0])
+            else:
+                output_image[0, i] = self.affine_transform_slice(output_image[0, i+restack],
+                                                                 rot_angle, translations, scale)
         return output_image
 
     def affine_transform_slice(self, input_slice, rot_angle=0, translations=0, scale=1):
-        input_slice = transforms.ToPILImage()(np.int32(input_slice))
+        input_slice = transforms.ToPILImage()(input_slice)
         input_slice = TF.affine(input_slice, angle=rot_angle,
                                 translate=list(translations), scale=scale, shear=0)
         input_slice = transforms.ToTensor()(input_slice)

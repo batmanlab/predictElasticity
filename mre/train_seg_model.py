@@ -105,7 +105,7 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
     if cfg['model_arch'] == 'modular':
         model = pytorch_arch.GeneralUNet3D(cfg['n_layers'], cfg['in_channels'], cfg['model_cap'],
                                            cfg['out_channels_final'], cfg['channel_growth'],
-                                           cfg['coord_conv'], cfg['transfer_layer']).to(device)
+                                           cfg['coord_conv'], cfg['transfer_layer'])
 
     # Set up adaptive loss if selected
     loss = None
@@ -117,6 +117,12 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
     # Define optimizer
     exp_lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=cfg['step_size'],
                                                  gamma=cfg['gamma'])
+
+    if torch.cuda.device_count() > 1:
+        print("Let's use", torch.cuda.device_count(), "GPUs!")
+        model = nn.DataParallel(model)
+
+    model.to(device)
 
     if cfg['dry_run']:
         inputs, targets, names = next(iter(dataloaders['test']))
@@ -151,7 +157,7 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
         cfg['best_loss'] = best_loss
         inputs, targets, names = next(iter(dataloaders['test']))
         model.eval()
-        model.to('cpu')
+        # model.to('cpu')
         # model_pred = model(inputs)
         # test_mse = ((masked_target-masked_pred)**2).sum()/masks.numpy().sum()
         # cfg['test_mse'] = test_mse
@@ -286,7 +292,6 @@ def dice_loss(pred, target, smooth=1.):
     pred = pred.contiguous()
     target = target.contiguous()
 
-    print(pred.shape)
     intersection = (pred * target).sum(dim=(2, 3, 4))
 
     loss = (1 - ((2. * intersection + smooth) / (pred.sum(dim=(2, 3, 4)) +
