@@ -149,18 +149,16 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
 
         # Write outputs and save model
         cfg['best_loss'] = best_loss
-        inputs, targets, masks, names = next(iter(dataloaders['test']))
+        inputs, targets, names = next(iter(dataloaders['test']))
         model.eval()
         model.to('cpu')
-        model_pred = model(inputs)
-        masked_target = targets.detach().numpy()*masks.numpy()
-        masked_pred = model_pred.detach().numpy()*masks.numpy()
-        test_mse = ((masked_target-masked_pred)**2).sum()/masks.numpy().sum()
-        cfg['test_mse'] = test_mse
-        masked_target = np.where(masked_target > 0, masked_target, np.nan)
-        masked_pred = np.where(masked_pred > 0, masked_pred, np.nan)
-        cfg['true_ave_stiff'] = np.nanmean(masked_target)
-        cfg['test_ave_stiff'] = np.nanmean(masked_pred)
+        # model_pred = model(inputs)
+        # test_mse = ((masked_target-masked_pred)**2).sum()/masks.numpy().sum()
+        # cfg['test_mse'] = test_mse
+        # masked_target = np.where(masked_target > 0, masked_target, np.nan)
+        # masked_pred = np.where(masked_pred > 0, masked_pred, np.nan)
+        # cfg['true_ave_stiff'] = np.nanmean(masked_target)
+        # cfg['test_ave_stiff'] = np.nanmean(masked_pred)
 
         config_file = Path(config_dir, f'{model_version}_subj_{subj}.pkl')
         with open(config_file, 'wb') as f:
@@ -168,7 +166,7 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
 
         writer.close()
         torch.save(model.state_dict(), str(model_dir)+f'/model_{model_version}.pkl')
-        return inputs, targets, masks, names, model
+        return inputs, targets, names, model
 
 
 def process_kwargs(kwargs):
@@ -289,10 +287,10 @@ def dice_loss(pred, target, smooth=1.):
     target = target.contiguous()
 
     print(pred.shape)
-    intersection = (pred * target).sum(dim=(2,3,4)).sum(dim=(2,3,4))
+    intersection = (pred * target).sum(dim=(2, 3, 4))
 
-    loss = (1 - ((2. * intersection + smooth) / (pred.sum(dim=(2,3,4)).sum(dim=(2,3,4)) +
-                                                 target.sum(dim=(2,3,4)).sum(dim=(2,3,4)) + smooth)))
+    loss = (1 - ((2. * intersection + smooth) / (pred.sum(dim=(2, 3, 4)) +
+                                                 target.sum(dim=(2, 3, 4)) + smooth)))
 
     return loss.mean()
 

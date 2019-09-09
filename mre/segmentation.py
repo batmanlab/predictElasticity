@@ -57,7 +57,7 @@ class ChaosDataset(Dataset):
 
         self.input_images = xr_ds.sel(sequence=self.my_sequence)['image'].transpose(
             'subject', 'sequence', 'z', 'y', 'x').values
-        self.input_images = self.input_images.astype(int)
+        self.input_images = self.input_images.astype(float)
         self.target_images = xr_ds.sel(sequence=self.my_sequence)['mask'].transpose(
             'subject', 'sequence', 'z', 'y', 'x').values
         self.target_images = self.target_images.astype(int)

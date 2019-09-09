@@ -125,31 +125,35 @@ def hv_dl_vis_chaos(inputs, targets, names, predictions=None):
     hv_ds_targets = [hv.Dataset(ds_targets.sel(sequence=seq).copy()) for seq in ds_targets.sequence]
 
     targets = hv_ds_targets[0].to(hv.Image, ['x', 'y'], groupby=['subject', 'z'], dynamic=True)
+    targets = targets.redim.range(targets=(0, 1))
 
     input_list = [hv_ds.to(hv.Image, ['x', 'y'], groupby=['subject', 'z'],
-                           dynamic=True).opts(cmap='viridis',
-                                              title=f'Input {hv_ds.data.sequence.values}')
+                           dynamic=True).redim.range(inputs=(0, 9)).opts(
+                               cmap='viridis', title=f'Input {hv_ds.data.sequence.values}')
                   for hv_ds in hv_ds_inputs]
 
     if predictions is not None:
         predictions = predictions.data.cpu().numpy()
-        ds_prediction = xr.DataArray(predictions,
-                                     dims=['subject', 'sequence', 'y', 'x'],
-                                     coords=[list(names), ['prediction'],
-                                             range(0, -predictions.shape[2], -1),
-                                             range(predictions.shape[3])
-                                             ],
-                                     name='prediction')
-        hv_ds_predictions = [hv.Dataset(ds_prediction.sel(sequence=seq).copy()) for seq in
-                             ds_prediction.sequence]
-        predictions = hv_ds_predictions[0].to(hv.Image, ['x', 'y'], groupby=['subject'],
-                                              dynamic=True).redim.range(
-                                                  prediction=(0, 50)).opts(title='Prediction')
+        ds_predictions = xr.DataArray(predictions,
+                                      dims=['subject', 'sequence', 'z', 'y', 'x'],
+                                      coords=[list(names), ['mask'],
+                                              range(inputs.shape[2]),
+                                              range(0, -inputs.shape[3], -1),
+                                              range(inputs.shape[4])
+                                              ],
+                                      name='predictions')
+        hv_ds_predictions = [hv.Dataset(ds_predictions.sel(sequence=seq).copy()) for seq in
+                             ds_predictions.sequence]
+        predictions = hv_ds_predictions[0].to(hv.Image, ['x', 'y'],
+                                              groupby=['subject', 'z'], dynamic=True)
+        pred_range = (ds_predictions.min(), ds_predictions.max())
+        predictions = predictions.redim.range(predictions=pred_range)
 
         layout = hv.Layout(input_list + [targets] + [predictions]).cols(3)
     else:
         layout = hv.Layout(input_list + [targets]).cols(3)
     return layout
+
 
 def hv_dl_vis(inputs, targets, masks, names, predictions=None):
     opts.defaults(
