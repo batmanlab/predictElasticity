@@ -54,6 +54,13 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
     batch_size = cfg['batch_size']
     loss_type = cfg['loss']
 
+    if cfg['train_seq_mode'] is None:
+        cfg['train_seq_mode'] = cfg['def_seq_mode']
+    if cfg['val_seq_mode'] is None:
+        cfg['val_seq_mode'] = cfg['def_seq_mode']
+    if cfg['test_seq_mode'] is None:
+        cfg['test_seq_mode'] = cfg['def_seq_mode']
+
     # Start filling dataloaders
     dataloaders = {}
     train_set = ChaosDataset(ds, set_type='train', transform=cfg['train_trans'],
@@ -149,12 +156,14 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
         # writer.add_graph(model, torch.zeros(1, 3, 256, 256).to(device), verbose=True)
 
         # Train Model
-        model, best_loss = train_model_core(model, optimizer, exp_lr_scheduler, device, dataloaders,
-                                            num_epochs=cfg['num_epochs'], tb_writer=writer,
-                                            verbose=verbose, loss_func=loss)
+        model, best_loss, best_dice, best_bce = train_model_core(
+            model, optimizer, exp_lr_scheduler, device, dataloaders, num_epochs=cfg['num_epochs'],
+            tb_writer=writer, verbose=verbose, loss_func=loss)
 
         # Write outputs and save model
         cfg['best_loss'] = best_loss
+        cfg['best_dice'] = best_dice
+        cfg['best_bce'] = best_bce
         inputs, targets, names = next(iter(dataloaders['test']))
         model.eval()
         # model.to('cpu')
@@ -198,19 +207,22 @@ def default_cfg():
     cfg = {'train_trans': True, 'train_clip': True, 'train_aug': True, 'train_sample': 'shuffle',
            'val_trans': True, 'val_clip': True, 'val_aug': False, 'val_sample': 'shuffle',
            'test_trans': True, 'test_clip': True, 'test_aug': False,
-           'train_seq_mode': 'random', 'val_seq_mode': 'random', 'test_seq_mode': 'random',
+           'train_seq_mode': None, 'val_seq_mode': None, 'test_seq_mode': None, 'def_seq_mode':
+           'random',
            'subj': '01', 'batch_size': 50, 'model_cap': 16, 'lr': 1e-2, 'step_size': 20,
-           'gamma': 0.1, 'num_epochs': 40, 'dry_run': False, 'coord_conv': True, 'loss': 'dice',
-           'model_arch': 'base', 'n_layers': 3, 'in_channels': 1, 'out_channels_final': 1,
-           'channel_growth': False, 'transfer_layer': False,
+           'gamma': 0.1, 'num_epochs': 40, 'dry_run': False, 'coord_conv': False, 'loss': 'dice',
+           'model_arch': 'modular', 'n_layers': 3, 'in_channels': 1, 'out_channels_final': 1,
+           'channel_growth': False, 'transfer_layer': False, 'bce_weight': 0.5,
            'resize': False}
     return cfg
 
 
 def train_model_core(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
-                     loss_func='dice', tb_writer=None, verbose=True):
+                     loss_func='dice', bce_weight=0.5, tb_writer=None, verbose=True):
     best_model_wts = copy.deepcopy(model.state_dict())
     best_loss = 1e16
+    best_dice = 1e16
+    best_bce = 1e16
     for epoch in range(num_epochs):
         if verbose:
             print('Epoch {}/{}'.format(epoch, num_epochs - 1))
@@ -241,7 +253,7 @@ def train_model_core(model, optimizer, scheduler, device, dataloaders, num_epoch
                 # track history if only in train
                 with torch.set_grad_enabled(phase == 'train'):
                     outputs = model(inputs)
-                    loss = calc_loss(outputs, labels, metrics)
+                    loss, dice, bce  = calc_loss(outputs, labels, metrics, bce_weight=bce_weight)
                     # backward + optimize only if in training phase
                     if phase == 'train':
                         loss.backward()
@@ -252,16 +264,22 @@ def train_model_core(model, optimizer, scheduler, device, dataloaders, num_epoch
             if verbose:
                 print_metrics(metrics, epoch_samples, phase)
             epoch_loss = metrics['loss'] / epoch_samples
+            epoch_dice = metrics['dice'] / epoch_samples
+            epoch_bce = metrics['bce'] / epoch_samples
 
             # deep copy the model if is it best
             if phase == 'val' and epoch_loss < best_loss:
                 if verbose:
                     print("saving best model")
                 best_loss = epoch_loss
+                best_dice = epoch_dice
+                best_bce = epoch_bce
                 best_model_wts = copy.deepcopy(model.state_dict())
 
             if tb_writer:
                 tb_writer.add_scalar(f'loss_{phase}', loss, epoch)
+                tb_writer.add_scalar(f'dice_{phase}', dice, epoch)
+                tb_writer.add_scalar(f'bce_{phase}', bce, epoch)
         if verbose:
             time_elapsed = time.time() - since
             print('{:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
@@ -270,7 +288,7 @@ def train_model_core(model, optimizer, scheduler, device, dataloaders, num_epoch
 
     # load best model weights
     model.load_state_dict(best_model_wts)
-    return model, best_loss
+    return model, best_loss, best_dice, best_bce
 
 
 def calc_loss(pred, target, metrics, bce_weight=0.2):
@@ -285,7 +303,7 @@ def calc_loss(pred, target, metrics, bce_weight=0.2):
     metrics['dice'] += dice.data.cpu().numpy() * target.size(0)
     metrics['loss'] += loss.data.cpu().numpy() * target.size(0)
 
-    return loss
+    return loss, dice, bce
 
 
 def dice_loss(pred, target, smooth=1.):
@@ -310,12 +328,13 @@ def print_metrics(metrics, epoch_samples, phase):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Train a model.')
-    parser.add_argument('--data_path', type=str, help='Path to input data.',
-                        default='/pghbio/dbmi/batmanlab/Data/MRE/')
-    parser.add_argument('--data_file', type=str, help='Name of input pickle.',
-                        default='mre_ds_preprocess_4_combomask.p')
+    parser.add_argument(
+        '--data_path', type=str, help='Path to input data.',
+        default='/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/CHAOS/Train_Sets/MR/')
+    parser.add_argument('--data_file', type=str, help='Name of input file.',
+                        default='xarray_chaos.nc')
     parser.add_argument('--output_path', type=str, help='Path to store outputs.',
-                        default='/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data')
+                        default='/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/CHAOS/')
     parser.add_argument('--model_version', type=str, help='Name given to this set of configs'
                         'and corresponding model results.',
                         default='tmp')

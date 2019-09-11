@@ -28,7 +28,7 @@ class SlurmMaster:
         if project == 'MRE':
             module = 'train_model_full.py'
         elif project == 'CHAOS':
-            module = 'train_model_full.py'
+            module = 'train_seg_model.py'
 
         arg_string = ' '.join(f'--{i}={conf[i]}' for i in conf)
         arg_string += f' --subj={subj} --model_version={date}_n{number}'
@@ -38,7 +38,8 @@ class SlurmMaster:
         script.write('#SBATCH -A ac5616p\n')
         script.write('#SBATCH --partition=GPU-AI\n')
         script.write('#SBATCH --nodes=1\n')
-        script.write('#SBATCH --gres=gpu:volta16:1\n')
+        script.write('#SBATCH -C EGRESS\n')
+        script.write('#SBATCH --gres=gpu:volta16:4\n')
         script.write('#SBATCH --time=1:00:00\n')
         script.write('#SBATCH --mail-user=brianleepollack@gmail.com\n')
         script.write(f'#SBATCH --output={str(self.log_dir)}/job_n{number}.stdout\n')

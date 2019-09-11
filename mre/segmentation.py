@@ -10,7 +10,6 @@ import torchvision.transforms.functional as TF
 from torch.utils.data.sampler import RandomSampler
 import time
 import copy
-from mre.plotting import hv_dl_vis
 from robust_loss_pytorch import adaptive
 import warnings
 from datetime import datetime
@@ -24,7 +23,7 @@ from tensorboardX import SummaryWriter
 
 class ChaosDataset(Dataset):
     def __init__(self, xr_ds, set_type='train', transform=None, clip=False, seed=100, test='01',
-                 aug=True, sequence_mode='random', resize=False):
+                 aug=True, sequence_mode='random', resize=False, split=0.2):
 
         xr_ds_test = xr_ds.sel(subject=[test])
         xr_ds = xr_ds.drop(test, dim='subject')
@@ -36,10 +35,10 @@ class ChaosDataset(Dataset):
             input_set = list(test)
         elif set_type == 'val':
             # input_set = xr_ds.subject_2d[2:20]
-            input_set = list(shuffle_list[0:4])
+            input_set = list(shuffle_list[0:3])
         elif set_type == 'train':
             # input_set = xr_ds.subject_2d[:2]
-            input_set = list(shuffle_list[4:])
+            input_set = list(shuffle_list[3:])
         else:
             raise AttributeError('Must choose one of ["train", "val", "test"] for `set_type`.')
 
