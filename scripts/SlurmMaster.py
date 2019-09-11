@@ -23,8 +23,12 @@ class SlurmMaster:
         self.config = Path(config)
         self.parse_config()
 
-    def generate_slurm_script(self, number, conf, subj, date):
+    def generate_slurm_script(self, number, conf, subj, date, project):
         '''Make a slurm submission script.'''
+        if project == 'MRE':
+            module = 'train_model_full.py'
+        elif project == 'CHAOS':
+            module = 'train_model_full.py'
 
         arg_string = ' '.join(f'--{i}={conf[i]}' for i in conf)
         arg_string += f' --subj={subj} --model_version={date}_n{number}'
@@ -48,7 +52,7 @@ class SlurmMaster:
         script.write('\n')
 
         script.write(f'python /pghbio/dbmi/batmanlab/bpollack/predictElasticity/'
-                     f'mre/train_model_full.py {arg_string}\n')
+                     f'mre/{module} {arg_string}\n')
 
         script.close()
         return script_name
@@ -57,14 +61,20 @@ class SlurmMaster:
         config = configparser.ConfigParser()
         # config.read('config_inis/test_config.ini')
         config.read(str(self.config))
-        section = config.sections()[0]
+        sections = config.sections()
         self.config_dict = {}
         self.subj_list = {}
+        self.project = None
+
+        if 'Project' in sections:
+            self.project = config['Project']['task']
+        else:
+            self.project = 'MRE'
 
         # Iterate through config and convert all scalars to lists
-        for c in config[section]:
+        for c in config['Hyper']:
             print(c)
-            val = ast.literal_eval(config[section][c])
+            val = ast.literal_eval(config['Hyper'][c])
             if c == 'subj':
                 if type(val) == list:
                     self.subj_list  = val
@@ -85,7 +95,7 @@ class SlurmMaster:
     def submit_scripts(self):
         for i, conf in enumerate(self.config_combos):
             for subj in self.subj_list:
-                script_name = self.generate_slurm_script(i, conf, subj, self.date)
+                script_name = self.generate_slurm_script(i, conf, subj, self.date, self.project)
                 print(script_name)
                 subprocess.call(f'sbatch {script_name}', shell=True)
 

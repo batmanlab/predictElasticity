@@ -53,7 +53,7 @@ class ChaosDataset(Dataset):
         if sequence_mode == 'random':
             self.my_sequence = [np.random.choice(self.all_sequences)]
         else:
-            raise NotImplementedError('Only sequence_mode "random" is implemented')
+            self.my_sequence = [sequence_mode]
 
         self.input_images = xr_ds.sel(sequence=self.my_sequence)['image'].transpose(
             'subject', 'sequence', 'z', 'y', 'x').values
@@ -86,7 +86,7 @@ class ChaosDataset(Dataset):
                 rot_angle = np.random.uniform(-4, 4, 1)
                 translations = np.random.uniform(-5, 5, 2)
                 scale = np.random.uniform(0.95, 1.05, 1)
-                restack = np.random.randint(-5, 5)
+                restack = np.random.randint(-3, 3)
             else:
                 rot_angle = 0
                 translations = (0, 0)

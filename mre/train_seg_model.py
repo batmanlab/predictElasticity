@@ -273,7 +273,7 @@ def train_model_core(model, optimizer, scheduler, device, dataloaders, num_epoch
     return model, best_loss
 
 
-def calc_loss(pred, target, metrics, bce_weight=0.5):
+def calc_loss(pred, target, metrics, bce_weight=0.2):
     bce = F.binary_cross_entropy_with_logits(pred, target)
 
     pred = F.sigmoid(pred)
