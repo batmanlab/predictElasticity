@@ -165,9 +165,15 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
         cfg['best_dice'] = best_dice
         cfg['best_bce'] = best_bce
         inputs, targets, names = next(iter(dataloaders['test']))
+        inputs = inputs.to('cuda:0')
+        targets = targets.to('cuda:0')
         model.eval()
-        # model.to('cpu')
-        # model_pred = model(inputs)
+        model_pred = model(inputs)
+        model_pred = F.sigmoid(model_pred)
+        # model_pred.to('cuda:0')
+        test_dice = dice_loss(model_pred, targets)
+        test_dice = test_dice.to('cpu')
+        cfg['test_dice'] = test_dice[0]
         # test_mse = ((masked_target-masked_pred)**2).sum()/masks.numpy().sum()
         # cfg['test_mse'] = test_mse
         # masked_target = np.where(masked_target > 0, masked_target, np.nan)
