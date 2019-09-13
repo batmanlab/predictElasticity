@@ -51,6 +51,8 @@ class ChaosDataset(Dataset):
         self.all_sequences = xr_ds.sequence.values
         if sequence_mode == 'random':
             self.my_sequence = [np.random.choice(self.all_sequences)]
+        elif sequence_mode == 'all':
+            self.my_sequence = ['t1_in', 't1_out', 't2']
         else:
             self.my_sequence = [sequence_mode]
 
@@ -74,10 +76,11 @@ class ChaosDataset(Dataset):
         image = self.input_images[idx]
         target = self.target_images[idx]
         if self.clip:
-            if 't1' in self.my_sequence[0]:
-                image = np.where(image >= 1500, 1500, image)
-            else:
-                image = np.where(image >= 2000, 2000, image)
+            for i, seq in enumerate(self.my_sequence):
+                if 't1' in seq:
+                    image[i, :] = np.where(image[i, :] >= 1500, 1500, image[i, :])
+                else:
+                    image[i, :] = np.where(image[i, :] >= 2000, 2000, image[i, :])
             target = np.where(target > 0, 1, 0).astype(np.int32)
 
         if self.transform:
@@ -91,8 +94,11 @@ class ChaosDataset(Dataset):
                 translations = (0, 0)
                 scale = 1
                 restack = 0
-            image = self.input_transform(image, rot_angle, translations, scale, restack)
-            target = self.affine_transform(target, rot_angle, translations, scale, restack)
+            for i in range(len(self.my_sequence)):
+                image[i, :] = self.input_transform(image[i:i+1, :], rot_angle,
+                                                   translations, scale, restack)
+                target[i, :] = self.affine_transform(target[i:i+1, :], rot_angle,
+                                                     translations, scale, restack)
 
         image = torch.Tensor(image)
         target = torch.Tensor(target)
