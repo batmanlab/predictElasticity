@@ -95,3 +95,59 @@ class Register:
             transformixImageFilter.SetMovingImage(grid_image)
             transformixImageFilter.Execute()
             self.grid_result = transformixImageFilter.GetResultImage()
+
+
+class GroupRegister:
+    '''Class that registers a group of images for a given patient.'''
+
+    def __init__(self, patient, img_names, verbose=True):
+        self.verbose = verbose
+        self.img_vec = sitk.VectorOfImage()
+
+        for name in img_names:
+            self.img_vec.push_back(patient.images[name])
+
+        self.img = sitk.JoinSeries(self.img_vec)
+        self.gen_param_map()
+        self.register_imgs()
+
+    def gen_param_map(self):
+        self.p_map_vector = sitk.VectorOfParameterMap()
+        # self.p_map_vector = sitk.GetDefaultParameterMap('groupwise')
+        paff = sitk.GetDefaultParameterMap("groupwise")
+        #pbsp = sitk.GetDefaultParameterMap("bspline")
+        paff['AutomaticTransformInitialization'] = ['true']
+        # paff['AutomaticTransformInitializationMethod'] = ['CenterOfGravity']
+        paff['NumberOfSamplesForExactGradient'] = ['100000']
+        #pbsp['NumberOfSamplesForExactGradient'] = ['100000']
+        paff['NumberOfSpatialSamples'] = ['5000']
+        #pbsp['NumberOfSpatialSamples'] = ['5000']
+        # paff['NumberOfHistogramBins'] = ['32', '64', '256', '512']
+        paff['NumberOfHistogramBins'] = ['64', '256', '512']
+        paff['MaximumNumberOfIterations'] = ['256']
+        #pbsp['MaximumNumberOfIterations'] = ['256']
+        #pbsp['NumberOfResolutions'] = ['3']
+        # paff['GridSpacingSchedule'] = ['6', '4', '2', '1.0']
+        # pbsp['GridSpacingSchedule'] = ['6', '4', '2', '1.0']
+        paff['GridSpacingSchedule'] = ['4', '2', '1.0']
+        paff['Transform'] = ['AffineLogStackTransform']
+        #pbsp['GridSpacingSchedule'] = ['4', '2', '1.0']
+        #pbsp['FinalGridSpacingInPhysicalUnits'] = ['8', '8', '8']
+        #pbsp['FinalBSplineInterpolationOrder'] = ['2']
+        # paff['ResampleInterpolator'] = ['FinalNearestNeighborInterpolator']
+        # pbsp['ResampleInterpolator'] = ['FinalNearestNeighborInterpolator']
+
+        self.p_map_vector.append(paff)
+        #self.p_map_vector.append(pbsp)
+        if self.verbose:
+            sitk.PrintParameterMap(self.p_map_vector)
+
+    def register_imgs(self, grid=False):
+        self.elastixImageFilter = sitk.ElastixImageFilter()
+        self.elastixImageFilter.SetFixedImage(self.img)
+        self.elastixImageFilter.SetMovingImage(self.img)
+        self.elastixImageFilter.SetParameterMap(self.p_map_vector)
+        self.elastixImageFilter.Execute()
+        self.moving_img_result = self.elastixImageFilter.GetResultImage()
+        self.moving_img_result.CopyInformation(self.img)
+
