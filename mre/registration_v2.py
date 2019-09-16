@@ -46,29 +46,29 @@ class Register:
     def gen_param_map(self):
         self.p_map_vector = sitk.VectorOfParameterMap()
         paff = sitk.GetDefaultParameterMap("affine")
-        pbsp = sitk.GetDefaultParameterMap("bspline")
+        #pbsp = sitk.GetDefaultParameterMap("bspline")
         paff['AutomaticTransformInitialization'] = ['true']
-        # paff['AutomaticTransformInitializationMethod'] = ['Origins']
+        # paff['AutomaticTransformInitializationMethod'] = ['CenterOfGravity']
         paff['NumberOfSamplesForExactGradient'] = ['100000']
-        pbsp['NumberOfSamplesForExactGradient'] = ['100000']
+        #pbsp['NumberOfSamplesForExactGradient'] = ['100000']
         paff['NumberOfSpatialSamples'] = ['5000']
-        pbsp['NumberOfSpatialSamples'] = ['5000']
+        #pbsp['NumberOfSpatialSamples'] = ['5000']
         # paff['NumberOfHistogramBins'] = ['32', '64', '256', '512']
         paff['NumberOfHistogramBins'] = ['64', '256', '512']
         paff['MaximumNumberOfIterations'] = ['256']
-        pbsp['MaximumNumberOfIterations'] = ['256']
-        pbsp['NumberOfResolutions'] = ['3']
+        #pbsp['MaximumNumberOfIterations'] = ['256']
+        #pbsp['NumberOfResolutions'] = ['3']
         # paff['GridSpacingSchedule'] = ['6', '4', '2', '1.0']
         # pbsp['GridSpacingSchedule'] = ['6', '4', '2', '1.0']
         paff['GridSpacingSchedule'] = ['4', '2', '1.0']
-        pbsp['GridSpacingSchedule'] = ['4', '2', '1.0']
-        pbsp['FinalGridSpacingInPhysicalUnits'] = ['8', '8', '8']
-        pbsp['FinalBSplineInterpolationOrder'] = ['2']
+        #pbsp['GridSpacingSchedule'] = ['4', '2', '1.0']
+        #pbsp['FinalGridSpacingInPhysicalUnits'] = ['8', '8', '8']
+        #pbsp['FinalBSplineInterpolationOrder'] = ['2']
         # paff['ResampleInterpolator'] = ['FinalNearestNeighborInterpolator']
         # pbsp['ResampleInterpolator'] = ['FinalNearestNeighborInterpolator']
 
         self.p_map_vector.append(paff)
-        self.p_map_vector.append(pbsp)
+        #self.p_map_vector.append(pbsp)
         if self.verbose:
             sitk.PrintParameterMap(self.p_map_vector)
 

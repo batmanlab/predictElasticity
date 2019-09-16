@@ -43,8 +43,8 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
         None
     '''
     # Load config and data
-    torch.manual_seed(100)
     cfg = process_kwargs(kwargs)
+    torch.manual_seed(cfg['seed'])
     if verbose:
         print(cfg)
     ds = xr.open_dataset(Path(data_path, data_file))
@@ -67,17 +67,17 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
                              clip=cfg['train_clip'], aug=cfg['train_aug'],
                              sequence_mode=cfg['train_seq_mode'],
                              resize=cfg['resize'],
-                             test=subj)
+                             test=subj, seed=cfg['seed'])
     val_set = ChaosDataset(ds, set_type='val', transform=cfg['val_trans'],
                            clip=cfg['val_clip'], aug=cfg['val_aug'],
                            sequence_mode=cfg['val_seq_mode'],
                            resize=cfg['resize'],
-                           test=subj)
+                           test=subj, seed=cfg['seed'])
     test_set = ChaosDataset(ds, set_type='test', transform=cfg['test_trans'],
                             clip=cfg['test_clip'], aug=cfg['test_aug'],
                             sequence_mode=cfg['test_seq_mode'],
                             resize=cfg['resize'],
-                            test=subj)
+                            test=subj, seed=cfg['seed'])
     if verbose:
         print('train: ', len(train_set))
         print('val: ', len(val_set))
@@ -140,7 +140,9 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
 
         print('Model Summary:')
         # summary(model, input_size=(3, 224, 224))
-        summary(model, input_size=(inputs.shape[1:]))
+        dry_size = list(inputs.shape[1:])
+        dry_size[0] = 1
+        summary(model, input_size=tuple(dry_size))
         return inputs, targets, names, None
 
     else:
@@ -168,18 +170,24 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
         inputs = inputs.to('cuda:0')
         targets = targets.to('cuda:0')
         model.eval()
-        model_pred = model(inputs)
+
+        model_pred = model(inputs[:, 0:1, :])
         model_pred = F.sigmoid(model_pred)
-        # model_pred.to('cuda:0')
-        test_dice = dice_loss(model_pred, targets)
+        test_dice = dice_loss(model_pred, targets[:, 0:1, :])
         test_dice = test_dice.to('cpu')
-        cfg['test_dice'] = test_dice[0]
-        # test_mse = ((masked_target-masked_pred)**2).sum()/masks.numpy().sum()
-        # cfg['test_mse'] = test_mse
-        # masked_target = np.where(masked_target > 0, masked_target, np.nan)
-        # masked_pred = np.where(masked_pred > 0, masked_pred, np.nan)
-        # cfg['true_ave_stiff'] = np.nanmean(masked_target)
-        # cfg['test_ave_stiff'] = np.nanmean(masked_pred)
+        cfg['test_dice_t1_in'] = test_dice.item()
+
+        model_pred = model(inputs[:, 1:2, :])
+        model_pred = F.sigmoid(model_pred)
+        test_dice = dice_loss(model_pred, targets[:, 1:2, :])
+        test_dice = test_dice.to('cpu')
+        cfg['test_dice_t1_out'] = test_dice.item()
+
+        model_pred = model(inputs[:, 2:3, :])
+        model_pred = F.sigmoid(model_pred)
+        test_dice = dice_loss(model_pred, targets[:, 2:3, :])
+        test_dice = test_dice.to('cpu')
+        cfg['test_dice_t2'] = test_dice.item()
 
         config_file = Path(config_dir, f'{model_version}_subj_{subj}.pkl')
         with open(config_file, 'wb') as f:
@@ -213,8 +221,8 @@ def default_cfg():
     cfg = {'train_trans': True, 'train_clip': True, 'train_aug': True, 'train_sample': 'shuffle',
            'val_trans': True, 'val_clip': True, 'val_aug': False, 'val_sample': 'shuffle',
            'test_trans': True, 'test_clip': True, 'test_aug': False,
-           'train_seq_mode': None, 'val_seq_mode': None, 'test_seq_mode': None, 'def_seq_mode':
-           'random',
+           'train_seq_mode': None, 'val_seq_mode': None, 'test_seq_mode': 'all', 'def_seq_mode':
+           'random', 'seed': 100,
            'subj': '01', 'batch_size': 50, 'model_cap': 16, 'lr': 1e-2, 'step_size': 20,
            'gamma': 0.1, 'num_epochs': 40, 'dry_run': False, 'coord_conv': False, 'loss': 'dice',
            'model_arch': 'modular', 'n_layers': 3, 'in_channels': 1, 'out_channels_final': 1,
