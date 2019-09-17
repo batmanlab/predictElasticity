@@ -133,7 +133,7 @@ def hv_dl_vis_chaos(inputs, targets, names, seq_names=None, predictions=None):
     hv_ds_targets = hv.Dataset(ds_targets.copy())
 
     hv_targets = hv_ds_targets.to(hv.Image, ['x', 'y'], groupby=['subject', 'sequence', 'z'],
-                               dynamic=True)
+                                  dynamic=True)
     hv_targets = hv_targets.redim.range(targets=(0, 1))
 
     # input_list = [hv_ds.to(hv.Image, ['x', 'y'], groupby=['subject', 'sequence', 'z'],
@@ -388,6 +388,7 @@ def patient_series_viewer(path, patient, img_type='DICOM', info=''):
         hvds_list = []
         if 'DICOM' in img_type:
             dicom_names = reader.GetGDCMSeriesFileNames(str(img_files))
+            dicom_names = sorted(dicom_names, key=lambda a: Path(a).stem[2:].zfill(3))
             reader.SetFileNames(dicom_names)
             reader.MetaDataDictionaryArrayUpdateOn()  # Get DICOM Info
             reader.LoadPrivateTagsOn()  # Get DICOM Info

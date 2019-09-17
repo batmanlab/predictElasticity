@@ -2,6 +2,7 @@
 import os
 from pathlib import Path
 import re
+from collections import OrderedDict
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -28,6 +29,7 @@ import matplotlib.pyplot as plt
 # '0018|0080': Repetition Time
 # '0018|0081': Echo Time
 # '0018|0087': Mag Field Strength
+# '0018|1060': Trigger Time (for splitting dicom series)
 
 
 class MRIImage:
@@ -491,6 +493,7 @@ def dicom_to_pandas(data_path, subdirs):
             reader = sitk.ImageSeriesReader()
             for img_files in img_folders:
                 dicom_names = reader.GetGDCMSeriesFileNames(str(img_files))
+                dicom_names = sorted(dicom_names, key=lambda a: Path(a).stem[2:].zfill(3))
                 reader.SetFileNames(dicom_names)
                 reader.MetaDataDictionaryArrayUpdateOn()  # Get DICOM Info
                 reader.LoadPrivateTagsOn()  # Get DICOM Info
@@ -502,11 +505,11 @@ def dicom_to_pandas(data_path, subdirs):
                 pid = reader.GetMetaData(0, '0010|0010').strip()
                 desc = img_files.stem
                 desc = re.match(r'(\D*)(\d*)', desc, re.I)
-                desc = ''.join([desc.groups()[0], desc.groups()[1].zfill(2)])
+                desc = ''.join([desc.groups()[0], desc.groups()[1].zfill(3)])
                 for i, name in enumerate(dicom_names):
                     name = Path(name).stem
                     name = re.match(r'(\D*)(\d*)', name, re.I)
-                    name = ''.join([name.groups()[0], name.groups()[1].zfill(2)])
+                    name = ''.join([name.groups()[0], name.groups()[1].zfill(3)])
                     index = []
                     vals = []
                     index.append('pathname')
@@ -563,15 +566,40 @@ def dicom_to_nifti(data_path, subdirs):
                                                                          'ignore').decode().lower()
                 # print(pid, desc, img.GetSize(), img.GetNumberOfComponentsPerPixel())
 
-                name = select_image(img, desc, sel_dict)
-                if name:
-                    # print(name)
+                if 'art' in desc:
+                    img1, img2, img3 = split_image(img)
+                else:
+                    name = select_image(img, desc, sel_dict)
+                    if name:
+                        # print(name)
 
-                    patient_path = Path(data_path, 'NIFTI', pid)
-                    patient_path.mkdir(exist_ok=True)
+                        patient_path = Path(data_path, 'NIFTI', pid)
+                        patient_path.mkdir(exist_ok=True)
 
-                    sitk.WriteImage(img, str(patient_path) + '/' + name + '.nii')
+                        sitk.WriteImage(img, str(patient_path) + '/' + name + '.nii')
             # print(sel_dict)
+
+
+def split_image(img, reader):
+    trigger_index = OrderedDict()
+    current_trigger = -999
+    current_index = -999
+    for i in range(img.GetSize()[-1]):
+        v = reader.GetMetaData(i, '0018|1060')  # Get trigger time
+        if v != current_trigger:
+            trigger_index[i] = 1
+            current_index = i
+            current_trigger = v
+        else:
+            trigger_index[current_index] += 1
+    size = img.GetSize()
+    img1_info = trigger_index.popitem(last=False)
+    img1 = sitk.Extract(img, (size[0], size[1], img1_info[1]), (0, 0, img1_info[0]))
+    img2_info = trigger_index.popitem(last=False)
+    img2 = sitk.Extract(img, (size[0], size[1], img2_info[1]), (0, 0, img2_info[0]))
+    img3_info = trigger_index.popitem(last=False)
+    img3 = sitk.Extract(img, (size[0], size[1], img3_info[1]), (0, 0, img3_info[0]))
+    return img1, img2, img3
 
 
 def select_image(img, desc, sel_dict):

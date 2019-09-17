@@ -1,30 +1,27 @@
-(Transform "AffineLogStackTransform")
-(NumberOfParameters 48)
-(TransformParameters 0.035186 0.009246 0.007062 0.002789 0.054363 0.001903 -0.004008 -0.000782 -0.022221 -1.696404 -2.762619 0.000347 0.063012 0.000424 -0.000739 0.000028 0.068755 0.000978 -0.003166 0.004885 0.048622 2.371775 -0.673868 -0.000139 0.045354 0.001556 0.000004 -0.003529 0.042870 0.004313 -0.012556 -0.004767 0.052398 -2.365461 -0.316491 0.000197 0.062487 -0.009347 -0.006233 0.005962 0.043390 -0.011645 0.028799 0.006871 0.092176 1.703968 3.644015 -0.000542)
+(Transform "AffineTransform")
+(NumberOfParameters 12)
+(TransformParameters 0.998656 -0.002284 -0.000154 0.000379 0.998817 -0.000820 0.003976 0.001016 0.990193 -0.153804 0.112100 -0.005864)
 (InitialTransformParametersFileName "NoInitialTransform")
 (UseBinaryFormatForTransformationParameters "false")
 (HowToCombineTransforms "Compose")
 
 // Image specific
-(FixedImageDimension 4)
-(MovingImageDimension 4)
+(FixedImageDimension 3)
+(MovingImageDimension 3)
 (FixedInternalImagePixelType "float")
 (MovingInternalImagePixelType "float")
-(Size 512 512 88 4)
-(Index 0 0 0 0)
-(Spacing 0.7031000257 0.7031000257 2.3000030518 1.0000000000)
-(Origin -204.1300048828 -208.5919952393 -142.0130004883 0.0000000000)
-(Direction 1.0000000000 0.0000000000 0.0000000000 0.0000000000 0.0000000000 1.0000000000 0.0000000000 0.0000000000 0.0000000000 0.0000000000 1.0000000000 0.0000000000 0.0000000000 0.0000000000 0.0000000000 1.0000000000)
+(Size 512 512 88)
+(Index 0 0 0)
+(Spacing 0.7031000257 0.7031000257 2.3000030518)
+(Origin -204.1300048828 -208.5919952393 -142.0130004883)
+(Direction 1.0000000000 0.0000000000 0.0000000000 0.0000000000 1.0000000000 0.0000000000 0.0000000000 0.0000000000 1.0000000000)
 (UseDirectionCosines "true")
 
-// AffineLogStackTransform specific
+// AdvancedAffineTransform specific
 (CenterOfRotationPoint -24.4879483283 -28.9499386847 -41.9628677368)
-(StackSpacing 1.0000000000)
-(StackOrigin 0.0000000000)
-(NumberOfSubTransforms 4)
 
 // ResampleInterpolator specific
-(ResampleInterpolator "FinalReducedDimensionBSplineInterpolator")
+(ResampleInterpolator "FinalBSplineInterpolator")
 (FinalBSplineInterpolationOrder 3)
 
 // Resampler specific
