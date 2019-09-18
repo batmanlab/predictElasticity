@@ -542,10 +542,14 @@ def dicom_to_nifti(data_path, subdirs):
                             t1_pre_fat=False,
                             t1_pre_in=False,
                             t1_pre_out=False,
-                            t1_pos_water=False,
-                            t1_pos_fat=False,
-                            t1_pos_in=False,
-                            t1_pos_out=False,
+                            t1_pos_300_water=False,
+                            t1_pos_300_fat=False,
+                            t1_pos_300_in=False,
+                            t1_pos_300_out=False,
+                            t1_pos_art_water=False,
+                            t1_pos_art_fat=False,
+                            t1_pos_art_in=False,
+                            t1_pos_art_out=False,
                             t2=False,
                             mre_raw=False,
                             mre=False,
@@ -553,6 +557,7 @@ def dicom_to_nifti(data_path, subdirs):
 
             for img_files in img_folders:
                 dicom_names = reader.GetGDCMSeriesFileNames(str(img_files))
+                dicom_names = sorted(dicom_names, key=lambda a: Path(a).stem[2:].zfill(3))
                 reader.SetFileNames(dicom_names)
                 reader.MetaDataDictionaryArrayUpdateOn()  # Get DICOM Info
                 reader.LoadPrivateTagsOn()  # Get DICOM Info
@@ -566,18 +571,21 @@ def dicom_to_nifti(data_path, subdirs):
                                                                          'ignore').decode().lower()
                 # print(pid, desc, img.GetSize(), img.GetNumberOfComponentsPerPixel())
 
-                if 'art' in desc:
-                    img1, img2, img3 = split_image(img)
-                else:
-                    name = select_image(img, desc, sel_dict)
-                    if name:
-                        # print(name)
+                patient_path = Path(data_path, 'NIFTI', pid)
+                patient_path.mkdir(exist_ok=True)
 
-                        patient_path = Path(data_path, 'NIFTI', pid)
-                        patient_path.mkdir(exist_ok=True)
-
+                name = select_image(img, desc, sel_dict)
+                if name:
+                    if 'art' in name:
+                        img1, img2, img3 = split_image(img, reader)
+                        sitk.WriteImage(
+                            img1, str(patient_path) + '/' + name.replace('art', '0') + '.nii')
+                        sitk.WriteImage(
+                            img2, str(patient_path) + '/' + name.replace('art', '70') + '.nii')
+                        sitk.WriteImage(
+                            img3, str(patient_path) + '/' + name.replace('art', '160') + '.nii')
+                    else:
                         sitk.WriteImage(img, str(patient_path) + '/' + name + '.nii')
-            # print(sel_dict)
 
 
 def split_image(img, reader):
@@ -592,13 +600,13 @@ def split_image(img, reader):
             current_trigger = v
         else:
             trigger_index[current_index] += 1
-    size = img.GetSize()
+    # size = img.GetSize()
     img1_info = trigger_index.popitem(last=False)
-    img1 = sitk.Extract(img, (size[0], size[1], img1_info[1]), (0, 0, img1_info[0]))
     img2_info = trigger_index.popitem(last=False)
-    img2 = sitk.Extract(img, (size[0], size[1], img2_info[1]), (0, 0, img2_info[0]))
     img3_info = trigger_index.popitem(last=False)
-    img3 = sitk.Extract(img, (size[0], size[1], img3_info[1]), (0, 0, img3_info[0]))
+    img1 = img[:, :, 0:img1_info[1]]
+    img2 = img[:, :, img2_info[0]:img3_info[0]]
+    img3 = img[:, :, img3_info[0]:]
     return img1, img2, img3
 
 
@@ -624,21 +632,37 @@ def select_image(img, desc, sel_dict):
         sel_dict['t1_pre_out'] = desc
         return 't1_pre_out'
 
-    if not sel_dict['t1_pos_water'] and is_t1_pos_water(desc):
-        sel_dict['t1_pos_water'] = desc
-        return 't1_pos_water'
+    if not sel_dict['t1_pos_300_water'] and is_t1_pos_300_water(desc):
+        sel_dict['t1_pos_300_water'] = desc
+        return 't1_pos_300_water'
 
-    if not sel_dict['t1_pos_fat'] and is_t1_pos_fat(desc):
-        sel_dict['t1_pos_fat'] = desc
-        return 't1_pos_fat'
+    if not sel_dict['t1_pos_300_fat'] and is_t1_pos_300_fat(desc):
+        sel_dict['t1_pos_300_fat'] = desc
+        return 't1_pos_300_fat'
 
-    if not sel_dict['t1_pos_in'] and is_t1_pos_in(desc):
-        sel_dict['t1_pos_in'] = desc
-        return 't1_pos_in'
+    if not sel_dict['t1_pos_300_in'] and is_t1_pos_300_in(desc):
+        sel_dict['t1_pos_300_in'] = desc
+        return 't1_pos_300_in'
 
-    if not sel_dict['t1_pos_out'] and is_t1_pos_out(desc):
-        sel_dict['t1_pos_out'] = desc
-        return 't1_pos_out'
+    if not sel_dict['t1_pos_300_out'] and is_t1_pos_300_out(desc):
+        sel_dict['t1_pos_300_out'] = desc
+        return 't1_pos_300_out'
+
+    if not sel_dict['t1_pos_art_water'] and is_t1_pos_art_water(desc):
+        sel_dict['t1_pos_art_water'] = desc
+        return 't1_pos_art_water'
+
+    if not sel_dict['t1_pos_art_fat'] and is_t1_pos_art_fat(desc):
+        sel_dict['t1_pos_art_fat'] = desc
+        return 't1_pos_art_fat'
+
+    if not sel_dict['t1_pos_art_in'] and is_t1_pos_art_in(desc):
+        sel_dict['t1_pos_art_in'] = desc
+        return 't1_pos_art_in'
+
+    if not sel_dict['t1_pos_art_out'] and is_t1_pos_art_out(desc):
+        sel_dict['t1_pos_art_out'] = desc
+        return 't1_pos_art_out'
 
     if not sel_dict['t2'] and is_t2(desc):
         sel_dict['t2'] = desc
@@ -707,7 +731,7 @@ def is_t1_pre_out(desc):
     return False
 
 
-def is_t1_pos_water(desc):
+def is_t1_pos_300_water(desc):
     if 'lava' in desc:
         if 'water' in desc:
             if '5min' in desc:
@@ -715,7 +739,7 @@ def is_t1_pos_water(desc):
     return False
 
 
-def is_t1_pos_fat(desc):
+def is_t1_pos_300_fat(desc):
     if 'lava' in desc:
         if 'fat' in desc:
             if '5min' in desc:
@@ -723,7 +747,7 @@ def is_t1_pos_fat(desc):
     return False
 
 
-def is_t1_pos_in(desc):
+def is_t1_pos_300_in(desc):
     if 'lava' in desc:
         if 'inphase' in desc:
             if '5min' in desc:
@@ -731,10 +755,42 @@ def is_t1_pos_in(desc):
     return False
 
 
-def is_t1_pos_out(desc):
+def is_t1_pos_300_out(desc):
     if 'lava' in desc:
         if 'outphase' in desc:
             if '5min' in desc:
+                return True
+    return False
+
+
+def is_t1_pos_art_water(desc):
+    if 'lava' in desc:
+        if 'water' in desc:
+            if 'art' in desc:
+                return True
+    return False
+
+
+def is_t1_pos_art_fat(desc):
+    if 'lava' in desc:
+        if 'fat' in desc:
+            if 'art' in desc:
+                return True
+    return False
+
+
+def is_t1_pos_art_in(desc):
+    if 'lava' in desc:
+        if 'inphase' in desc:
+            if 'art' in desc:
+                return True
+    return False
+
+
+def is_t1_pos_art_out(desc):
+    if 'lava' in desc:
+        if 'outphase' in desc:
+            if 'art' in desc:
                 return True
     return False
 
