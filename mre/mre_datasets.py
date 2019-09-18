@@ -16,7 +16,8 @@ from skimage import feature, morphology
 from skimage.filters import sobel
 import pdb
 from tqdm import tqdm_notebook
-import matplotlib.pyplot as plt
+
+from mre.registration_v2 import RegPatient, Register
 
 
 class MREtoXr:
@@ -45,14 +46,14 @@ class MREtoXr:
                 {'image_mri': (['subject', 'sequence', 'x', 'y', 'z_mri'],
                                np.zeros((len(self.patients), len(self.sequences), self.nx, self.ny,
                                          self.nz_mri), dtype=np.int16)),
-                 'mask_mri': (['subject', 'sequence', 'x', 'y', 'z_mri'],
-                              np.zeros((len(self.patients), len(self.sequences), self.nx, self.ny,
+                 'mask_mri': (['subject', 'x', 'y', 'z_mri'],
+                              np.zeros((len(self.patients), self.nx, self.ny,
                                         self.nz_mri), dtype=np.int16)),
                  'image_mre': (['subject', 'sequence', 'x', 'y', 'z_mre'],
                                np.zeros((len(self.patients), len(self.sequences), self.nx, self.ny,
                                          self.nz_mre), dtype=np.int16)),
-                 'mask_mre': (['subject', 'sequence', 'x', 'y', 'z_mre'],
-                              np.zeros((len(self.patients), len(self.sequences), self.nx, self.ny,
+                 'mask_mre': (['subject', 'x', 'y', 'z_mre'],
+                              np.zeros((len(self.patients), self.nx, self.ny,
                                         self.nz_mre), dtype=np.int16)),
                  },
 
@@ -66,9 +67,24 @@ class MREtoXr:
             )
 
     def load_xr(self):
-        for i, pat in enumerate(tqdm_notebook(patients, desc='Patients')):
-            full_path = Path(data_dir, pat)
-            img_files = list(full_path.iterdir())
+        for i, pat in enumerate(tqdm_notebook(self.patients, desc='Patients')):
+
+            reg_pat = RegPatient(pat, data_dir)
+            if 't1_pre_water' not in reg_pat.images.keys():
+                self.remove_patient(pat)
+
+            # register then resize
+            for seq in self.sequences:
+                if seq == 't1_pre_water':
+                    continue
+                elif seq not in reg_pat.images.keys():
+                    continue
+
+                reg = Register(reg_pat.images['t1_pre_water'], reg_pat.images[seq])
+
+
+
+
 
             t1_in = get_image_match(img_files, 't1_pre_in_MR', pat, nx, ny, nz)
             t1_out = get_image_match(img_files, 't1_pre_out_MR', pat, nx, ny, nz)
