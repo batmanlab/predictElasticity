@@ -578,36 +578,45 @@ def dicom_to_nifti(data_path, subdirs):
                 if name:
                     if 'art' in name:
                         img1, img2, img3 = split_image(img, reader)
-                        sitk.WriteImage(
-                            img1, str(patient_path) + '/' + name.replace('art', '0') + '.nii')
-                        sitk.WriteImage(
-                            img2, str(patient_path) + '/' + name.replace('art', '70') + '.nii')
-                        sitk.WriteImage(
-                            img3, str(patient_path) + '/' + name.replace('art', '160') + '.nii')
+                        if img1 is not None:
+                            sitk.WriteImage(
+                                img1, str(patient_path) + '/' + name.replace('art', '0') + '.nii')
+                        if img2 is not None:
+                            sitk.WriteImage(
+                                img2, str(patient_path) + '/' + name.replace('art', '70') + '.nii')
+                        if img3 is not None:
+                            sitk.WriteImage(
+                                img3, str(patient_path) + '/' + name.replace('art', '160') + '.nii')
                     else:
                         sitk.WriteImage(img, str(patient_path) + '/' + name + '.nii')
 
 
 def split_image(img, reader):
-    trigger_index = OrderedDict()
+    img_bounds = []
     current_trigger = -999
-    current_index = -999
     for i in range(img.GetSize()[-1]):
         v = reader.GetMetaData(i, '0018|1060')  # Get trigger time
         if v != current_trigger:
-            trigger_index[i] = 1
-            current_index = i
+            img_bounds.append([i, i+1])
             current_trigger = v
         else:
-            trigger_index[current_index] += 1
+            img_bounds[-1][1] += 1
     # size = img.GetSize()
-    img1_info = trigger_index.popitem(last=False)
-    img2_info = trigger_index.popitem(last=False)
-    img3_info = trigger_index.popitem(last=False)
-    img1 = img[:, :, 0:img1_info[1]]
-    img2 = img[:, :, img2_info[0]:img3_info[0]]
-    img3 = img[:, :, img3_info[0]:]
-    return img1, img2, img3
+
+    if len(img_bounds) == 1:
+        return img, None, None
+    elif len(img_bounds) == 2:
+        img1 = img[:, :, img_bounds[0][0]:img_bounds[0][1]]
+        img2 = img[:, :, img_bounds[1][0]:img_bounds[1][1]]
+        return img1, img2, None
+    else:
+        img1 = img[:, :, img_bounds[0][0]:img_bounds[0][1]]
+        img2 = img[:, :, img_bounds[1][0]:img_bounds[1][1]]
+        img3 = img[:, :, img_bounds[2][0]:img_bounds[2][1]]
+        # print(img1.GetSize())
+        # print(img2.GetSize())
+        # print(img3.GetSize())
+        return img1, img2, img3
 
 
 def select_image(img, desc, sel_dict):
@@ -821,6 +830,7 @@ def is_mre_mask(desc):
     elif 'stgrym' in desc:
         return True
     return False
+
 
 
 def make_xr_dataset_for_chaos(patients, nx, ny, nz, output_name):
