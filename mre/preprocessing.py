@@ -577,7 +577,7 @@ def dicom_to_nifti(data_path, subdirs):
                 name = select_image(img, desc, sel_dict)
                 if name:
                     if 'art' in name:
-                        img1, img2, img3 = split_image(img, reader)
+                        img1, img2, img3 = split_image(img, reader, 'art')
                         if img1 is not None:
                             sitk.WriteImage(
                                 img1, str(patient_path) + '/' + name.replace('art', '0') + '.nii')
@@ -587,36 +587,71 @@ def dicom_to_nifti(data_path, subdirs):
                         if img3 is not None:
                             sitk.WriteImage(
                                 img3, str(patient_path) + '/' + name.replace('art', '160') + '.nii')
+                    elif 'raw' in name:
+                        img_wave, img_raw = split_image(img, reader, 'mre')
+                        sitk.WriteImage(
+                            img_wave, str(patient_path) +
+                            '/' + name.replace('raw', 'wave') + '.nii')
+                        sitk.WriteImage(
+                            img_raw, str(patient_path) +
+                            '/' + name + '.nii')
                     else:
                         sitk.WriteImage(img, str(patient_path) + '/' + name + '.nii')
 
 
-def split_image(img, reader):
-    img_bounds = []
-    current_trigger = -999
-    for i in range(img.GetSize()[-1]):
-        v = reader.GetMetaData(i, '0018|1060')  # Get trigger time
-        if v != current_trigger:
-            img_bounds.append([i, i+1])
-            current_trigger = v
-        else:
-            img_bounds[-1][1] += 1
-    # size = img.GetSize()
+def split_image(img, reader, mode='art'):
+    if mode == 'art':
+        # Split the arterial/70 sec/2 min post-contrast images into 3 seperate images
+        img_bounds = []
+        current_trigger = -999
+        for i in range(img.GetSize()[-1]):
+            v = reader.GetMetaData(i, '0018|1060')  # Get trigger time
+            if v != current_trigger:
+                img_bounds.append([i, i+1])
+                current_trigger = v
+            else:
+                img_bounds[-1][1] += 1
 
-    if len(img_bounds) == 1:
-        return img, None, None
-    elif len(img_bounds) == 2:
-        img1 = img[:, :, img_bounds[0][0]:img_bounds[0][1]]
-        img2 = img[:, :, img_bounds[1][0]:img_bounds[1][1]]
-        return img1, img2, None
-    else:
-        img1 = img[:, :, img_bounds[0][0]:img_bounds[0][1]]
-        img2 = img[:, :, img_bounds[1][0]:img_bounds[1][1]]
-        img3 = img[:, :, img_bounds[2][0]:img_bounds[2][1]]
-        # print(img1.GetSize())
-        # print(img2.GetSize())
-        # print(img3.GetSize())
-        return img1, img2, img3
+        if len(img_bounds) == 1:
+            return img, None, None
+        elif len(img_bounds) == 2:
+            img1 = img[:, :, img_bounds[0][0]:img_bounds[0][1]]
+            img2 = img[:, :, img_bounds[1][0]:img_bounds[1][1]]
+            return img1, img2, None
+        else:
+            img1 = img[:, :, img_bounds[0][0]:img_bounds[0][1]]
+            img2 = img[:, :, img_bounds[1][0]:img_bounds[1][1]]
+            img3 = img[:, :, img_bounds[2][0]:img_bounds[2][1]]
+            return img1, img2, img3
+
+    elif mode == 'mre':
+        # Split an mre-raw image into the raw and wave images.  Take the first timestamp for each
+        # image type.
+        meta_data_wave = {}
+        meta_data_raw = {}
+        for i in range(img.GetSize()[-1]):
+            min_max_filter = sitk.MinimumMaximumImageFilter()
+            min_max_filter.Execute(img[:, :, i])
+            min_pixel = min_max_filter.GetMinimum()
+            location = float(reader.GetMetaData(i, '0027|1041'))
+            if min_pixel < -10:
+                if location not in meta_data_wave:
+                    meta_data_wave[location] = i
+            else:
+                if location not in meta_data_raw:
+                    meta_data_raw[location] = i
+
+        wave_slices = []
+        for i in sorted(list(meta_data_wave.keys())):
+            wave_slices.append(img[:, :, meta_data_wave[i]])
+        img_wave = sitk.JoinSeries(wave_slices)
+
+        raw_slices = []
+        for i in sorted(list(meta_data_raw.keys())):
+            raw_slices.append(img[:, :, meta_data_raw[i]])
+        img_raw = sitk.JoinSeries(raw_slices)
+
+        return img_wave, img_raw
 
 
 def select_image(img, desc, sel_dict):

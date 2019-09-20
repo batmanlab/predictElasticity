@@ -363,7 +363,7 @@ def hv_comp_plots(ds, seq_list=None, mask=None, mask_trim=0):
 def patient_series_viewer(path, patient, img_type='DICOM', info=''):
     '''Similar to pybreast viewer, but must natively handle a mix of 2d, 3d, scalar, and vector'''
 
-    imopts = {'tools': ['hover'], 'width': 500, 'height': 500, 'cmap': 'viridis'}
+    imopts = {'tools': ['hover', 'lasso_select'], 'width': 500, 'height': 500, 'cmap': 'viridis'}
     full_path = Path(path, patient)
 
     if img_type == 'NIFTI':
@@ -407,18 +407,18 @@ def patient_series_viewer(path, patient, img_type='DICOM', info=''):
             hv_images.append(hv.Image(npimg[0, :], label=desc).opts(**imopts))
         elif npimg.shape[-1] > 3:
             hvds_list.append(hv.Dataset(
-                (np.arange(npimg.shape[2]), np.arange(npimg.shape[1]), np.arange(npimg.shape[0]),
+                (np.arange(npimg.shape[2]), np.arange(npimg.shape[1])[::-1], np.arange(npimg.shape[0]),
                  npimg), [f'x{desc}', f'y{desc}', f'z{desc}'],
                 f'MRI{desc}'))
             print(hvds_list[-1])
             hv_images.append(hvds_list[-1].to(hv.Image, [f'x{desc}', f'y{desc}'],
                                               groupby=[f'z{desc}'],
                                               dynamic=True, label=desc).opts(**imopts,
-                                                                             invert_yaxis=True))
+                                                                             invert_yaxis=False))
         else:
             hv_images.append(hv.Image(npimg[0, :], label=desc).opts(**imopts))
     return hv.Layout(hv_images).opts(shared_axes=False, merge_tools=False, normalize=False,
-                                     title=' '.join([patient, info])).cols(2)
+                                     title=' '.join([patient, info])).cols(3)
 
 
 def chaos_viewer(path, patient):
