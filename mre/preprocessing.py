@@ -642,13 +642,25 @@ def split_image(img, reader, mode='art'):
                     meta_data_raw[location] = i
 
         wave_slices = []
-        for i in sorted(list(meta_data_wave.keys())):
-            wave_slices.append(img[:, :, meta_data_wave[i]])
+        for i, k in enumerate(sorted(list(meta_data_wave.keys()))):
+            my_slice = img[:, :, meta_data_wave[k]]
+            # Clean up origin to prevent join conflicts
+            if i == 0:
+                origin = my_slice.GetOrigin()
+            else:
+                my_slice.SetOrigin(origin)
+            wave_slices.append(my_slice)
         img_wave = sitk.JoinSeries(wave_slices)
 
         raw_slices = []
-        for i in sorted(list(meta_data_raw.keys())):
-            raw_slices.append(img[:, :, meta_data_raw[i]])
+        for i, k in enumerate(sorted(list(meta_data_raw.keys()))):
+            my_slice = img[:, :, meta_data_raw[k]]
+            # Clean up origin to prevent join conflicts
+            if i == 0:
+                origin = my_slice.GetOrigin()
+            else:
+                my_slice.SetOrigin(origin)
+            raw_slices.append(my_slice)
         img_raw = sitk.JoinSeries(raw_slices)
 
         return img_wave, img_raw
@@ -865,7 +877,6 @@ def is_mre_mask(desc):
     elif 'stgrym' in desc:
         return True
     return False
-
 
 
 def make_xr_dataset_for_chaos(patients, nx, ny, nz, output_name):
