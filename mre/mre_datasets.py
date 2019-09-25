@@ -143,3 +143,33 @@ class MREtoXr:
             sitk.CenteredTransformInitializerFilter.GEOMETRY,
         )
         return sitk.Resample(input_image, ref_image, center, interp_method)
+
+    def respace_image(self, input_image, var_name, x_spacing, y_spacing):
+        '''Function for changing the spacing of an image, given supplied ideal spacing.
+        This is meant for use with the MRE images as they cannot be registered to the inputs.
+        '''
+        # Get initial params
+        init_size = input_image.GetSize()
+        init_spacing = input_image.GetSpacing()
+
+        # Get variable-dependent params
+        if 'mask' in var_name:
+            interp_method = sitk.sitkNearestNeighbor
+        else:
+            interp_method = sitk.sitkLinear
+
+        # Resize image
+        ref_image = sitk.GetImageFromArray(
+            np.ones((init_size[2], init_size[1], init_size[0]), dtype=np.uint16))
+        ref_image.SetSpacing((x_spacing, y_spacing, init_spacing[2]))
+        ref_image.SetOrigin(input_image.GetOrigin())
+
+        center = sitk.CenteredTransformInitializer(
+            ref_image, input_image, sitk.AffineTransform(3),
+            sitk.CenteredTransformInitializerFilter.GEOMETRY,
+        )
+        return sitk.Resample(input_image, ref_image, center, interp_method)
+
+    def gen_liver_mask(self, input_image):
+        '''Generate the mask of the liver by using the CHAOS segmentation model.'''
+
