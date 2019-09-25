@@ -17,7 +17,11 @@ from skimage.filters import sobel
 import pdb
 from tqdm import tqdm_notebook
 
+import torch
+import torch.nn.functional as F
+
 from mre.registration_v2 import RegPatient, Register
+from mre.pytorch_arch import GeneralUNet3D
 
 
 class MREtoXr:
@@ -28,15 +32,27 @@ class MREtoXr:
     def __init__(self, data_dir, sequences, **kwargs):
 
         self.sequences = sequences
-        self.patients = [p.stem for p in data_dir.iterdir()]
+        # self.patients = [p.stem for p in data_dir.iterdir()]
+        self.patients = ['0006']
+        self.data_dir = data_dir
 
+        # Load the extra args
         self.nx = kwargs.get('nx', 256)
         self.ny = kwargs.get('ny', 256)
         self.nz_mri = kwargs.get('nz_mri', 32)
         self.nz_mre = kwargs.get('nz_mre', 4)
-        self.mask_types = kwargs.get('mask_types', ('liver', 'mre'))
+        self.mask_types = kwargs.get('mask_types', ['liver', 'mre'])
         self.primary_input = kwargs.get('primary_input', 't1_pre_water')
-        self.mre_types = kwargs.get('mre_types', ('mre', 'mre_conf', 'mre_raw', 'mre_wave'))
+        self.mre_types = kwargs.get('mre_types', ['mre', 'mre_conf', 'mre_raw', 'mre_wave'])
+
+        # Load the liver mask model (hard-coded for now)
+        model_path = Path('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/CHAOS/',
+                          'trained_models', '01', 'model_2019-09-16_14-09-07_n8.pkl')
+        self.model = GeneralUNet3D(5, 1, 8, 1, True, False, False)
+        model_dict = torch.load(model_path, map_location='cpu')
+        model_dict = OrderedDict([(key[7:], val) for key, val in model_dict.items()])
+        self.model.load_state_dict(model_dict, strict=True)
+        self.model.eval()
 
         # Initialize empty ds
         self.init_new_ds()
@@ -92,23 +108,27 @@ class MREtoXr:
 
                 reg = Register(reg_pat.images[self.primary_input], reg_pat.images[seq])
                 resized_image = self.resize_image(reg.moving_img_result, 'input_mri')
+                # resized_image = self.resize_image(reg_pat.images[seq], 'input_mri')
 
                 self.ds['image_mri'].loc[{'subject': pat, 'sequence': seq}] = (
                     sitk.GetArrayFromImage(resized_image).T)
 
+            print(self.ds)
+            liver_input = self.ds['image_mri'].loc[{'subject': pat, 'sequence': 't1_pre_out'}]
+            liver_input = liver_input.transpose('z_mri', 'y', 'x').values
+            liver_mask = self.gen_liver_mask(liver_input)
+            self.ds['mask_mri'].loc[{'subject': pat, 'mask_type': 'liver'}] = liver_mask
+
             resized_primary = self.resize_image(reg_pat.images[self.primary_input], 'input_mri')
-            liver_mask = self.gen_liver_mask(resized_primary)
-
-            self.ds['mask_mri'].loc[{'subject': pat, 'sequence': seq}] = (
-                sitk.GetArrayFromImage(resized_image).T)
-
+            self.ds['image_mri'].loc[{'subject': pat, 'sequence': self.primary_input}] = (
+                sitk.GetArrayFromImage(resized_primary).T)
 
         # return ds
-        if ds is not None:
+        if self.ds is not None:
             print(f'Writing file disk...')
-            output_name = Path(data_dir.parents[0], f'xarray_{output_name}.nc')
-            ds.to_netcdf(output_name)
-            return ds
+            # output_name = Path(data_dir.parents[0], f'xarray_{output_name}.nc')
+            # ds.to_netcdf(output_name)
+            return self.ds
 
     def resize_image(self, input_image, var_name):
         '''Take an input image and resize it to the appropriate resolution.'''
@@ -137,6 +157,7 @@ class MREtoXr:
         ref_image.SetSpacing((init_spacing[0]*x_change, init_spacing[1]*y_change,
                               init_spacing[2]*z_change))
         ref_image.SetOrigin(input_image.GetOrigin())
+        ref_image = sitk.Cast(ref_image, input_image.GetPixelIDValue())
 
         center = sitk.CenteredTransformInitializer(
             ref_image, input_image, sitk.AffineTransform(3),
@@ -170,6 +191,17 @@ class MREtoXr:
         )
         return sitk.Resample(input_image, ref_image, center, interp_method)
 
-    def gen_liver_mask(self, input_image):
+    def gen_liver_mask(self, input_image_np):
         '''Generate the mask of the liver by using the CHAOS segmentation model.'''
 
+        # get the input, force it into the correct shape
+        print(input_image_np.dtype)
+        input_image_np = input_image_np[np.newaxis, np.newaxis, :]
+        # get the model prediction (liver mask)
+        model_pred = self.model(torch.Tensor(input_image_np))
+        model_pred = F.sigmoid(model_pred)
+        # Convert to binary mask
+        ones = torch.ones_like(model_pred)
+        zeros = torch.zeros_like(model_pred)
+        model_pred = torch.where(model_pred > 1e-2, ones, zeros)
+        return np.transpose(model_pred.cpu().numpy()[0, 0, :], (2, 1, 0))
