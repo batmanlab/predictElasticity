@@ -363,7 +363,7 @@ def hv_comp_plots(ds, seq_list=None, mask=None, mask_trim=0):
 def patient_series_viewer(path, patient, img_type='DICOM', info=''):
     '''Similar to pybreast viewer, but must natively handle a mix of 2d, 3d, scalar, and vector'''
 
-    imopts = {'tools': ['hover', 'lasso_select'], 'width': 500, 'height': 500, 'cmap': 'viridis'}
+    imopts = {'tools': ['hover', 'lasso_select'], 'width': 250, 'height': 250, 'cmap': 'viridis'}
     full_path = Path(path, patient)
 
     if img_type == 'NIFTI':
@@ -407,7 +407,8 @@ def patient_series_viewer(path, patient, img_type='DICOM', info=''):
             hv_images.append(hv.Image(npimg[0, :], label=desc).opts(**imopts))
         elif npimg.shape[-1] > 3:
             hvds_list.append(hv.Dataset(
-                (np.arange(npimg.shape[2]), np.arange(npimg.shape[1])[::-1], np.arange(npimg.shape[0]),
+                (np.arange(npimg.shape[2]), np.arange(npimg.shape[1])[::-1],
+                 np.arange(npimg.shape[0]),
                  npimg), [f'x{desc}', f'y{desc}', f'z{desc}'],
                 f'MRI{desc}'))
             print(hvds_list[-1])
@@ -571,5 +572,54 @@ def xr_viewer(xr_ds, grid_coords=None, group_coords=None, overlay_data='default'
             # layout = (hv_ds_over).grid('sequence', dynamic=True)
     else:
         layout = (hv_ds_main_dict[vdims[0]]).grid('sequence', dynamic=False)
+
+    return pn.Column(slider, layout)
+
+
+def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
+                 overlay_data='default', selection=None):
+    '''generic xr ds viewer for pollack-format image holders, this time with support for the
+    3d mre-style xarrays.  Some argument customization will be sacrificed for consistency and ease
+    of use. Maybe.
+
+    Valid vdims: image_mri, mask_mri, image_mre, mask_mre
+    Valis kdims: subject, sequence, mask_type, x, y, z_mri, z_mre
+    '''
+    opts.defaults(
+        opts.GridSpace(shared_xaxis=True, shared_yaxis=True,
+                       fontsize={'title': 16, 'labels': 16, 'xticks': 12, 'yticks': 12},
+                       plot_size=300),
+        opts.Image(cmap='viridis', width=550, height=550, tools=['hover'], xaxis=None,
+                   yaxis=None),
+        opts.Labels(text_color='white', text_font_size='20pt', text_align='left',
+                    text_baseline='bottom'),
+        opts.Path(color='white'),
+        opts.Spread(width=600),
+        opts.Overlay(show_legend=True))
+
+    # Make holoviews dataset from xarray
+    xr_ds = xr_ds.sel(subject=['0006', '0384'])
+    hv_ds_mri = hv.Dataset(xr_ds[['image_mri', 'mask_mri']].copy())
+    hv_ds_mre = hv.Dataset(xr_ds[['image_mre', 'mask_mre']].copy())
+
+    hv_ds_mri_image = hv_ds_mri.to(hv.Image, kdims=['x', 'y'], vdims='image_mri', dynamic=True)
+    hv_ds_mri_mask = hv_ds_mri.to(hv.Image, kdims=['x', 'y'], vdims='mask_mri', dynamic=True)
+
+    # hv_ds_mre_image = hv_ds_mre.to(hv.Image, kdims=['x', 'y'], vdims='image_mre', dynamic=True)
+    # hv_ds_mre_mask = hv_ds_mre.to(hv.Image, kdims=['x', 'y'], vdims='mask_mre', dynamic=True)
+
+    slider = pn.widgets.FloatSlider(start=0, end=1, value=0.5, name='mask transparency')
+    redim = {'mask_mri': (0.1, 2)}
+    hv_ds_mri_mask = hv_ds_mri_mask.opts(cmap='Category10', clipping_colors={'min': 'transparent'},
+                                         color_levels=10)
+    hv_ds_mri_mask = hv_ds_mri_mask.redim.range(**redim)
+    hv_ds_mri_mask = hv_ds_mri_mask.apply.opts(alpha=slider.param.value)
+
+    # hv_ds_mre_mask = hv_ds_mre_mask.opts(cmap='Category10', clipping_colors={'min': 'transparent'},
+    #                                      color_levels=10)
+    # hv_ds_mre_mask = hv_ds_mre_mask.redim.range(**redim)
+    # hv_ds_mre_mask = hv_ds_mre_mask.apply.opts(alpha=slider.param.value)
+
+    layout = (hv_ds_mri_image * hv_ds_mri_mask).grid('sequence')
 
     return pn.Column(slider, layout)

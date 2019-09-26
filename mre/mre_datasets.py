@@ -33,7 +33,7 @@ class MREtoXr:
 
         self.sequences = sequences
         # self.patients = [p.stem for p in data_dir.iterdir()]
-        self.patients = ['0006']
+        self.patients = ['0006', '0384']
         self.data_dir = data_dir
 
         # Load the extra args
@@ -137,16 +137,16 @@ class MREtoXr:
         init_spacing = input_image.GetSpacing()
         nx = self.nx
         ny = self.ny
-        x_change = self.nx/init_size[0]
-        y_change = self.ny/init_size[1]
+        x_change = init_size[0]/self.nx
+        y_change = init_size[1]/self.ny
 
         # Get variable-dependent params
         if 'mri' in var_name:
             nz = self.nz_mri
-            z_change = nz/init_size[2]
+            z_change = init_size[2]/nz
         else:
             nz = self.nz_mre
-            z_change = nz/init_size[2]
+            z_change = init_size[2]/nz
         if 'mask' in var_name:
             interp_method = sitk.sitkNearestNeighbor
         else:
@@ -196,6 +196,13 @@ class MREtoXr:
 
         # get the input, force it into the correct shape
         print(input_image_np.dtype)
+        input_image_np = np.where(input_image_np >= 1500, 1500, input_image_np)
+        input_image_np = np.where(input_image_np <= 1e-9, np.nan, input_image_np)
+        mean = np.nanmean(input_image_np)
+        std = np.nanstd(input_image_np)
+        input_image_np = ((input_image_np - mean)/std) + 4
+        input_image_np = np.where(input_image_np != input_image_np, 0, input_image_np)
+
         input_image_np = input_image_np[np.newaxis, np.newaxis, :]
         # get the model prediction (liver mask)
         model_pred = self.model(torch.Tensor(input_image_np))
@@ -203,5 +210,5 @@ class MREtoXr:
         # Convert to binary mask
         ones = torch.ones_like(model_pred)
         zeros = torch.zeros_like(model_pred)
-        model_pred = torch.where(model_pred > 1e-2, ones, zeros)
+        model_pred = torch.where(model_pred > 0.5, ones, zeros)
         return np.transpose(model_pred.cpu().numpy()[0, 0, :], (2, 1, 0))
