@@ -25,14 +25,16 @@ class ChaosDataset(Dataset):
     def __init__(self, xr_ds, set_type='train', transform=None, clip=False, seed=100, test='01',
                  aug=True, sequence_mode='random', resize=False, split=0.2):
 
-        xr_ds_test = xr_ds.sel(subject=[test])
+        if type(test) is not list:
+            test = [test]
+        xr_ds_test = xr_ds.sel(subject=test)
         xr_ds = xr_ds.drop(test, dim='subject')
         np.random.seed(seed)
         shuffle_list = np.asarray(xr_ds.subject)
         np.random.shuffle(shuffle_list)
 
         if set_type == 'test':
-            input_set = list(test)
+            input_set = test
         elif set_type == 'val':
             # input_set = xr_ds.subject_2d[2:20]
             input_set = list(shuffle_list[0:3])
@@ -85,27 +87,32 @@ class ChaosDataset(Dataset):
 
         if self.transform:
             if self.aug:
-                rot_angle = np.random.uniform(-4, 4, 1)
-                translations = np.random.uniform(-5, 5, 2)
-                scale = np.random.uniform(0.95, 1.05, 1)
-                restack = np.random.randint(-3, 3)
+                rot_angle = np.random.uniform(-6, 6, 1)
+                translations = np.random.uniform(-8, 8, 2)
+                scale = np.random.uniform(0.90, 1.10, 1)
+                restack = np.random.randint(-1, 2)
+                # restack = np.random.randint(-6, -1)
+                # restack = 0
+                # flip = np.random.randint(0, 2)
+                flip = 0
             else:
                 rot_angle = 0
                 translations = (0, 0)
                 scale = 1
                 restack = 0
+                flip = 0
             for i in range(len(self.my_sequence)):
                 image[i, :] = self.input_transform(image[i:i+1, :], rot_angle,
-                                                   translations, scale, restack)
+                                                   translations, scale, restack, flip)
                 target[i, :] = self.affine_transform(target[i:i+1, :], rot_angle,
-                                                     translations, scale, restack)
+                                                     translations, scale, restack, flip)
 
         image = torch.Tensor(image)
         target = torch.Tensor(target)
 
         return [image, target, self.names[idx]]
 
-    def input_transform(self, input_image, rot_angle=0, translations=0, scale=1, restack=0):
+    def input_transform(self, input_image, rot_angle=0, translations=0, scale=1, restack=0, flip=0):
         # normalize and offset image
         image = input_image
         image = np.where(input_image <= 1e-9, np.nan, input_image)
@@ -116,17 +123,20 @@ class ChaosDataset(Dataset):
         image = np.where(image != image, 0, image)
 
         # perform affine transfomrations
-        image = self.affine_transform(image, rot_angle, translations, scale, restack)
+        image = self.affine_transform(image, rot_angle, translations, scale, restack, flip)
         return image
 
-    def affine_transform(self, image, rot_angle=0, translations=0, scale=1, restack=0):
+    def affine_transform(self, image, rot_angle=0, translations=0, scale=1, restack=0, flip=0):
         output_image = image.copy()
-        for i in range(output_image.shape[0]):
-            if (i+restack < 0) or (i+restack > output_image.shape[0]):
+        for i in range(output_image.shape[1]):
+            if (i+restack < 0) or (i+restack > output_image.shape[1]-1):
                 output_image[0, i] = np.zeros_like(output_image[0, 0])
             else:
-                output_image[0, i] = self.affine_transform_slice(output_image[0, i+restack],
+                output_image[0, i] = self.affine_transform_slice(image[0, i+restack],
                                                                  rot_angle, translations, scale)
+        if flip:
+            output_image = output_image[::-1]
+
         return output_image
 
     def affine_transform_slice(self, input_slice, rot_angle=0, translations=0, scale=1):

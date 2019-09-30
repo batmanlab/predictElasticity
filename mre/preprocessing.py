@@ -960,8 +960,8 @@ def get_image_match(img_file_list, name, pat, nx, ny, nz, resample=True):
             if resample:
                 init_size = img.GetSize()
                 init_spacing = img.GetSpacing()
-                xy_change = nx/init_size[0]
-                z_change = nz/init_size[-1]
+                xy_change = init_size[0]/nx
+                z_change = init_size[-1]/nz
                 ref_img = sitk.GetImageFromArray(np.ones((nz, ny, nx), dtype=np.uint16))
                 ref_img.SetSpacing((init_spacing[0]*xy_change, init_spacing[1]*xy_change,
                                    init_spacing[2]*z_change))

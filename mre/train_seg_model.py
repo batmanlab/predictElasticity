@@ -117,7 +117,7 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
     # Set up adaptive loss if selected
     loss = None
     if loss_type == 'dice':
-        optimizer = optim.Adam(model.parameters(), lr=cfg['lr'])
+        optimizer = optim.AdamW(model.parameters(), lr=cfg['lr'])
     else:
         raise NotImplementedError('Only Dice loss currently implemented')
 
@@ -172,19 +172,19 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
         model.eval()
 
         model_pred = model(inputs[:, 0:1, :])
-        model_pred = F.sigmoid(model_pred)
+        model_pred = torch.sigmoid(model_pred)
         test_dice = dice_loss(model_pred, targets[:, 0:1, :])
         test_dice = test_dice.to('cpu')
         cfg['test_dice_t1_in'] = test_dice.item()
 
         model_pred = model(inputs[:, 1:2, :])
-        model_pred = F.sigmoid(model_pred)
+        model_pred = torch.sigmoid(model_pred)
         test_dice = dice_loss(model_pred, targets[:, 1:2, :])
         test_dice = test_dice.to('cpu')
         cfg['test_dice_t1_out'] = test_dice.item()
 
         model_pred = model(inputs[:, 2:3, :])
-        model_pred = F.sigmoid(model_pred)
+        model_pred = torch.sigmoid(model_pred)
         test_dice = dice_loss(model_pred, targets[:, 2:3, :])
         test_dice = test_dice.to('cpu')
         cfg['test_dice_t2'] = test_dice.item()
@@ -246,7 +246,6 @@ def train_model_core(model, optimizer, scheduler, device, dataloaders, num_epoch
         # Each epoch has a training and validation phase
         for phase in ['train', 'val']:
             if phase == 'train':
-                scheduler.step()
                 for param_group in optimizer.param_groups:
                     if verbose:
                         print("LR", param_group['lr'])
@@ -274,6 +273,8 @@ def train_model_core(model, optimizer, scheduler, device, dataloaders, num_epoch
                         optimizer.step()
                 # accrue total number of samples
                 epoch_samples += inputs.size(0)
+            if phase == 'train':
+                scheduler.step()
 
             if verbose:
                 print_metrics(metrics, epoch_samples, phase)
@@ -308,7 +309,7 @@ def train_model_core(model, optimizer, scheduler, device, dataloaders, num_epoch
 def calc_loss(pred, target, metrics, bce_weight=0.2):
     bce = F.binary_cross_entropy_with_logits(pred, target)
 
-    pred = F.sigmoid(pred)
+    pred = torch.sigmoid(pred)
     dice = dice_loss(pred, target)
 
     loss = bce * bce_weight + dice * (1 - bce_weight)

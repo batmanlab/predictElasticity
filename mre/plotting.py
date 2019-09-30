@@ -363,7 +363,7 @@ def hv_comp_plots(ds, seq_list=None, mask=None, mask_trim=0):
 def patient_series_viewer(path, patient, img_type='DICOM', info=''):
     '''Similar to pybreast viewer, but must natively handle a mix of 2d, 3d, scalar, and vector'''
 
-    imopts = {'tools': ['hover', 'lasso_select'], 'width': 250, 'height': 250, 'cmap': 'viridis'}
+    imopts = {'tools': ['hover', 'lasso_select'], 'width': 300, 'height': 300, 'cmap': 'viridis'}
     full_path = Path(path, patient)
 
     if img_type == 'NIFTI':
@@ -534,7 +534,7 @@ def xr_viewer(xr_ds, grid_coords=None, group_coords=None, overlay_data='default'
         opts.Overlay(show_legend=True))
 
     # Make holoviews dataset from xarray
-    xr_ds = xr_ds.sel(subject=['01', '03'])
+    # xr_ds = xr_ds.sel(subject=['01', '03'])
     hv_ds = hv.Dataset(xr_ds)
     vdims = [v.name for v in hv_ds.vdims]
     kdims = [k.name for k in hv_ds.kdims]
