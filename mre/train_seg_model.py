@@ -66,18 +66,18 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
     train_set = ChaosDataset(ds, set_type='train', transform=cfg['train_trans'],
                              clip=cfg['train_clip'], aug=cfg['train_aug'],
                              sequence_mode=cfg['train_seq_mode'],
-                             resize=cfg['resize'],
-                             test=subj, seed=cfg['seed'])
+                             resize=cfg['resize'], model_arch=cfg['model_arch'],
+                             test=subj, seed=cfg['seed'], verbose=cfg['dry_run'])
     val_set = ChaosDataset(ds, set_type='val', transform=cfg['val_trans'],
                            clip=cfg['val_clip'], aug=cfg['val_aug'],
                            sequence_mode=cfg['val_seq_mode'],
-                           resize=cfg['resize'],
-                           test=subj, seed=cfg['seed'])
+                           resize=cfg['resize'], model_arch=cfg['model_arch'],
+                           test=subj, seed=cfg['seed'], verbose=cfg['dry_run'])
     test_set = ChaosDataset(ds, set_type='test', transform=cfg['test_trans'],
                             clip=cfg['test_clip'], aug=cfg['test_aug'],
                             sequence_mode=cfg['test_seq_mode'],
-                            resize=cfg['resize'],
-                            test=subj, seed=cfg['seed'])
+                            resize=cfg['resize'], model_arch=cfg['model_arch'],
+                            test=subj, seed=cfg['seed'], verbose=cfg['dry_run'])
     if verbose:
         print('train: ', len(train_set))
         print('val: ', len(val_set))
@@ -109,15 +109,19 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
         warnings.warn('Device is running on CPU, not GPU!')
 
     # Define model
-    if cfg['model_arch'] == 'modular':
+    if cfg['model_arch'] == '3D':
         model = pytorch_arch.GeneralUNet3D(cfg['n_layers'], cfg['in_channels'], cfg['model_cap'],
+                                           cfg['out_channels_final'], cfg['channel_growth'],
+                                           cfg['coord_conv'], cfg['transfer_layer'])
+    elif cfg['model_arch'] == '2D':
+        model = pytorch_arch.GeneralUNet2D(cfg['n_layers'], cfg['in_channels'], cfg['model_cap'],
                                            cfg['out_channels_final'], cfg['channel_growth'],
                                            cfg['coord_conv'], cfg['transfer_layer'])
 
     # Set up adaptive loss if selected
     loss = None
     if loss_type == 'dice':
-        optimizer = optim.AdamW(model.parameters(), lr=cfg['lr'])
+        optimizer = optim.Adam(model.parameters(), lr=cfg['lr'])
     else:
         raise NotImplementedError('Only Dice loss currently implemented')
 
@@ -132,7 +136,7 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
     model.to(device)
 
     if cfg['dry_run']:
-        inputs, targets, names = next(iter(dataloaders['test']))
+        inputs, targets, names = next(iter(dataloaders['train']))
         print('test set info:')
         print('inputs', inputs.shape)
         print('targets', targets.shape)
@@ -141,7 +145,8 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
         print('Model Summary:')
         # summary(model, input_size=(3, 224, 224))
         dry_size = list(inputs.shape[1:])
-        dry_size[0] = 1
+        # dry_size[0] = 1
+        print(dry_size)
         summary(model, input_size=tuple(dry_size))
         return inputs, targets, names, None
 
@@ -325,12 +330,18 @@ def dice_loss(pred, target, smooth=1.):
     pred = pred.contiguous()
     target = target.contiguous()
 
-    intersection = (pred * target).sum(dim=(2, 3, 4))
+    if pred.ndim == 5:
+        intersection = (pred * target).sum(dim=(2, 3, 4))
 
-    loss = (1 - ((2. * intersection + smooth) / (pred.sum(dim=(2, 3, 4)) +
-                                                 target.sum(dim=(2, 3, 4)) + smooth)))
+        loss = (1 - ((2. * intersection + smooth) / (pred.sum(dim=(2, 3, 4)) +
+                                                     target.sum(dim=(2, 3, 4)) + smooth)))
+    else:
+        intersection = (pred * target).sum(dim=(2, 3))
 
-    return loss.mean()
+        loss = (1 - ((2. * intersection + smooth) / (pred.sum(dim=(2, 3)) +
+                                                     target.sum(dim=(2, 3)) + smooth)))
+
+        return loss.mean()
 
 
 def print_metrics(metrics, epoch_samples, phase):
