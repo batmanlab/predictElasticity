@@ -563,6 +563,9 @@ def dicom_to_nifti(data_path, subdirs):
                 reader.LoadPrivateTagsOn()  # Get DICOM Info
                 try:
                     img = reader.Execute()
+                    # Flip the image based on origin (sitk will not use origin info to sort slices)
+                    if img.GetOrigin()[-1] > 0:
+                        img = img[:, :, ::-1]
                 except RuntimeError as e:
                     print(e)
                     continue

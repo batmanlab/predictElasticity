@@ -15,6 +15,7 @@ import warnings
 from datetime import datetime
 from tqdm import tqdm_notebook
 from tensorboardX import SummaryWriter
+# import
 
 
 # need data to be ordered thusly:
@@ -131,21 +132,19 @@ class ChaosDataset(Dataset):
                 rot_angle = np.random.uniform(-2, 2, 1)
                 translations = np.random.uniform(-2, 2, 2)
                 scale = np.random.uniform(0.95, 1.05, 1)
-                # restack = np.random.randint(-3, 4)
                 restack = 0
-                # restack = np.random.randint(-6, -1)
-                # restack = 0
-                # flip = np.random.randint(0, 2)
+                flip = np.random.randint(0, 2)
             else:
                 rot_angle = 0
                 translations = (0, 0)
                 scale = 1
                 restack = 0
+                flip = 0
             for i in range(len(self.my_sequence)):
                 image[i, :] = self.input_transform_3d(image[i:i+1, :], rot_angle,
-                                                      translations, scale, restack)
+                                                      translations, scale, restack, flip)
                 target[i, :] = self.affine_transform_3d(target[i:i+1, :], rot_angle,
-                                                        translations, scale, restack)
+                                                        translations, scale, restack, flip)
         return image, target
 
     def get_data_aug_2d(self, idx):
@@ -166,18 +165,22 @@ class ChaosDataset(Dataset):
                 rot_angle = np.random.uniform(-5, 5, 1)
                 translations = np.random.uniform(-5, 5, 2)
                 scale = np.random.uniform(0.90, 1.00, 1)
+                flip = np.random.randint(0, 2)
             else:
                 rot_angle = 0
                 translations = (0, 0)
                 scale = 1
+                flip = 0
             for i in range(len(self.my_sequence)):
                 image[i, :] = self.input_transform_2d(image[i, :], rot_angle,
-                                                      translations, scale)
+                                                      translations, scale, flip)
+
                 target[i, :] = self.affine_transform_2d(target[i, :], rot_angle,
-                                                        translations, scale)
+                                                        translations, scale, flip)
         return image, target
 
-    def input_transform_3d(self, input_image, rot_angle=0, translations=0, scale=1, restack=0):
+    def input_transform_3d(self, input_image, rot_angle=0, translations=0, scale=1, restack=0,
+                           flip=0):
         # normalize and offset image
         image = input_image
         # image = np.where(input_image <= 1e-9, np.nan, input_image)
@@ -188,10 +191,11 @@ class ChaosDataset(Dataset):
         image = np.where(image != image, 0, image)
 
         # perform affine transfomrations
-        image = self.affine_transform_3d(image, rot_angle, translations, scale, restack)
+        image = self.affine_transform_3d(image, rot_angle, translations, scale, restack, flip)
         return image
 
-    def input_transform_2d(self, input_image, rot_angle=0, translations=0, scale=1, restack=0):
+    def input_transform_2d(self, input_image, rot_angle=0, translations=0, scale=1,
+                           flip=0):
         # normalize and offset image
         image = input_image
         # image = np.where(input_image <= 1e-9, np.nan, input_image)
@@ -202,10 +206,10 @@ class ChaosDataset(Dataset):
         image = np.where(image != image, 0, image)
 
         # perform affine transfomrations
-        image = self.affine_transform_2d(image, rot_angle, translations, scale)
+        image = self.affine_transform_2d(image, rot_angle, translations, scale, flip)
         return image
 
-    def affine_transform_3d(self, image, rot_angle=0, translations=0, scale=1, restack=0):
+    def affine_transform_3d(self, image, rot_angle=0, translations=0, scale=1, restack=0, flip=0):
         output_image = image.copy()
         if self.verbose:
             print(f'rot_angle: {rot_angle}, translations: {translations},'
@@ -223,12 +227,14 @@ class ChaosDataset(Dataset):
                 output_image[0, i] = np.zeros_like(output_image[0, 0])
             else:
                 output_image[0, i] = self.affine_transform_2d(image[0, i+restack],
-                                                              rot_angle, translations, scale)
+                                                              rot_angle, translations, scale, flip)
         return output_image
 
-    def affine_transform_2d(self, input_slice, rot_angle=0, translations=0, scale=1):
+    def affine_transform_2d(self, input_slice, rot_angle=0, translations=0, scale=1, flip=0):
         input_slice = transforms.ToPILImage()(input_slice)
         input_slice = TF.affine(input_slice, angle=rot_angle,
-                                translate=list(translations), scale=scale, shear=0)
+                                translate=list(translations), scale=scale, shear=0, )
+        if flip:
+            input_slice = TF.hflip(input_slice)
         input_slice = transforms.ToTensor()(input_slice)
         return input_slice

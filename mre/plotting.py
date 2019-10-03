@@ -383,9 +383,13 @@ def patient_series_viewer(path, patient, img_type='DICOM', info=''):
             reader.MetaDataDictionaryArrayUpdateOn()  # Get DICOM Info
             reader.LoadPrivateTagsOn()  # Get DICOM Info
             image = reader.Execute()
+            print('direction', image.GetDirection())
+            print('origin', image.GetOrigin())
             desc = reader.GetMetaData(0, '0008|103e').strip().encode('utf-8', 'ignore').decode()
             pid = reader.GetMetaData(0, '0010|0010').strip()
             desc = ' '.join([img_files.stem, desc, pid])
+            if image.GetOrigin()[-1] > 0:
+                image = image[:, :, ::-1]
         elif img_type == 'NIFTI':
             reader.SetFileName(str(img_files))
             desc = ' '.join(img_files.parts[-2:])
