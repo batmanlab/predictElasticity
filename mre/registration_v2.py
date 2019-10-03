@@ -30,6 +30,8 @@ class RegPatient:
             reader.SetImageIO("NiftiImageIO")
             reader.SetFileName(str(f))
             img = reader.Execute()
+            img.SetOrigin((0, 0, 0))
+            img.SetDirection((1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0))
             self.images[f.stem] = img
 
 
