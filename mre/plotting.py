@@ -394,6 +394,8 @@ def patient_series_viewer(path, patient, img_type='DICOM', info=''):
             reader.SetFileName(str(img_files))
             desc = ' '.join(img_files.parts[-2:])
             image = reader.Execute()
+            print('direction', image.GetDirection())
+            print('origin', image.GetOrigin())
 
         npimg = sitk.GetArrayFromImage(image)
         print(npimg.shape)

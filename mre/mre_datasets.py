@@ -94,8 +94,15 @@ class MREtoXr:
     def load_xr(self):
         for i, pat in enumerate(tqdm_notebook(self.patients, desc='Patients')):
 
+            # Grab all niftis using the RegPatient Class
             reg_pat = RegPatient(pat, self.data_dir)
+
+            # Make sure patient meets the bare min requirements
             if self.primary_input not in reg_pat.images.keys():
+                continue
+            if 'mre' not in reg_pat.images.keys():
+                continue
+            if 'mre_conf' not in reg_pat.images.keys():
                 continue
 
             # Register, resize and enter into xarray for all sequences except the primary.
@@ -108,13 +115,24 @@ class MREtoXr:
 
                 # reg = Register(reg_pat.images[self.primary_input], reg_pat.images[seq])
                 # resized_image = self.resize_image(reg.moving_img_result, 'input_mri')
-                print(reg_pat.images[seq].GetOrigin(), reg_pat.images[seq].GetDirection())
+                # print(reg_pat.images[seq].GetOrigin(), reg_pat.images[seq].GetDirection())
                 resized_image = self.resize_image(reg_pat.images[seq], 'input_mri')
 
                 self.ds['image_mri'].loc[{'subject': pat, 'sequence': seq}] = (
                     sitk.GetArrayFromImage(resized_image).T)
 
-            print(self.ds)
+            # Add in the MRE images next.  They must be resized to the appropriate scale to match
+            # the input sequences.  No registration occurs during this phase.
+            new_spacing = reg_pat.images[self.primary_input].GetSpacing()
+            for mre_type in self.mre_types:
+                if mre_type not in reg_pat.images.keys():
+                    continue
+
+                resized_mre = self.respace_image(reg_pat.images[mre_type], 'input_mre',
+                                                 new_spacing[0], new_spacing[1])
+                self.ds['image_mre'].loc[{'subject': pat, 'mre_type': mre_type}] = (
+                    sitk.GetArrayFromImage(resized_mre).T)
+
             liver_input = self.ds['image_mri'].loc[{'subject': pat, 'sequence': 't1_pre_out'}]
             liver_input = liver_input.transpose('z_mri', 'y', 'x').values
             liver_mask = self.gen_liver_mask(liver_input)
@@ -171,20 +189,25 @@ class MREtoXr:
         This is meant for use with the MRE images as they cannot be registered to the inputs.
         '''
         # Get initial params
-        init_size = input_image.GetSize()
-        init_spacing = input_image.GetSpacing()
+        nx = self.nx
+        ny = self.ny
+        z_spacing = input_image.GetSpacing()[-1]
 
         # Get variable-dependent params
+        if 'mri' in var_name:
+            nz = self.nz_mri
+        else:
+            nz = self.nz_mre
         if 'mask' in var_name:
             interp_method = sitk.sitkNearestNeighbor
         else:
             interp_method = sitk.sitkLinear
 
         # Resize image
-        ref_image = sitk.GetImageFromArray(
-            np.ones((init_size[2], init_size[1], init_size[0]), dtype=np.uint16))
-        ref_image.SetSpacing((x_spacing, y_spacing, init_spacing[2]))
+        ref_image = sitk.GetImageFromArray(np.ones((nz, ny, nx), dtype=np.uint16))
+        ref_image.SetSpacing((x_spacing, y_spacing, z_spacing))
         ref_image.SetOrigin(input_image.GetOrigin())
+        ref_image = sitk.Cast(ref_image, input_image.GetPixelIDValue())
 
         center = sitk.CenteredTransformInitializer(
             ref_image, input_image, sitk.AffineTransform(3),
@@ -213,3 +236,24 @@ class MREtoXr:
         zeros = torch.zeros_like(model_pred)
         model_pred = torch.where(model_pred > 0.5, ones, zeros)
         return np.transpose(model_pred.cpu().numpy()[0, 0, :], (2, 1, 0))
+
+    def gen_elast_mask(self, subj):
+        '''Generate a mask from the elastMsk, and place it into the given "mre_mask" slot.
+        Assumes you are using an xarray dataset from the MREDataset class.'''
+
+        for sub in list(self.ds.subject):
+            for z in list(self.ds.z_mre):
+                # make initial mask from elast and elastMsk
+                mre = self.ds['image_mre'].sel(mre_type='mre', z_mre=z, subject=subj).values
+                conf = self.ds['image_mre'].sel(mre_type='mre_conf', z_mre=z, subject=subj).values
+                msk = np.zeros_like(mre)
+                msk = mre-conf
+                msk = np.where(msk > 1e-7, 1, 0)  # make mask high-contrast
+                msk = morphology.binary_dilation(msk)  # fill in little holes
+
+                # invert the mask so that 1s are in and 0s are out
+                msk = msk+np.where(mre < 1e-8, 1, 0)
+                msk = 1-np.where(msk > 1, 1, msk)
+
+                # place mask into 'mask_mre' slot
+                self.ds['mask_mre'].loc[dict(mask_type='mre', z_mre=z, subject=subj)] = msk

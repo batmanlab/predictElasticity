@@ -564,8 +564,6 @@ def dicom_to_nifti(data_path, subdirs):
                 try:
                     img = reader.Execute()
                     # Flip the image based on origin (sitk will not use origin info to sort slices)
-                    if img.GetOrigin()[-1] > 0:
-                        img = img[:, :, ::-1]
                 except RuntimeError as e:
                     print(e)
                     continue
@@ -582,24 +580,47 @@ def dicom_to_nifti(data_path, subdirs):
                     if 'art' in name:
                         img1, img2, img3 = split_image(img, reader, 'art')
                         if img1 is not None:
+                            # img1 = orient_image(img1, name)
                             sitk.WriteImage(
                                 img1, str(patient_path) + '/' + name.replace('art', '0') + '.nii')
                         if img2 is not None:
+                            print('img2')
+                            # img2 = orient_image(img2, name)
+                            print(img2.GetOrigin())
                             sitk.WriteImage(
                                 img2, str(patient_path) + '/' + name.replace('art', '70') + '.nii')
                         if img3 is not None:
+                            # img3 = orient_image(img3, name)
                             sitk.WriteImage(
                                 img3, str(patient_path) + '/' + name.replace('art', '160') + '.nii')
                     elif 'raw' in name:
                         img_wave, img_raw = split_image(img, reader, 'mre')
+                        img_wave = orient_image(img_wave, name)
                         sitk.WriteImage(
                             img_wave, str(patient_path) +
                             '/' + name.replace('raw', 'wave') + '.nii')
+                        img_raw = orient_image(img_raw, name)
                         sitk.WriteImage(
                             img_raw, str(patient_path) +
                             '/' + name + '.nii')
                     else:
+                        img = orient_image(img, name)
                         sitk.WriteImage(img, str(patient_path) + '/' + name + '.nii')
+
+
+def orient_image(img, name):
+    orig = img.GetOrigin()
+    if orig[-1] > 0:
+        print(name)
+        print('orig', orig)
+        print('direction', img.GetDirection())
+        print('spacing', img.GetSpacing())
+        new_z_orig = orig[-1]-img.GetSpacing()[-1]*img.GetSize()[-1]
+        img = img[:, :, ::-1]
+        img.SetOrigin((orig[0], orig[1], new_z_orig))
+        img.SetDirection((1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0))
+        print('new orig', (orig[0], orig[1], new_z_orig))
+    return img
 
 
 def split_image(img, reader, mode='art'):
