@@ -84,6 +84,7 @@ class MREtoXr:
                 coords={'subject': self.patients,
                         'sequence': self.sequences,
                         'mask_type': self.mask_types,
+                        'mre_type': self.mre_types,
                         'x': range(self.nx),
                         'y': range(self.ny)[::-1],
                         'z_mri': range(self.nz_mri),
@@ -98,11 +99,12 @@ class MREtoXr:
             reg_pat = RegPatient(pat, self.data_dir)
 
             # Make sure patient meets the bare min requirements
+            print(reg_pat.images.keys())
             if self.primary_input not in reg_pat.images.keys():
                 continue
             if 'mre' not in reg_pat.images.keys():
                 continue
-            if 'mre_conf' not in reg_pat.images.keys():
+            if 'mre_mask' not in reg_pat.images.keys():
                 continue
 
             # Register, resize and enter into xarray for all sequences except the primary.

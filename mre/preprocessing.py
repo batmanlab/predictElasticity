@@ -584,9 +584,9 @@ def dicom_to_nifti(data_path, subdirs):
                             sitk.WriteImage(
                                 img1, str(patient_path) + '/' + name.replace('art', '0') + '.nii')
                         if img2 is not None:
-                            print('img2')
+                            # print('img2')
                             # img2 = orient_image(img2, name)
-                            print(img2.GetOrigin())
+                            # print(img2.GetOrigin())
                             sitk.WriteImage(
                                 img2, str(patient_path) + '/' + name.replace('art', '70') + '.nii')
                         if img3 is not None:
@@ -603,23 +603,44 @@ def dicom_to_nifti(data_path, subdirs):
                         sitk.WriteImage(
                             img_raw, str(patient_path) +
                             '/' + name + '.nii')
+                    elif name == 'mre':
+                        img, mre_info = scrape_mre(dicom_names)
+                        sitk.WriteImage(img, str(patient_path) + '/' + name + '.nii')
+                        with open(Path(patient_path, f'{name}.pkl'), 'wb') as f:
+                            pkl.dump(mre_info, f)
+
                     else:
                         img = orient_image(img, name)
                         sitk.WriteImage(img, str(patient_path) + '/' + name + '.nii')
 
 
+def scrape_mre(dicom_names):
+    '''MRE images are not evenly split.  This reads each slice and sorts them by z-value, then
+    returns all those z-values along with the full image.'''
+
+    mre_list = [(sitk.ReadImage(path).GetOrigin()[-1], path) for path in dicom_names]
+    sorted_mre_list = sorted(mre_list, key=lambda x: x[0])
+    mre_paths = []
+    z_vals = []
+    for i in sorted_mre_list:
+        z_vals.append(i[0])
+        mre_paths.append(i[1])
+
+    return sitk.ReadImage(mre_paths), z_vals
+
+
 def orient_image(img, name):
     orig = img.GetOrigin()
     if orig[-1] > 0:
-        print(name)
-        print('orig', orig)
-        print('direction', img.GetDirection())
-        print('spacing', img.GetSpacing())
+        # print(name)
+        # print('orig', orig)
+        # print('direction', img.GetDirection())
+        # print('spacing', img.GetSpacing())
         new_z_orig = orig[-1]-img.GetSpacing()[-1]*img.GetSize()[-1]
         img = img[:, :, ::-1]
         img.SetOrigin((orig[0], orig[1], new_z_orig))
         img.SetDirection((1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0))
-        print('new orig', (orig[0], orig[1], new_z_orig))
+        # print('new orig', (orig[0], orig[1], new_z_orig))
     return img
 
 
