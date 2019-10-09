@@ -619,6 +619,6 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
 
     layout = (hv_ds_mri_image * hv_ds_mri_mask).grid('sequence')
 
-    # return pn.Column(slider, layout)
-    thing = hv_ds_mri_image*hv_ds_mri_mask
-    return thing
+    return pn.Column(slider, layout)
+    # thing = hv_ds_mri_image*hv_ds_mri_mask
+    # return thing

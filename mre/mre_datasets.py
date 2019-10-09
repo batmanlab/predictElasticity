@@ -117,10 +117,10 @@ class MREtoXr:
                 elif seq not in reg_pat.images.keys():
                     continue
 
-                # reg = Register(reg_pat.images[self.primary_input], reg_pat.images[seq])
-                # resized_image = self.resize_image(reg.moving_img_result, 'input_mri')
+                reg = Register(reg_pat.images[self.primary_input], reg_pat.images[seq])
+                resized_image = self.resize_image(reg.moving_img_result, 'input_mri')
                 # print(reg_pat.images[seq].GetOrigin(), reg_pat.images[seq].GetDirection())
-                resized_image = self.resize_image(reg_pat.images[seq], 'input_mri')
+                # resized_image = self.resize_image(reg_pat.images[seq], 'input_mri')
 
                 self.ds['image_mri'].loc[{'subject': pat, 'sequence': seq}] = (
                     sitk.GetArrayFromImage(resized_image).T)
