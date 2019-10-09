@@ -79,6 +79,8 @@ class MREtoXr:
                  'mask_mre': (['subject', 'mask_type', 'x', 'y', 'z_mre'],
                               np.zeros((len(self.patients), len(self.mask_types), self.nx, self.ny,
                                         self.nz_mre), dtype=np.int16)),
+                 'slice_id': (['subject', 'z_mri'],
+                              np.zeros((len(self.patients), self.nz_mri), dtype=bool))
                  },
 
                 coords={'subject': self.patients,
