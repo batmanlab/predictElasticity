@@ -596,13 +596,14 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
     # Make holoviews dataset from xarray
     xr_ds = xr_ds.sel(subject=['0006', '0384'])
     hv_ds_mri = hv.Dataset(xr_ds[['image_mri', 'mask_mri']].copy())
-    # hv_ds_mre = hv.Dataset(xr_ds[['image_mre', 'mask_mre']].copy())
+    hv_ds_mre = hv.Dataset(xr_ds[['image_mre', 'mask_mre']].copy())
 
     hv_ds_mri_image = hv_ds_mri.to(hv.Image, kdims=['x', 'y'], vdims='image_mri', dynamic=True)
     hv_ds_mri_mask = hv_ds_mri.to(hv.Image, kdims=['x', 'y'], vdims='mask_mri', dynamic=True)
 
-    # hv_ds_mre_image = hv_ds_mre.to(hv.Image, kdims=['x', 'y'], vdims='image_mre', dynamic=True)
-    # hv_ds_mre_mask = hv_ds_mre.to(hv.Image, kdims=['x', 'y'], vdims='mask_mre', dynamic=True)
+    hv_ds_mre_image = hv_ds_mre.to(hv.Image, kdims=['x', 'y'], vdims='image_mre', dynamic=True)
+    hv_ds_mre_mask = hv_ds_mre.to(hv.Image, kdims=['x', 'y'], vdims='mask_mre', dynamic=True)
+    print(hv_ds_mre)
 
     slider = pn.widgets.FloatSlider(start=0, end=1, value=0.5, name='mask transparency')
     redim = {'mask_mri': (0.1, 2)}
@@ -611,14 +612,15 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
     hv_ds_mri_mask = hv_ds_mri_mask.redim.range(**redim)
     hv_ds_mri_mask = hv_ds_mri_mask.apply.opts(alpha=slider.param.value)
 
-    # hv_ds_mre_mask = hv_ds_mre_mask.opts(cmap='Category10',
-    # clipping_colors={'min': 'transparent'},
-    #                                      color_levels=10)
-    # hv_ds_mre_mask = hv_ds_mre_mask.redim.range(**redim)
-    # hv_ds_mre_mask = hv_ds_mre_mask.apply.opts(alpha=slider.param.value)
+    redim = {'mask_mre': (0.1, 2)}
+    hv_ds_mre_mask = hv_ds_mre_mask.opts(cmap='Category10',
+                                         clipping_colors={'min': 'transparent'}, color_levels=10)
+    hv_ds_mre_mask = hv_ds_mre_mask.redim.range(**redim)
+    hv_ds_mre_mask = hv_ds_mre_mask.apply.opts(alpha=slider.param.value)
 
-    layout = (hv_ds_mri_image * hv_ds_mri_mask).grid('sequence')
+    # layout = ((hv_ds_mri_image * hv_ds_mri_mask).grid('sequence') +
+    #           (hv_ds_mre_image * hv_ds_mre_mask).grid('sequence'))
+    layout = hv_ds_mre_image.grid('sequence')
 
-    return pn.Column(slider, layout)
-    # thing = hv_ds_mri_image*hv_ds_mri_mask
-    # return thing
+    # return pn.Column(slider, layout)
+    return hv_ds_mre_image

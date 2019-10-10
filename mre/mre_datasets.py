@@ -117,26 +117,16 @@ class MREtoXr:
                 elif seq not in reg_pat.images.keys():
                     continue
 
-                reg = Register(reg_pat.images[self.primary_input], reg_pat.images[seq])
-                resized_image = self.resize_image(reg.moving_img_result, 'input_mri')
+                # reg = Register(reg_pat.images[self.primary_input], reg_pat.images[seq])
+                # resized_image = self.resize_image(reg.moving_img_result, 'input_mri')
                 # print(reg_pat.images[seq].GetOrigin(), reg_pat.images[seq].GetDirection())
-                # resized_image = self.resize_image(reg_pat.images[seq], 'input_mri')
+                resized_image = self.resize_image(reg_pat.images[seq], 'input_mri')
 
                 self.ds['image_mri'].loc[{'subject': pat, 'sequence': seq}] = (
                     sitk.GetArrayFromImage(resized_image).T)
 
             # Add in the MRE images next.  They must be resized to the appropriate scale to match
             # the input sequences.  No registration occurs during this phase.
-            new_spacing = reg_pat.images[self.primary_input].GetSpacing()
-            for mre_type in self.mre_types:
-                if mre_type not in reg_pat.images.keys():
-                    continue
-
-                resized_mre = self.respace_image(reg_pat.images[mre_type], 'input_mre',
-                                                 new_spacing[0], new_spacing[1])
-                self.ds['image_mre'].loc[{'subject': pat, 'mre_type': mre_type}] = (
-                    sitk.GetArrayFromImage(resized_mre).T)
-
             liver_input = self.ds['image_mri'].loc[{'subject': pat, 'sequence': 't1_pre_out'}]
             liver_input = liver_input.transpose('z_mri', 'y', 'x').values
             liver_mask = self.gen_liver_mask(liver_input)
@@ -145,6 +135,18 @@ class MREtoXr:
             resized_primary = self.resize_image(reg_pat.images[self.primary_input], 'input_mri')
             self.ds['image_mri'].loc[{'subject': pat, 'sequence': self.primary_input}] = (
                 sitk.GetArrayFromImage(resized_primary).T)
+            new_spacing = resized_primary.GetSpacing()
+
+            for mre_type in self.mre_types:
+                if mre_type not in reg_pat.images.keys():
+                    continue
+
+                print('adding mre')
+                resized_mre = self.respace_image(reg_pat.images[mre_type], 'input_mre',
+                                                 new_spacing[0], new_spacing[1])
+                print('final spacing', resized_mre.GetSpacing())
+                self.ds['image_mre'].loc[{'subject': pat, 'mre_type': mre_type}] = (
+                    sitk.GetArrayFromImage(resized_mre).T)
 
         # return ds
         if self.ds is not None:
@@ -158,6 +160,7 @@ class MREtoXr:
         # Get initial and resizing params
         init_size = input_image.GetSize()
         init_spacing = input_image.GetSpacing()
+        print('mri init spacing', input_image.GetSpacing())
         nx = self.nx
         ny = self.ny
         x_change = init_size[0]/self.nx
@@ -196,6 +199,8 @@ class MREtoXr:
         nx = self.nx
         ny = self.ny
         z_spacing = input_image.GetSpacing()[-1]
+        print('input_spacing', input_image.GetSpacing())
+        print('desired_spacing', x_spacing, y_spacing)
 
         # Get variable-dependent params
         if 'mri' in var_name:
