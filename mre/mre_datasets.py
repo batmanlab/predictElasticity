@@ -54,7 +54,7 @@ class MREtoXr:
         self.nz_mre = kwargs.get('nz_mre', 4)
         self.mask_types = kwargs.get('mask_types', ['liver', 'mre'])
         self.primary_input = kwargs.get('primary_input', 't1_pre_water')
-        self.mre_types = kwargs.get('mre_types', ['mre', 'mre_conf', 'mre_raw', 'mre_wave'])
+        self.mre_types = kwargs.get('mre_types', ['mre', 'mre_mask', 'mre_raw', 'mre_wave'])
         # self.mre_types = kwargs.get('mre_types', ['mre'])
         self.output_name = kwargs.get('output_name', 'test')
         self.write_file = kwargs.get('write_file', True)
@@ -127,7 +127,7 @@ class MREtoXr:
             if 'mre_mask' not in reg_pat.images.keys():
                 continue
 
-            # Register, resize and enter into xarray for all sequences except the primary.
+            # Register, resize and load into xarray for all input image sequences except 'primary'.
             # We do not keep any of their image metadata after this loop
             for seq in self.sequences:
                 if seq == self.primary_input:
@@ -143,28 +143,44 @@ class MREtoXr:
                 self.ds['image_mri'].loc[{'subject': pat, 'sequence': seq}] = (
                     sitk.GetArrayFromImage(resized_image).T)
 
-            # Add in the MRE images next.  They must be resized to the appropriate scale to match
-            # the input sequences.  No registration occurs during this phase.
+            # Get the liver mask via the deep liver segmenter
             liver_input = self.ds['image_mri'].loc[{'subject': pat, 'sequence': 't1_pre_out'}]
             liver_input = liver_input.transpose('z_mri', 'y', 'x').values
             liver_mask = self.gen_liver_mask(liver_input)
             self.ds['mask_mri'].loc[{'subject': pat, 'mask_type': 'liver'}] = liver_mask
 
+            # Resize the primary input image and get it's important metadata
             resized_primary = self.resize_image(reg_pat.images[self.primary_input], 'input_mri')
             self.ds['image_mri'].loc[{'subject': pat, 'sequence': self.primary_input}] = (
                 sitk.GetArrayFromImage(resized_primary).T)
             new_spacing = resized_primary.GetSpacing()
+            new_origin = resized_primary.GetOrigin()
+            new_size = resized_primary.GetSize()
+            new_slice_values = np.array([new_origin[-1]+i*new_spacing[-1] for i in
+                                         range(new_size[-1])])
+            print(f'new slice values {new_slice_values}')
 
+            # Add in the MRE images next.  They must be resized to the appropriate scale to match
+            # the input sequences.  No registration occurs during this phase.
             for mre_type in self.mre_types:
                 if mre_type not in reg_pat.images.keys():
                     continue
 
-                print('adding mre')
                 resized_mre = self.respace_image(reg_pat.images[mre_type], 'input_mre',
                                                  new_spacing[0], new_spacing[1])
-                print('final spacing', resized_mre.GetSpacing())
                 self.ds['image_mre'].loc[{'subject': pat, 'mre_type': mre_type}] = (
                     sitk.GetArrayFromImage(resized_mre).T)
+
+            # Add in the liver seg mask for MRE:
+            with open(Path(self.data_dir, pat, 'mre.pkl'), 'rb') as f:
+                mre_location = pkl.load(f)
+            z_mri_index = []
+            for i in self.ds.z_mre.values:
+                z_mri_index.append((np.abs(new_slice_values-mre_location[i])).argmin())
+            self.ds['mask_mre'].loc[{'subject': pat, 'mask_type': 'liver'}] = (
+                self.ds['mask_mri'].loc[{'subject': pat, 'mask_type': 'liver',
+                                         'z_mri': z_mri_index}])
+            print(f'z_mri_index {z_mri_index}')
 
         # return ds
         if self.write_file:
@@ -179,7 +195,6 @@ class MREtoXr:
         # Get initial and resizing params
         init_size = input_image.GetSize()
         init_spacing = input_image.GetSpacing()
-        print('mri init spacing', input_image.GetSpacing())
         nx = self.nx
         ny = self.ny
         x_change = init_size[0]/self.nx
@@ -218,8 +233,6 @@ class MREtoXr:
         nx = self.nx
         ny = self.ny
         z_spacing = input_image.GetSpacing()[-1]
-        print('input_spacing', input_image.GetSpacing())
-        print('desired_spacing', x_spacing, y_spacing)
 
         # Get variable-dependent params
         if 'mri' in var_name:
@@ -247,7 +260,6 @@ class MREtoXr:
         '''Generate the mask of the liver by using the CHAOS segmentation model.'''
 
         # get the input, force it into the correct shape
-        print(input_image_np.dtype)
         input_image_np = np.where(input_image_np >= 1500, 1500, input_image_np)
         input_image_np = np.where(input_image_np <= 1e-9, np.nan, input_image_np)
         mean = np.nanmean(input_image_np)
@@ -273,7 +285,7 @@ class MREtoXr:
             for z in list(self.ds.z_mre):
                 # make initial mask from elast and elastMsk
                 mre = self.ds['image_mre'].sel(mre_type='mre', z_mre=z, subject=subj).values
-                conf = self.ds['image_mre'].sel(mre_type='mre_conf', z_mre=z, subject=subj).values
+                conf = self.ds['image_mre'].sel(mre_type='mre_mask', z_mre=z, subject=subj).values
                 msk = np.zeros_like(mre)
                 msk = mre-conf
                 msk = np.where(msk > 1e-7, 1, 0)  # make mask high-contrast
