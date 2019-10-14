@@ -29,12 +29,23 @@ class MREtoXr:
     as a 0'd vector.  Includes two coordinate systems (one for MRI data, one for MRE data).
     Includes indicators for data quality.
     '''
-    def __init__(self, data_dir, sequences, **kwargs):
+    def __init__(self, data_dir=None, sequences=None, from_file=None, **kwargs):
 
-        self.sequences = sequences
-        # self.patients = [p.stem for p in data_dir.iterdir()]
-        self.patients = ['0006', '0384']
-        self.data_dir = data_dir
+        if None is data_dir is sequences is from_file:
+            raise ValueError(
+                '(data_dir and sequences) or (from_file) must be specified to initialize')
+
+        if from_file:
+            self.ds = xr.open_dataset(from_file)
+            return None
+
+        elif data_dir and sequences:
+            self.sequences = sequences
+            # self.patients = [p.stem for p in data_dir.iterdir()]
+            self.patients = ['0006', '0384']
+            self.data_dir = data_dir
+        else:
+            raise ValueError('__init__ error')
 
         # Load the extra args
         self.nx = kwargs.get('nx', 256)
@@ -44,6 +55,9 @@ class MREtoXr:
         self.mask_types = kwargs.get('mask_types', ['liver', 'mre'])
         self.primary_input = kwargs.get('primary_input', 't1_pre_water')
         self.mre_types = kwargs.get('mre_types', ['mre', 'mre_conf', 'mre_raw', 'mre_wave'])
+        # self.mre_types = kwargs.get('mre_types', ['mre'])
+        self.output_name = kwargs.get('output_name', 'test')
+        self.write_file = kwargs.get('write_file', True)
 
         # Load the liver mask model (hard-coded for now)
         model_path = Path('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/CHAOS/',
@@ -56,6 +70,10 @@ class MREtoXr:
 
         # Initialize empty ds
         self.init_new_ds()
+
+    def get_ds(self):
+        '''Return the ds loaded via 'from_file'.'''
+        return self.ds
 
     def init_new_ds(self):
         '''Initialize a new xarray dataset based on the size and shape of our inputs.'''
@@ -149,10 +167,11 @@ class MREtoXr:
                     sitk.GetArrayFromImage(resized_mre).T)
 
         # return ds
-        if self.ds is not None:
-            print(f'Writing file disk...')
-            # output_name = Path(data_dir.parents[0], f'xarray_{output_name}.nc')
-            # ds.to_netcdf(output_name)
+        if self.write_file:
+            self.output_name = Path(self.data_dir.parents[0], f'xarray_{self.output_name}.nc')
+            print(f'Writing xr file {self.output_name} ')
+            self.ds.to_netcdf(self.output_name)
+            print('Done')
             return self.ds
 
     def resize_image(self, input_image, var_name):

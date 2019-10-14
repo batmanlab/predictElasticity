@@ -585,42 +585,67 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
         opts.GridSpace(shared_xaxis=True, shared_yaxis=True,
                        fontsize={'title': 16, 'labels': 16, 'xticks': 12, 'yticks': 12},
                        plot_size=300),
-        opts.Image(cmap='viridis', width=550, height=550, tools=['hover'], xaxis=None,
+        opts.Image(cmap='viridis', width=550, height=550, xaxis=None,
                    yaxis=None),
         opts.Labels(text_color='white', text_font_size='20pt', text_align='left',
                     text_baseline='bottom'),
         opts.Path(color='white'),
         opts.Spread(width=600),
-        opts.Overlay(show_legend=True))
+        opts.NdOverlay(show_legend=True, border_muted_alpha=0.1)
+    )
 
     # Make holoviews dataset from xarray
     xr_ds = xr_ds.sel(subject=['0006', '0384'])
-    hv_ds_mri = hv.Dataset(xr_ds[['image_mri', 'mask_mri']].copy())
-    hv_ds_mre = hv.Dataset(xr_ds[['image_mre', 'mask_mre']].copy())
-
-    hv_ds_mri_image = hv_ds_mri.to(hv.Image, kdims=['x', 'y'], vdims='image_mri', dynamic=True)
-    hv_ds_mri_mask = hv_ds_mri.to(hv.Image, kdims=['x', 'y'], vdims='mask_mri', dynamic=True)
-
-    hv_ds_mre_image = hv_ds_mre.to(hv.Image, kdims=['x', 'y'], vdims='image_mre', dynamic=True)
-    hv_ds_mre_mask = hv_ds_mre.to(hv.Image, kdims=['x', 'y'], vdims='mask_mre', dynamic=True)
+    hv_ds_mri = hv.Dataset(xr_ds[['image_mri', 'mask_mri']])
+    hv_ds_mre = hv.Dataset(xr_ds[['image_mre', 'mask_mre']])
+    hv_ds_mre_1 = hv_ds_mre.select(mre_type=['mre', 'mre_conf'])
+    hv_ds_mre_2 = hv_ds_mre.select(mre_type=['mre_raw', 'mre_wave'])
+    print(hv_ds_mri)
     print(hv_ds_mre)
 
+    hv_ds_mri_image = hv_ds_mri.to(hv.Image, kdims=['x', 'y'], vdims='image_mri', dynamic=True)
+    hv_ds_mri_mask = hv_ds_mri.to(hv.Image, kdims=['x', 'y'], vdims='mask_mri',
+                                  dynamic=True).opts(tools=[])
+
+    hv_ds_mre_image_1 = hv_ds_mre_1.to(hv.Image, kdims=['x', 'y'], vdims='image_mre', dynamic=True)
+    hv_ds_mre_mask_1 = hv_ds_mre_1.to(hv.Image, kdims=['x', 'y'], vdims='mask_mre',
+                                      dynamic=True).opts(tools=[])
+    hv_ds_mre_image_2 = hv_ds_mre_2.to(hv.Image, kdims=['x', 'y'], vdims='image_mre', dynamic=True)
+    hv_ds_mre_mask_2 = hv_ds_mre_2.to(hv.Image, kdims=['x', 'y'], vdims='mask_mre',
+                                      dynamic=True).opts(tools=[])
+
     slider = pn.widgets.FloatSlider(start=0, end=1, value=0.5, name='mask transparency')
-    redim = {'mask_mri': (0.1, 2)}
+    redim_mask_mri = {'mask_mri': (0.1, 2)}
     hv_ds_mri_mask = hv_ds_mri_mask.opts(cmap='Category10', clipping_colors={'min': 'transparent'},
                                          color_levels=10)
-    hv_ds_mri_mask = hv_ds_mri_mask.redim.range(**redim)
+    hv_ds_mri_mask = hv_ds_mri_mask.redim.range(**redim_mask_mri)
     hv_ds_mri_mask = hv_ds_mri_mask.apply.opts(alpha=slider.param.value)
 
-    redim = {'mask_mre': (0.1, 2)}
-    hv_ds_mre_mask = hv_ds_mre_mask.opts(cmap='Category10',
-                                         clipping_colors={'min': 'transparent'}, color_levels=10)
-    hv_ds_mre_mask = hv_ds_mre_mask.redim.range(**redim)
-    hv_ds_mre_mask = hv_ds_mre_mask.apply.opts(alpha=slider.param.value)
+    redim_image_mre_1 = {'image_mre_1': (0, 10000)}
+    hv_ds_mre_image_1 = hv_ds_mre_image_1.redim(image_mre='image_mre_1')
+    hv_ds_mre_image_1 = hv_ds_mre_image_1.redim.range(**redim_image_mre_1)
+    redim_mask_mre = {'mask_mre': (0.1, 2)}
+    hv_ds_mre_mask_1 = hv_ds_mre_mask_1.opts(cmap='Category10',
+                                             clipping_colors={'min': 'transparent'},
+                                             color_levels=10)
+    hv_ds_mre_mask_1 = hv_ds_mre_mask_1.redim.range(**redim_mask_mre)
+    hv_ds_mre_mask_1 = hv_ds_mre_mask_1.apply.opts(alpha=slider.param.value)
 
-    # layout = ((hv_ds_mri_image * hv_ds_mri_mask).grid('sequence') +
-    #           (hv_ds_mre_image * hv_ds_mre_mask).grid('sequence'))
-    layout = hv_ds_mre_image.grid('sequence')
+    redim_image_mre_2 = {'image_mre': (-200, 200)}
+    hv_ds_mre_image_2 = hv_ds_mre_image_2.redim.range(**redim_image_mre_2)
+    redim_mask_mre = {'mask_mre': (0.1, 2)}
+    hv_ds_mre_mask_2 = hv_ds_mre_mask_2.opts(cmap='Category10',
+                                             clipping_colors={'min': 'transparent'},
+                                             color_levels=10)
+    hv_ds_mre_mask_2 = hv_ds_mre_mask_2.redim.range(**redim_mask_mre)
+    hv_ds_mre_mask_2 = hv_ds_mre_mask_2.apply.opts(alpha=slider.param.value)
+    layout = ((hv_ds_mre_image_1 * hv_ds_mre_mask_1).grid('mre_type') +
+              (hv_ds_mre_image_2 * hv_ds_mre_mask_2).grid('mre_type') +
+              (hv_ds_mri_image * hv_ds_mri_mask).grid('sequence')
+              ).cols(2)
+    # import pdb; pdb.set_trace()
+    # layout = (hv_ds_mri_image).grid('sequence')
+    # layout = (hv_ds_mre_image).grid('sequence')
 
-    # return pn.Column(slider, layout)
-    return hv_ds_mre_image
+    return pn.Column(slider, layout)
+    # return hv_ds_mre_image
