@@ -110,6 +110,7 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
 
     # Define model
     if cfg['model_arch'] == '3D':
+        print('3d')
         model = pytorch_arch.GeneralUNet3D(cfg['n_layers'], cfg['in_channels'], cfg['model_cap'],
                                            cfg['out_channels_final'], cfg['channel_growth'],
                                            cfg['coord_conv'], cfg['transfer_layer'])
@@ -341,7 +342,7 @@ def dice_loss(pred, target, smooth=1.):
         loss = (1 - ((2. * intersection + smooth) / (pred.sum(dim=(2, 3)) +
                                                      target.sum(dim=(2, 3)) + smooth)))
 
-        return loss.mean()
+    return loss.mean()
 
 
 def print_metrics(metrics, epoch_samples, phase):

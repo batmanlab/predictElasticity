@@ -61,7 +61,7 @@ class MREtoXr:
 
         # Load the liver mask model (hard-coded for now)
         model_path = Path('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/CHAOS/',
-                          'trained_models', '01', 'model_2019-09-16_14-09-07_n8.pkl')
+                          'trained_models', '01', 'model_2019-10-15_11-41-56.pkl')
         self.model = GeneralUNet3D(5, 1, 8, 1, True, False, False)
         model_dict = torch.load(model_path, map_location='cpu')
         model_dict = OrderedDict([(key[7:], val) for key, val in model_dict.items()])
@@ -150,6 +150,12 @@ class MREtoXr:
             self.ds['mask_mri'].loc[{'subject': pat, 'mask_type': 'liver'}] = liver_mask
 
             # Resize the primary input image and get it's important metadata
+            # old_spacing = reg_pat.images[self.primary_input].GetSpacing()
+            # old_origin = reg_pat.images[self.primary_input].GetOrigin()
+            # old_size = reg_pat.images[self.primary_input].GetSize()
+            # old_slice_values = np.array([old_origin[-1]+i*old_spacing[-1] for i in
+            #                              range(old_size[-1])])
+            # print(f'old slice values {old_slice_values}')
             resized_primary = self.resize_image(reg_pat.images[self.primary_input], 'input_mri')
             self.ds['image_mri'].loc[{'subject': pat, 'sequence': self.primary_input}] = (
                 sitk.GetArrayFromImage(resized_primary).T)
@@ -158,7 +164,7 @@ class MREtoXr:
             new_size = resized_primary.GetSize()
             new_slice_values = np.array([new_origin[-1]+i*new_spacing[-1] for i in
                                          range(new_size[-1])])
-            print(f'new slice values {new_slice_values}')
+            # print(f'new slice values {new_slice_values}')
 
             # Add in the MRE images next.  They must be resized to the appropriate scale to match
             # the input sequences.  No registration occurs during this phase.
@@ -174,13 +180,14 @@ class MREtoXr:
             # Add in the liver seg mask for MRE:
             with open(Path(self.data_dir, pat, 'mre.pkl'), 'rb') as f:
                 mre_location = pkl.load(f)
+            # print(mre_location)
             z_mri_index = []
             for i in self.ds.z_mre.values:
                 z_mri_index.append((np.abs(new_slice_values-mre_location[i])).argmin())
             self.ds['mask_mre'].loc[{'subject': pat, 'mask_type': 'liver'}] = (
                 self.ds['mask_mri'].loc[{'subject': pat, 'mask_type': 'liver',
                                          'z_mri': z_mri_index}])
-            print(f'z_mri_index {z_mri_index}')
+            # print(f'z_mri_index {z_mri_index}')
 
         # return ds
         if self.write_file:
@@ -261,10 +268,17 @@ class MREtoXr:
 
         # get the input, force it into the correct shape
         input_image_np = np.where(input_image_np >= 1500, 1500, input_image_np)
-        input_image_np = np.where(input_image_np <= 1e-9, np.nan, input_image_np)
+        # input_image_np = np.where(input_image_np <= 1e-9, np.nan, input_image_np)
+        # mean = np.nanmean(input_image_np)
+        # std = np.nanstd(input_image_np)
+        # # input_image_np = ((input_image_np - mean)/std) + 4
+        # input_image_np = ((input_image_np - mean)/std)
+        # input_image_np = np.where(input_image_np != input_image_np, 0, input_image_np)
+        # image = np.where(input_image <= 1e-9, np.nan, input_image)
+
         mean = np.nanmean(input_image_np)
         std = np.nanstd(input_image_np)
-        input_image_np = ((input_image_np - mean)/std) + 4
+        input_image_np = ((input_image_np - mean)/std)
         input_image_np = np.where(input_image_np != input_image_np, 0, input_image_np)
 
         input_image_np = input_image_np[np.newaxis, np.newaxis, :]
