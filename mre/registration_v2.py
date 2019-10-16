@@ -38,16 +38,21 @@ class RegPatient:
 class Register:
     '''Class that registers a given fixed and moving image.'''
 
-    def __init__(self, fixed_img, moving_img, verbose=True):
+    def __init__(self, fixed_img, moving_img, verbose=True, dry_run=False):
         self.verbose = verbose
         self.fixed_img = fixed_img
         self.moving_img = moving_img
-        self.gen_param_map()
-        self.register_imgs()
+        if dry_run:
+            self.moving_img_result = None
+            return None
+        else:
+            self.gen_param_map()
+            self.register_imgs()
 
     def gen_param_map(self):
         self.p_map_vector = sitk.VectorOfParameterMap()
-        paff = sitk.GetDefaultParameterMap("affine")
+        # paff = sitk.GetDefaultParameterMap("affine")
+        paff = sitk.GetDefaultParameterMap("rigid")
         #pbsp = sitk.GetDefaultParameterMap("bspline")
         paff['AutomaticTransformInitialization'] = ['true']
         # paff['AutomaticTransformInitializationMethod'] = ['CenterOfGravity']
@@ -82,7 +87,12 @@ class Register:
         self.elastixImageFilter.SetParameterMap(self.p_map_vector)
         self.elastixImageFilter.Execute()
         self.moving_img_result = self.elastixImageFilter.GetResultImage()
+        # self.moving_img_result = sitk.RescaleIntensity(self.moving_img_result)
+        np_image = sitk.GetArrayFromImage(self.moving_img_result)
+        np_image = self.scale(np_image)
+        self.moving_img_result = sitk.GetImageFromArray(np_image)
         self.moving_img_result.CopyInformation(self.fixed_img)
+        self.moving_img_result = sitk.Cast(self.moving_img_result, self.moving_img.GetPixelID())
 
         if grid:
             transformixImageFilter = sitk.TransformixImageFilter()
@@ -98,58 +108,9 @@ class Register:
             transformixImageFilter.Execute()
             self.grid_result = transformixImageFilter.GetResultImage()
 
-
-class GroupRegister:
-    '''Class that registers a group of images for a given patient.'''
-
-    def __init__(self, patient, img_names, verbose=True):
-        self.verbose = verbose
-        self.img_vec = sitk.VectorOfImage()
-
-        for name in img_names:
-            self.img_vec.push_back(patient.images[name])
-
-        self.img = sitk.JoinSeries(self.img_vec)
-        self.gen_param_map()
-        self.register_imgs()
-
-    def gen_param_map(self):
-        self.p_map_vector = sitk.VectorOfParameterMap()
-        # self.p_map_vector = sitk.GetDefaultParameterMap('groupwise')
-        paff = sitk.GetDefaultParameterMap("groupwise")
-        #pbsp = sitk.GetDefaultParameterMap("bspline")
-        paff['AutomaticTransformInitialization'] = ['true']
-        # paff['AutomaticTransformInitializationMethod'] = ['CenterOfGravity']
-        paff['NumberOfSamplesForExactGradient'] = ['100000']
-        #pbsp['NumberOfSamplesForExactGradient'] = ['100000']
-        paff['NumberOfSpatialSamples'] = ['5000']
-        #pbsp['NumberOfSpatialSamples'] = ['5000']
-        # paff['NumberOfHistogramBins'] = ['32', '64', '256', '512']
-        paff['NumberOfHistogramBins'] = ['64', '256', '512']
-        paff['MaximumNumberOfIterations'] = ['256']
-        #pbsp['MaximumNumberOfIterations'] = ['256']
-        #pbsp['NumberOfResolutions'] = ['3']
-        # paff['GridSpacingSchedule'] = ['6', '4', '2', '1.0']
-        # pbsp['GridSpacingSchedule'] = ['6', '4', '2', '1.0']
-        paff['GridSpacingSchedule'] = ['4', '2', '1.0']
-        paff['Transform'] = ['AffineLogStackTransform']
-        #pbsp['GridSpacingSchedule'] = ['4', '2', '1.0']
-        #pbsp['FinalGridSpacingInPhysicalUnits'] = ['8', '8', '8']
-        #pbsp['FinalBSplineInterpolationOrder'] = ['2']
-        # paff['ResampleInterpolator'] = ['FinalNearestNeighborInterpolator']
-        # pbsp['ResampleInterpolator'] = ['FinalNearestNeighborInterpolator']
-
-        self.p_map_vector.append(paff)
-        #self.p_map_vector.append(pbsp)
-        if self.verbose:
-            sitk.PrintParameterMap(self.p_map_vector)
-
-    def register_imgs(self, grid=False):
-        self.elastixImageFilter = sitk.ElastixImageFilter()
-        self.elastixImageFilter.SetFixedImage(self.img)
-        self.elastixImageFilter.SetMovingImage(self.img)
-        self.elastixImageFilter.SetParameterMap(self.p_map_vector)
-        self.elastixImageFilter.Execute()
-        self.moving_img_result = self.elastixImageFilter.GetResultImage()
-        self.moving_img_result.CopyInformation(self.img)
-
+    def scale(self, x, out_range=(0, 512)):
+        domain = np.min(x), np.max(x)
+        x = np.where(x == 0, np.nan, x)
+        y = (x - (domain[1] + domain[0]) / 2) / (domain[1] - domain[0])
+        y = y * (out_range[1] - out_range[0]) + (out_range[1] + out_range[0]) / 2
+        return np.where(np.isnan(y), 0, y)

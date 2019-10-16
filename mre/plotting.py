@@ -483,24 +483,28 @@ def patient_reg_comparison(fixed, moving_init, moving_final, grid=None):
     hvds_moving_init = hv.Dataset(MRIImage(moving_init, 'moving_init', 'moving_init').da)
     hvds_moving_init = hvds_moving_init.redim(z='z1')
     print(hvds_moving_init)
-    hvds_moving_final = hv.Dataset(MRIImage(moving_final, 'moving_final', 'moving_final').da)
+    if moving_final:
+        hvds_moving_final = hv.Dataset(MRIImage(moving_final, 'moving_final', 'moving_final').da)
 
     hv_fixed = hvds_fixed.to(hv.Image, kdims=['x', 'y'], groupby=['z'], dynamic=True)
     hv_fixed.opts(**imopts, cmap='viridis', title='fixed and moving_final')
-    # hv_fixed.redim.range(fixed=(hvds_fixed.data.min().values, hvds_fixed.data.max().values))
 
     hv_moving_init = hvds_moving_init.to(hv.Image, kdims=['x', 'y'], groupby=['z1'], dynamic=True)
     hv_moving_init.opts(**imopts, cmap='Reds', title='moving_init')
 
-    hv_moving_final = hvds_moving_final.to(hv.Image, kdims=['x', 'y'], groupby=['z'], dynamic=True)
-    hv_moving_final.opts(**imopts, cmap='Reds', title='moving_final')
+    if moving_final:
+        hv_moving_final = hvds_moving_final.to(hv.Image, kdims=['x', 'y'],
+                                               groupby=['z'], dynamic=True)
+        hv_moving_final = hv_moving_final.redim.range(moving_final=(0.1, 256))
+        hv_moving_final = hv_moving_final.opts(**imopts, cmap='Reds', title='moving_final',
+                                               clipping_colors={'min': 'transparent'})
+        slider2 = pn.widgets.FloatSlider(start=0, end=1, value=0.5, name='moving_final')
     if grid:
         hv_grid = hv.Image(sitk.GetArrayFromImage(grid), groupby=['z']).opts(**imopts,
                                                                              cmap='Greys_r')
 
     # Make an alpha slider
     slider1 = pn.widgets.FloatSlider(start=0, end=1, value=0.0, name='moving_init')
-    slider2 = pn.widgets.FloatSlider(start=0, end=1, value=0.0, name='moving_final')
     # Plot the slider and the overlayed images using the '*' operator
     if grid:
         return pn.Column(slider1, slider2,
@@ -508,11 +512,13 @@ def patient_reg_comparison(fixed, moving_init, moving_final, grid=None):
                          rasterize(hv_moving_init.apply.opts(alpha=slider1.param.value)) *
                          rasterize(hv_moving_final.apply.opts(alpha=slider2.param.value)) +
                          rasterize(hv_grid))
-    else:
+    elif moving_final:
         return pn.Column(slider2,
                          hv_fixed *
                          hv_moving_final.apply.opts(alpha=slider2.param.value) +
                          hv_moving_init)
+    else:
+        return hv_fixed + hv_moving_init
 
 
 def xr_viewer(xr_ds, grid_coords=None, group_coords=None, overlay_data='default', selection=None):
