@@ -10,12 +10,14 @@ import pickle as pkl
 import glob
 from datetime import datetime
 from scipy import ndimage as ndi
+from scipy.signal import find_peaks
 import SimpleITK as sitk
 import skimage as skim
 from skimage import feature, morphology
 from skimage.filters import sobel
 import pdb
 from tqdm import tqdm_notebook
+import matplotlib.pyplot as plt
 
 import torch
 import torch.nn.functional as F
@@ -42,7 +44,7 @@ class MREtoXr:
         elif data_dir and sequences:
             self.sequences = sequences
             # self.patients = [p.stem for p in data_dir.iterdir()]
-            self.patients = ['0006', '0384']
+            self.patients = ['0006', '0384', '2052']
             self.data_dir = data_dir
         else:
             raise ValueError('__init__ error')
@@ -126,9 +128,12 @@ class MREtoXr:
                 continue
             if 'mre_mask' not in reg_pat.images.keys():
                 continue
+            if 'mre_raw' not in reg_pat.images.keys():
+                continue
 
             # Register, resize and load into xarray for all input image sequences except 'primary'.
-            # We do not keep any of their image metadata after this loop
+            # We do not keep any of their image metadata after this loop.
+            # Also, ID the correct z-locations for the mre_raw images
             for seq in self.sequences:
                 if seq == self.primary_input:
                     continue
@@ -143,6 +148,11 @@ class MREtoXr:
                 self.ds['image_mri'].loc[{'subject': pat, 'sequence': seq}] = (
                     sitk.GetArrayFromImage(resized_image).T)
 
+                # Do the mre_raw alignment
+                if seq == 't1_pre_in':
+                    self.z_mri_index = self.align_mre_raw(resized_image, reg_pat.images['mre_raw'],
+                                                          pat)
+
             # Get the liver mask via the deep liver segmenter
             liver_input = self.ds['image_mri'].loc[{'subject': pat, 'sequence': 't1_pre_out'}]
             liver_input = liver_input.transpose('z_mri', 'y', 'x').values
@@ -150,20 +160,14 @@ class MREtoXr:
             self.ds['mask_mri'].loc[{'subject': pat, 'mask_type': 'liver'}] = liver_mask
 
             # Resize the primary input image and get it's important metadata
-            # old_spacing = reg_pat.images[self.primary_input].GetSpacing()
-            # old_origin = reg_pat.images[self.primary_input].GetOrigin()
-            # old_size = reg_pat.images[self.primary_input].GetSize()
-            # old_slice_values = np.array([old_origin[-1]+i*old_spacing[-1] for i in
-            #                              range(old_size[-1])])
-            # print(f'old slice values {old_slice_values}')
             resized_primary = self.resize_image(reg_pat.images[self.primary_input], 'input_mri')
             self.ds['image_mri'].loc[{'subject': pat, 'sequence': self.primary_input}] = (
                 sitk.GetArrayFromImage(resized_primary).T)
             new_spacing = resized_primary.GetSpacing()
-            new_origin = resized_primary.GetOrigin()
-            new_size = resized_primary.GetSize()
-            new_slice_values = np.array([new_origin[-1]+i*new_spacing[-1] for i in
-                                         range(new_size[-1])])
+            # new_origin = resized_primary.GetOrigin()
+            # new_size = resized_primary.GetSize()
+            # new_slice_values = np.array([new_origin[-1]+i*new_spacing[-1] for i in
+            #                              range(new_size[-1])])
             # print(f'new slice values {new_slice_values}')
 
             # Add in the MRE images next.  They must be resized to the appropriate scale to match
@@ -178,15 +182,9 @@ class MREtoXr:
                     sitk.GetArrayFromImage(resized_mre).T)
 
             # Add in the liver seg mask for MRE:
-            with open(Path(self.data_dir, pat, 'mre.pkl'), 'rb') as f:
-                mre_location = pkl.load(f)
-            # print(mre_location)
-            z_mri_index = []
-            for i in self.ds.z_mre.values:
-                z_mri_index.append((np.abs(new_slice_values-mre_location[i])).argmin())
             self.ds['mask_mre'].loc[{'subject': pat, 'mask_type': 'liver'}] = (
                 self.ds['mask_mri'].loc[{'subject': pat, 'mask_type': 'liver',
-                                         'z_mri': z_mri_index}])
+                                         'z_mri': self.z_mri_index}])
             # print(f'z_mri_index {z_mri_index}')
 
         # return ds
@@ -311,3 +309,44 @@ class MREtoXr:
 
                 # place mask into 'mask_mre' slot
                 self.ds['mask_mre'].loc[dict(mask_type='mre', z_mre=z, subject=subj)] = msk
+
+    def align_mre_raw(self, fixed, moving, pat):
+        pad = np.full((256, 256), 0, np.int16)
+        pad = sitk.GetImageFromArray(pad)
+
+        moving1 = moving[:, :, 0]
+        orig = moving1.GetOrigin()
+        spacing = moving1.GetSpacing()
+        moving2 = moving[:, :, 1]
+        moving2.SetOrigin(orig)
+        moving3 = moving[:, :, 2]
+        moving3.SetOrigin(orig)
+        moving4 = moving[:, :, 3]
+        moving4.SetOrigin(orig)
+        pad.SetOrigin(orig)
+        pad.SetSpacing(spacing)
+
+        with open(Path(self.data_dir, pat, 'mre.pkl'), 'rb') as f:
+            mre_location = pkl.load(f)
+
+        pad_nums = np.asarray(np.diff(mre_location)/fixed.GetSpacing()[2], dtype=int)
+        pad_start = int(fixed.GetSize()[2]*0.66+10)
+        pad_end = int(fixed.GetSize()[2]*0.33+10)
+        moving_new = sitk.JoinSeries([pad]*pad_start + [moving1] + [pad]*pad_nums[0] + [moving2] +
+                                     [pad]*pad_nums[1] + [moving3] + [pad]*pad_nums[2] + [moving4] +
+                                     [pad]*pad_end)
+        moving_new.SetSpacing([moving.GetSpacing()[0], moving.GetSpacing()[1],
+                               fixed.GetSpacing()[2]])
+        reg = Register(fixed, moving_new, dry_run=False, config='mre_match')
+
+        np_res = sitk.GetArrayFromImage(reg.moving_img_result)
+        std_dev = np_res.std(axis=(1, 2))
+        peaks, _ = find_peaks(std_dev, height=(np.mean(std_dev), None))
+        plt.bar(range(np_res.shape[0]), std_dev, label='Std Dev')
+        plt.plot(peaks, (std_dev)[peaks], 'x', c='C1', markersize=10, mew=5, label='Peak Location')
+        plt.title('Std Dev of each moving img slice')
+        plt.xlabel('Slice Location')
+        plt.ylabel('Std Dev')
+        plt.legend()
+        plt.show()
+        return peaks

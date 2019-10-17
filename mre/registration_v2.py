@@ -38,10 +38,11 @@ class RegPatient:
 class Register:
     '''Class that registers a given fixed and moving image.'''
 
-    def __init__(self, fixed_img, moving_img, verbose=True, dry_run=False):
+    def __init__(self, fixed_img, moving_img, verbose=True, dry_run=False, config=None):
         self.verbose = verbose
         self.fixed_img = fixed_img
         self.moving_img = moving_img
+        self.config = config
         if dry_run:
             self.moving_img_result = None
             return None
@@ -50,32 +51,54 @@ class Register:
             self.register_imgs()
 
     def gen_param_map(self):
-        self.p_map_vector = sitk.VectorOfParameterMap()
-        # paff = sitk.GetDefaultParameterMap("affine")
-        paff = sitk.GetDefaultParameterMap("rigid")
-        #pbsp = sitk.GetDefaultParameterMap("bspline")
-        paff['AutomaticTransformInitialization'] = ['true']
-        # paff['AutomaticTransformInitializationMethod'] = ['CenterOfGravity']
-        paff['NumberOfSamplesForExactGradient'] = ['100000']
-        #pbsp['NumberOfSamplesForExactGradient'] = ['100000']
-        paff['NumberOfSpatialSamples'] = ['5000']
-        #pbsp['NumberOfSpatialSamples'] = ['5000']
-        # paff['NumberOfHistogramBins'] = ['32', '64', '256', '512']
-        paff['NumberOfHistogramBins'] = ['64', '256', '512']
-        paff['MaximumNumberOfIterations'] = ['256']
-        #pbsp['MaximumNumberOfIterations'] = ['256']
-        #pbsp['NumberOfResolutions'] = ['3']
-        # paff['GridSpacingSchedule'] = ['6', '4', '2', '1.0']
-        # pbsp['GridSpacingSchedule'] = ['6', '4', '2', '1.0']
-        paff['GridSpacingSchedule'] = ['4', '2', '1.0']
-        #pbsp['GridSpacingSchedule'] = ['4', '2', '1.0']
-        #pbsp['FinalGridSpacingInPhysicalUnits'] = ['8', '8', '8']
-        #pbsp['FinalBSplineInterpolationOrder'] = ['2']
-        # paff['ResampleInterpolator'] = ['FinalNearestNeighborInterpolator']
-        # pbsp['ResampleInterpolator'] = ['FinalNearestNeighborInterpolator']
+        '''Generate the parameter maps for registration.
+        The `config` arg defines different sets used for different tasks.'''
 
-        self.p_map_vector.append(paff)
-        #self.p_map_vector.append(pbsp)
+        self.p_map_vector = sitk.VectorOfParameterMap()
+        if self.config == 'mri_seq':
+            paff = sitk.GetDefaultParameterMap("affine")
+            paff['AutomaticTransformInitialization'] = ['true']
+            paff['NumberOfSamplesForExactGradient'] = ['100000']
+            paff['NumberOfSpatialSamples'] = ['5000']
+            paff['NumberOfHistogramBins'] = ['64', '256', '512']
+            paff['MaximumNumberOfIterations'] = ['256']
+            paff['GridSpacingSchedule'] = ['4', '2', '1.0']
+            self.p_map_vector.append(paff)
+        elif self.config == 'mre_match':
+            paff = sitk.GetDefaultParameterMap("rigid")
+            paff['AutomaticTransformInitialization'] = ['true']
+            paff['NumberOfSamplesForExactGradient'] = ['100000']
+            paff['NumberOfSpatialSamples'] = ['5000']
+            paff['NumberOfHistogramBins'] = ['64', '256', '512']
+            paff['MaximumNumberOfIterations'] = ['256']
+            paff['GridSpacingSchedule'] = ['4', '2', '1.0']
+            self.p_map_vector.append(paff)
+        else:
+            # paff = sitk.GetDefaultParameterMap("affine")
+            paff = sitk.GetDefaultParameterMap("rigid")
+            # pbsp = sitk.GetDefaultParameterMap("bspline")
+            paff['AutomaticTransformInitialization'] = ['true']
+            # paff['AutomaticTransformInitializationMethod'] = ['CenterOfGravity']
+            paff['NumberOfSamplesForExactGradient'] = ['100000']
+            # pbsp['NumberOfSamplesForExactGradient'] = ['100000']
+            paff['NumberOfSpatialSamples'] = ['5000']
+            # pbsp['NumberOfSpatialSamples'] = ['5000']
+            # paff['NumberOfHistogramBins'] = ['32', '64', '256', '512']
+            paff['NumberOfHistogramBins'] = ['64', '256', '512']
+            paff['MaximumNumberOfIterations'] = ['256']
+            # pbsp['MaximumNumberOfIterations'] = ['256']
+            # pbsp['NumberOfResolutions'] = ['3']
+            # paff['GridSpacingSchedule'] = ['6', '4', '2', '1.0']
+            # pbsp['GridSpacingSchedule'] = ['6', '4', '2', '1.0']
+            paff['GridSpacingSchedule'] = ['4', '2', '1.0']
+            # pbsp['GridSpacingSchedule'] = ['4', '2', '1.0']
+            # pbsp['FinalGridSpacingInPhysicalUnits'] = ['8', '8', '8']
+            # pbsp['FinalBSplineInterpolationOrder'] = ['2']
+            # paff['ResampleInterpolator'] = ['FinalNearestNeighborInterpolator']
+            # pbsp['ResampleInterpolator'] = ['FinalNearestNeighborInterpolator']
+
+            self.p_map_vector.append(paff)
+            # self.p_map_vector.append(pbsp)
         if self.verbose:
             sitk.PrintParameterMap(self.p_map_vector)
 

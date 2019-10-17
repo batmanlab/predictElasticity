@@ -601,7 +601,7 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
     )
 
     # Make holoviews dataset from xarray
-    xr_ds = xr_ds.sel(subject=['0006', '0384'])
+    # xr_ds = xr_ds.sel(subject=['0006', '0384'])
     hv_ds_mri = hv.Dataset(xr_ds[['image_mri', 'mask_mri']])
     hv_ds_mre = hv.Dataset(xr_ds[['image_mre', 'mask_mre']])
     hv_ds_mre_1 = hv_ds_mre.select(mre_type=['mre', 'mre_mask'])
