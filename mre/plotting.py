@@ -648,7 +648,7 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
     layout = ((hv_ds_mre_image_1 * hv_ds_mre_mask_1).grid('mre_type') +
               (hv_ds_mre_image_2 * hv_ds_mre_mask_2).grid('mre_type') +
               (hv_ds_mri_image * hv_ds_mri_mask).grid('sequence')
-              ).cols(2)
+              ).cols(1)
     # import pdb; pdb.set_trace()
     # layout = (hv_ds_mri_image).grid('sequence')
     # layout = (hv_ds_mre_image).grid('sequence')

@@ -140,10 +140,18 @@ class MREtoXr:
                 elif seq not in reg_pat.images.keys():
                     continue
 
-                # reg = Register(reg_pat.images[self.primary_input], reg_pat.images[seq])
-                # resized_image = self.resize_image(reg.moving_img_result, 'input_mri')
+                np_tmp = sitk.GetArrayFromImage(reg_pat.images[seq])
+                mov_min = float(np_tmp.min())
+                mov_max = float(np_tmp.max())
+                print(mov_min, mov_max)
+                reg = Register(reg_pat.images[self.primary_input], reg_pat.images[seq],
+                               config='mri_seq')
+                reg.moving_img_result = sitk.RescaleIntensity(
+                    reg.moving_img_result, mov_min, mov_max)
+
+                resized_image = self.resize_image(reg.moving_img_result, 'input_mri')
                 # print(reg_pat.images[seq].GetOrigin(), reg_pat.images[seq].GetDirection())
-                resized_image = self.resize_image(reg_pat.images[seq], 'input_mri')
+                # resized_image = self.resize_image(reg_pat.images[seq], 'input_mri')
 
                 self.ds['image_mri'].loc[{'subject': pat, 'sequence': seq}] = (
                     sitk.GetArrayFromImage(resized_image).T)
@@ -330,8 +338,10 @@ class MREtoXr:
             mre_location = pkl.load(f)
 
         pad_nums = np.asarray(np.diff(mre_location)/fixed.GetSpacing()[2], dtype=int)
-        pad_start = int(fixed.GetSize()[2]*0.66+10)
-        pad_end = int(fixed.GetSize()[2]*0.33+10)
+        # pad_nums = np.ceil(pad_nums)
+        # pad_nums = np.asarray(pad_nums, dtype=int)
+        pad_start = int(fixed.GetSize()[2]*0.80+10)
+        pad_end = int(fixed.GetSize()[2]*0.20+10)
         moving_new = sitk.JoinSeries([pad]*pad_start + [moving1] + [pad]*pad_nums[0] + [moving2] +
                                      [pad]*pad_nums[1] + [moving3] + [pad]*pad_nums[2] + [moving4] +
                                      [pad]*pad_end)
