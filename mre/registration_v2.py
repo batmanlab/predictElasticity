@@ -38,11 +38,14 @@ class RegPatient:
 class Register:
     '''Class that registers a given fixed and moving image.'''
 
-    def __init__(self, fixed_img, moving_img, verbose=True, dry_run=False, config=None):
+    def __init__(self, fixed_img, moving_img, verbose=True, dry_run=False, config=None,
+                 fixed_mask=None, moving_mask=None):
         self.verbose = verbose
         self.fixed_img = fixed_img
         self.moving_img = moving_img
         self.config = config
+        self.fixed_mask = fixed_mask
+        self.moving_mask = moving_mask
         if dry_run:
             self.moving_img_result = None
             return None
@@ -68,10 +71,12 @@ class Register:
             paff = sitk.GetDefaultParameterMap("rigid")
             paff['AutomaticTransformInitialization'] = ['true']
             paff['NumberOfSamplesForExactGradient'] = ['100000']
-            paff['NumberOfSpatialSamples'] = ['5000']
-            paff['NumberOfHistogramBins'] = ['64', '256', '512']
+            paff['NumberOfSpatialSamples'] = ['10000']
+            paff['NumberOfHistogramBins'] = ['128', '256', '512', '1024']
             paff['MaximumNumberOfIterations'] = ['256']
-            paff['GridSpacingSchedule'] = ['4', '2', '1.0']
+            paff['NumberOfResolutions'] = ['2']
+            # paff['ImageSampler'] = ['']
+            paff['GridSpacingSchedule'] = ['8', '4', '2', '1']
             self.p_map_vector.append(paff)
         else:
             # paff = sitk.GetDefaultParameterMap("affine")
@@ -107,6 +112,10 @@ class Register:
         self.elastixImageFilter.SetFixedImage(self.fixed_img)
 
         self.elastixImageFilter.SetMovingImage(self.moving_img)
+        if self.fixed_mask:
+            self.elastixImageFilter.SetFixedMask(self.fixed_mask)
+        if self.moving_mask:
+            self.elastixImageFilter.SetMovingMask(self.moving_mask)
         self.elastixImageFilter.SetParameterMap(self.p_map_vector)
         self.elastixImageFilter.Execute()
         self.moving_img_result = self.elastixImageFilter.GetResultImage()

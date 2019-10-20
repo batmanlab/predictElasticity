@@ -43,8 +43,9 @@ class MREtoXr:
 
         elif data_dir and sequences:
             self.sequences = sequences
-            # self.patients = [p.stem for p in data_dir.iterdir()]
-            self.patients = ['0006', '0384', '2052']
+            self.patients = [p.stem for p in data_dir.iterdir()]
+            # self.patients = ['0006', '0384', '2052']
+            self.patients = ['0006']
             self.data_dir = data_dir
         else:
             raise ValueError('__init__ error')
@@ -172,11 +173,6 @@ class MREtoXr:
             self.ds['image_mri'].loc[{'subject': pat, 'sequence': self.primary_input}] = (
                 sitk.GetArrayFromImage(resized_primary).T)
             new_spacing = resized_primary.GetSpacing()
-            # new_origin = resized_primary.GetOrigin()
-            # new_size = resized_primary.GetSize()
-            # new_slice_values = np.array([new_origin[-1]+i*new_spacing[-1] for i in
-            #                              range(new_size[-1])])
-            # print(f'new slice values {new_slice_values}')
 
             # Add in the MRE images next.  They must be resized to the appropriate scale to match
             # the input sequences.  No registration occurs during this phase.
@@ -193,6 +189,13 @@ class MREtoXr:
             self.ds['mask_mre'].loc[{'subject': pat, 'mask_type': 'liver'}] = (
                 self.ds['mask_mri'].loc[{'subject': pat, 'mask_type': 'liver',
                                          'z_mri': self.z_mri_index}])
+
+            # Add in the mre mask based on the conf image:
+            self.gen_elast_mask(pat)
+            self.ds['mask_mri'].loc[
+                {'subject': pat, 'mask_type': 'mre', 'z_mri': self.z_mri_index}] = (
+                    self.ds['mask_mre'].loc[{'subject': pat, 'mask_type': 'mre'}])
+
             # print(f'z_mri_index {z_mri_index}')
 
         # return ds
@@ -294,7 +297,7 @@ class MREtoXr:
         # Convert to binary mask
         ones = torch.ones_like(model_pred)
         zeros = torch.zeros_like(model_pred)
-        model_pred = torch.where(model_pred > 0.5, ones, zeros)
+        model_pred = torch.where(model_pred > 0.1, ones, zeros)
         return np.transpose(model_pred.cpu().numpy()[0, 0, :], (2, 1, 0))
 
     def gen_elast_mask(self, subj):
@@ -320,7 +323,9 @@ class MREtoXr:
 
     def align_mre_raw(self, fixed, moving, pat):
         pad = np.full((256, 256), 0, np.int16)
+        ones = np.full((256, 256), 1, np.int16)
         pad = sitk.GetImageFromArray(pad)
+        ones = sitk.GetImageFromArray(ones)
 
         moving1 = moving[:, :, 0]
         orig = moving1.GetOrigin()
@@ -333,21 +338,53 @@ class MREtoXr:
         moving4.SetOrigin(orig)
         pad.SetOrigin(orig)
         pad.SetSpacing(spacing)
+        ones.SetOrigin(orig)
+        ones.SetSpacing(spacing)
 
         with open(Path(self.data_dir, pat, 'mre.pkl'), 'rb') as f:
             mre_location = pkl.load(f)
 
         pad_nums = np.asarray(np.diff(mre_location)/fixed.GetSpacing()[2], dtype=int)
+        # pad_nums = [0, 0, 0]
         # pad_nums = np.ceil(pad_nums)
         # pad_nums = np.asarray(pad_nums, dtype=int)
-        pad_start = int(fixed.GetSize()[2]*0.80+10)
-        pad_end = int(fixed.GetSize()[2]*0.20+10)
+        pad_start = int(fixed.GetSize()[2]*0.60)
+        pad_end = int(fixed.GetSize()[2]*0.40)
+        # pad_start = 0
+        # pad_end = 0
         moving_new = sitk.JoinSeries([pad]*pad_start + [moving1] + [pad]*pad_nums[0] + [moving2] +
                                      [pad]*pad_nums[1] + [moving3] + [pad]*pad_nums[2] + [moving4] +
                                      [pad]*pad_end)
         moving_new.SetSpacing([moving.GetSpacing()[0], moving.GetSpacing()[1],
                                fixed.GetSpacing()[2]])
-        reg = Register(fixed, moving_new, dry_run=False, config='mre_match')
+        #                       # np.diff(mre_location)[0]])
+        moving_mask = sitk.JoinSeries([pad]*pad_start + [ones] + [pad]*pad_nums[0] + [ones] +
+                                      [pad]*pad_nums[1] + [ones] + [pad]*pad_nums[2] + [ones] +
+                                      [pad]*pad_end)
+        moving_mask.SetSpacing([moving.GetSpacing()[0], moving.GetSpacing()[1],
+                               fixed.GetSpacing()[2]])
+        moving_mask = sitk.Cast(moving_mask, sitk.sitkUInt8)
+
+        fixed_nums = np.asarray([fixed.GetSize()[2]*0.3, fixed.GetSize()[2]*0.6,
+                                 fixed.GetSize()[2]*0.1], dtype=int)
+        fixed_mask = sitk.JoinSeries([pad]*fixed_nums[0] + [ones]*fixed_nums[1] +
+                                     [pad]*fixed_nums[2])
+        fixed_mask.SetSpacing([fixed.GetSpacing()[0], fixed.GetSpacing()[1],
+                               fixed.GetSpacing()[2]])
+        fixed_mask = sitk.Cast(fixed_mask, sitk.sitkUInt8)
+
+        fixed.SetOrigin([fixed.GetOrigin()[0], fixed.GetOrigin()[1],
+                         -fixed.GetSize()[2]/2])
+        fixed_mask.SetOrigin([fixed.GetOrigin()[0], fixed.GetOrigin()[1],
+                              -fixed.GetSize()[2]/2])
+        moving_new.SetOrigin([moving_new.GetOrigin()[0], moving_new.GetOrigin()[1],
+                              -moving_new.GetSize()[2]])
+        moving_mask.SetOrigin([moving_new.GetOrigin()[0], moving_new.GetOrigin()[1],
+                              -moving_new.GetSize()[2]])
+        moving_mask = None
+        # fixed_mask = None
+        reg = Register(fixed, moving_new, dry_run=False, config='mre_match',
+                       fixed_mask=fixed_mask, moving_mask=moving_mask)
 
         np_res = sitk.GetArrayFromImage(reg.moving_img_result)
         std_dev = np_res.std(axis=(1, 2))
