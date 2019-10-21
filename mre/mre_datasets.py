@@ -18,6 +18,7 @@ from skimage.filters import sobel
 import pdb
 from tqdm import tqdm_notebook
 import matplotlib.pyplot as plt
+import holoviews as hv
 
 import torch
 import torch.nn.functional as F
@@ -44,8 +45,8 @@ class MREtoXr:
         elif data_dir and sequences:
             self.sequences = sequences
             self.patients = [p.stem for p in data_dir.iterdir()]
-            # self.patients = ['0006', '0384', '2052']
-            self.patients = ['0006']
+            self.patients = ['0006', '0384', '2052']
+            # self.patients = ['0006']
             self.data_dir = data_dir
         else:
             raise ValueError('__init__ error')
@@ -55,7 +56,7 @@ class MREtoXr:
         self.ny = kwargs.get('ny', 256)
         self.nz_mri = kwargs.get('nz_mri', 32)
         self.nz_mre = kwargs.get('nz_mre', 4)
-        self.mask_types = kwargs.get('mask_types', ['liver', 'mre'])
+        self.mask_types = kwargs.get('mask_types', ['liver', 'mre', 'combo'])
         self.primary_input = kwargs.get('primary_input', 't1_pre_water')
         self.mre_types = kwargs.get('mre_types', ['mre', 'mre_mask', 'mre_raw', 'mre_wave'])
         # self.mre_types = kwargs.get('mre_types', ['mre'])
@@ -125,6 +126,8 @@ class MREtoXr:
             print(reg_pat.images.keys())
             if self.primary_input not in reg_pat.images.keys():
                 continue
+            if 't1_pre_in' not in reg_pat.images.keys():
+                continue
             if 'mre' not in reg_pat.images.keys():
                 continue
             if 'mre_mask' not in reg_pat.images.keys():
@@ -135,32 +138,7 @@ class MREtoXr:
             # Register, resize and load into xarray for all input image sequences except 'primary'.
             # We do not keep any of their image metadata after this loop.
             # Also, ID the correct z-locations for the mre_raw images
-            for seq in self.sequences:
-                if seq == self.primary_input:
-                    continue
-                elif seq not in reg_pat.images.keys():
-                    continue
-
-                np_tmp = sitk.GetArrayFromImage(reg_pat.images[seq])
-                mov_min = float(np_tmp.min())
-                mov_max = float(np_tmp.max())
-                print(mov_min, mov_max)
-                reg = Register(reg_pat.images[self.primary_input], reg_pat.images[seq],
-                               config='mri_seq')
-                reg.moving_img_result = sitk.RescaleIntensity(
-                    reg.moving_img_result, mov_min, mov_max)
-
-                resized_image = self.resize_image(reg.moving_img_result, 'input_mri')
-                # print(reg_pat.images[seq].GetOrigin(), reg_pat.images[seq].GetDirection())
-                # resized_image = self.resize_image(reg_pat.images[seq], 'input_mri')
-
-                self.ds['image_mri'].loc[{'subject': pat, 'sequence': seq}] = (
-                    sitk.GetArrayFromImage(resized_image).T)
-
-                # Do the mre_raw alignment
-                if seq == 't1_pre_in':
-                    self.z_mri_index = self.align_mre_raw(resized_image, reg_pat.images['mre_raw'],
-                                                          pat)
+            resized_t1_pre, resized_primary = self.reg_inputs(reg_pat)
 
             # Get the liver mask via the deep liver segmenter
             liver_input = self.ds['image_mri'].loc[{'subject': pat, 'sequence': 't1_pre_out'}]
@@ -168,22 +146,45 @@ class MREtoXr:
             liver_mask = self.gen_liver_mask(liver_input)
             self.ds['mask_mri'].loc[{'subject': pat, 'mask_type': 'liver'}] = liver_mask
 
-            # Resize the primary input image and get it's important metadata
-            resized_primary = self.resize_image(reg_pat.images[self.primary_input], 'input_mri')
-            self.ds['image_mri'].loc[{'subject': pat, 'sequence': self.primary_input}] = (
-                sitk.GetArrayFromImage(resized_primary).T)
-            new_spacing = resized_primary.GetSpacing()
-
             # Add in the MRE images next.  They must be resized to the appropriate scale to match
-            # the input sequences.  No registration occurs during this phase.
-            for mre_type in self.mre_types:
-                if mre_type not in reg_pat.images.keys():
-                    continue
+            # the input sequences.
+            # Register mre_raw to center and resize. Must be done slice by slice in 2D
 
-                resized_mre = self.respace_image(reg_pat.images[mre_type], 'input_mre',
-                                                 new_spacing[0], new_spacing[1])
-                self.ds['image_mre'].loc[{'subject': pat, 'mre_type': mre_type}] = (
-                    sitk.GetArrayFromImage(resized_mre).T)
+            mre_raw = reg_pat.images['mre_raw']
+            for i in range(mre_raw.GetSize()[2]):
+                mre_raw_slice = mre_raw[:, :, i]
+                np_tmp = sitk.GetArrayFromImage(mre_raw[:, :, i])
+                mov_min = float(np_tmp.min())
+                mov_max = float(np_tmp.max())
+
+                resized_t1_pre_slice = resized_t1_pre[:, :, int(self.z_mri_index[i])]
+
+                # resized_t1_pre.CopyInformation(mre_raw)
+
+                reg = Register(resized_t1_pre_slice, mre_raw_slice, config='mre_reg')
+                mre_raw_slice = sitk.RescaleIntensity(reg.moving_img_result, mov_min, mov_max)
+                self.ds['image_mre'].loc[{'subject': pat, 'mre_type': 'mre_raw', 'z_mre': i}] = (
+                    sitk.GetArrayFromImage(mre_raw_slice).T)
+
+                transformixImageFilter = sitk.TransformixImageFilter()
+                transformixImageFilter.SetTransformParameterMap(
+                    reg.elastixImageFilter.GetTransformParameterMap())
+
+                for mre_type in self.mre_types:
+                    if mre_type == 'mre_raw':
+                        continue
+                    elif mre_type not in reg_pat.images.keys():
+                        continue
+
+                    transformixImageFilter.SetMovingImage(reg_pat.images[mre_type][:, :, i])
+                    transformixImageFilter.Execute()
+                    mre_output = transformixImageFilter.GetResultImage()
+
+                    self.ds['image_mre'].loc[{'subject': pat, 'mre_type': mre_type, 'z_mre': i}] = (
+                        sitk.GetArrayFromImage(mre_output).T)
+
+            # resized_mre = self.respace_image(reg_pat.images[mre_type], 'input_mre',
+            #                                  new_spacing[0], new_spacing[1])
 
             # Add in the liver seg mask for MRE:
             self.ds['mask_mre'].loc[{'subject': pat, 'mask_type': 'liver'}] = (
@@ -195,6 +196,14 @@ class MREtoXr:
             self.ds['mask_mri'].loc[
                 {'subject': pat, 'mask_type': 'mre', 'z_mri': self.z_mri_index}] = (
                     self.ds['mask_mre'].loc[{'subject': pat, 'mask_type': 'mre'}])
+
+            # Add in the combo masks:
+            self.ds['mask_mri'].loc[{'subject': pat, 'mask_type': 'combo'}] = (
+                self.ds['mask_mri'].loc[{'subject': pat, 'mask_type': 'mre'}] *
+                self.ds['mask_mri'].loc[{'subject': pat, 'mask_type': 'liver'}])
+            self.ds['mask_mre'].loc[{'subject': pat, 'mask_type': 'combo'}] = (
+                self.ds['mask_mre'].loc[{'subject': pat, 'mask_type': 'mre'}] *
+                self.ds['mask_mre'].loc[{'subject': pat, 'mask_type': 'liver'}])
 
             # print(f'z_mri_index {z_mri_index}')
 
@@ -297,7 +306,7 @@ class MREtoXr:
         # Convert to binary mask
         ones = torch.ones_like(model_pred)
         zeros = torch.zeros_like(model_pred)
-        model_pred = torch.where(model_pred > 0.1, ones, zeros)
+        model_pred = torch.where(model_pred > 1e-3, ones, zeros)
         return np.transpose(model_pred.cpu().numpy()[0, 0, :], (2, 1, 0))
 
     def gen_elast_mask(self, subj):
@@ -311,7 +320,7 @@ class MREtoXr:
                 conf = self.ds['image_mre'].sel(mre_type='mre_mask', z_mre=z, subject=subj).values
                 msk = np.zeros_like(mre)
                 msk = mre-conf
-                msk = np.where(msk > 1e-7, 1, 0)  # make mask high-contrast
+                msk = np.where(msk > 1e-5, 1, 0)  # make mask high-contrast
                 msk = morphology.binary_dilation(msk)  # fill in little holes
 
                 # invert the mask so that 1s are in and 0s are out
@@ -397,3 +406,37 @@ class MREtoXr:
         plt.legend()
         plt.show()
         return peaks
+
+    def reg_inputs(self, reg_pat):
+        for seq in self.sequences:
+            if seq == self.primary_input:
+                continue
+            elif seq not in reg_pat.images.keys():
+                continue
+
+            np_tmp = sitk.GetArrayFromImage(reg_pat.images[seq])
+            mov_min = float(np_tmp.min())
+            mov_max = float(np_tmp.max())
+            reg = Register(reg_pat.images[self.primary_input], reg_pat.images[seq],
+                           config='mri_seq')
+            reg.moving_img_result = sitk.RescaleIntensity(
+                reg.moving_img_result, mov_min, mov_max)
+
+            resized_image = self.resize_image(reg.moving_img_result, 'input_mri')
+            # print(reg_pat.images[seq].GetOrigin(), reg_pat.images[seq].GetDirection())
+            # resized_image = self.resize_image(reg_pat.images[seq], 'input_mri')
+
+            self.ds['image_mri'].loc[{'subject': reg_pat.subj, 'sequence': seq}] = (
+                sitk.GetArrayFromImage(resized_image).T)
+
+            # Do the mre_raw alignment
+            if seq == 't1_pre_in':
+                self.z_mri_index = self.align_mre_raw(resized_image, reg_pat.images['mre_raw'],
+                                                      reg_pat.subj)
+                resized_t1_pre = resized_image
+
+        resized_primary = self.resize_image(reg_pat.images[self.primary_input], 'input_mri')
+        self.ds['image_mri'].loc[{'subject': reg_pat.subj, 'sequence': self.primary_input}] = (
+            sitk.GetArrayFromImage(resized_primary).T)
+
+        return resized_t1_pre, resized_primary

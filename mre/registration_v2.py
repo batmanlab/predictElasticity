@@ -46,11 +46,11 @@ class Register:
         self.config = config
         self.fixed_mask = fixed_mask
         self.moving_mask = moving_mask
+        self.gen_param_map()
         if dry_run:
             self.moving_img_result = None
             return None
         else:
-            self.gen_param_map()
             self.register_imgs()
 
     def gen_param_map(self):
@@ -65,18 +65,22 @@ class Register:
             paff['NumberOfSpatialSamples'] = ['5000']
             paff['NumberOfHistogramBins'] = ['64', '256', '512']
             paff['MaximumNumberOfIterations'] = ['256']
-            paff['GridSpacingSchedule'] = ['4', '2', '1.0']
+            paff['ImagePyramidRescaleSchedule'] = ['4', '2', '1']
+            self.p_map_vector.append(paff)
+        elif self.config == 'mre_reg':
+            paff = sitk.GetDefaultParameterMap("affine")
             self.p_map_vector.append(paff)
         elif self.config == 'mre_match':
             paff = sitk.GetDefaultParameterMap("rigid")
             paff['AutomaticTransformInitialization'] = ['true']
             paff['NumberOfSamplesForExactGradient'] = ['100000']
-            paff['NumberOfSpatialSamples'] = ['10000']
-            paff['NumberOfHistogramBins'] = ['128', '256', '512', '1024']
-            paff['MaximumNumberOfIterations'] = ['256']
+            paff['NumberOfSpatialSamples'] = ['40000']
+            paff['NumberOfHistogramBins'] = ['128', '256']
+            paff['MaximumNumberOfIterations'] = ['512']
             paff['NumberOfResolutions'] = ['2']
             # paff['ImageSampler'] = ['']
-            paff['GridSpacingSchedule'] = ['8', '4', '2', '1']
+            paff['ImagePyramidRescaleSchedule'] = ['8', '8', '4',
+                                                   '4', '4', '2']
             self.p_map_vector.append(paff)
         else:
             # paff = sitk.GetDefaultParameterMap("affine")

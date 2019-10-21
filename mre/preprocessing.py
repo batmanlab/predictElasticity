@@ -46,9 +46,13 @@ class MRIImage:
         y[0] = image.GetOrigin()[1]
         y = np.cumsum(y)[::-1]
 
-        z = np.full(image.GetSize()[2], image.GetSpacing()[2])
-        z[0] = image.GetOrigin()[2]
-        z = np.cumsum(z)
+        if image.GetDimension() == 3:
+            z = np.full(image.GetSize()[2], image.GetSpacing()[2])
+            z[0] = image.GetOrigin()[2]
+            z = np.cumsum(z)
+        else:
+            npimage = np.asarray([npimage])
+            z = [0]
 
         self.da = xr.DataArray(npimage, coords=[('z', z), ('y', y), ('x', x)])
         self.da.name = sequence
