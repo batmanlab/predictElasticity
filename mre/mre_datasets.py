@@ -17,11 +17,10 @@ from skimage import feature, morphology
 from skimage.filters import sobel
 import pdb
 from tqdm import tqdm_notebook
-import matplotlib.pyplot as plt
-import holoviews as hv
+# import matplotlib.pyplot as plt
+# import holoviews as hv
 
 import torch
-import torch.nn.functional as F
 
 from mre.registration_v2 import RegPatient, Register
 from mre.pytorch_arch import GeneralUNet3D
@@ -32,8 +31,9 @@ class MREtoXr:
     as a 0'd vector.  Includes two coordinate systems (one for MRI data, one for MRE data).
     Includes indicators for data quality.
     '''
-    def __init__(self, data_dir=None, sequences=None, from_file=None, **kwargs):
+    def __init__(self, data_dir=None, sequences=None, patients=None, from_file=None, **kwargs):
 
+        print(data_dir)
         if None is data_dir is sequences is from_file:
             raise ValueError(
                 '(data_dir and sequences) or (from_file) must be specified to initialize')
@@ -42,12 +42,16 @@ class MREtoXr:
             self.ds = xr.open_dataset(from_file)
             return None
 
-        elif data_dir and sequences:
-            self.sequences = sequences
-            self.patients = [p.stem for p in data_dir.iterdir()]
-            self.patients = ['0006', '0384', '2052']
-            # self.patients = ['0006']
+        elif data_dir:
             self.data_dir = data_dir
+            if sequences is None:
+                sequences = ['t1_pre_water', 't1_pre_in', 't1_pre_out', 't1_pre_fat', 't2']
+            self.sequences = sequences
+            # self.patients = [p.stem for p in data_dir.iterdir()]
+            if patients is None:
+                self.patients = ['0006']
+            else:
+                self.patients = [patients]
         else:
             raise ValueError('__init__ error')
 
@@ -58,7 +62,8 @@ class MREtoXr:
         self.nz_mre = kwargs.get('nz_mre', 4)
         self.mask_types = kwargs.get('mask_types', ['liver', 'mre', 'combo'])
         self.primary_input = kwargs.get('primary_input', 't1_pre_water')
-        self.mre_types = kwargs.get('mre_types', ['mre', 'mre_mask', 'mre_raw', 'mre_wave'])
+        self.mre_types = kwargs.get('mre_types', ['mre', 'mre_mask', 'mre_raw', 'mre_wave',
+                                                  'mre_pred'])
         # self.mre_types = kwargs.get('mre_types', ['mre'])
         self.output_name = kwargs.get('output_name', 'test')
         self.write_file = kwargs.get('write_file', True)
@@ -123,7 +128,7 @@ class MREtoXr:
             reg_pat = RegPatient(pat, self.data_dir)
 
             # Make sure patient meets the bare min requirements
-            print(reg_pat.images.keys())
+            # print(reg_pat.images.keys())
             if self.primary_input not in reg_pat.images.keys():
                 continue
             if 't1_pre_in' not in reg_pat.images.keys():
@@ -198,18 +203,25 @@ class MREtoXr:
                     self.ds['mask_mre'].loc[{'subject': pat, 'mask_type': 'mre'}])
 
             # Add in the combo masks:
-            self.ds['mask_mri'].loc[{'subject': pat, 'mask_type': 'combo'}] = (
-                self.ds['mask_mri'].loc[{'subject': pat, 'mask_type': 'mre'}] *
-                self.ds['mask_mri'].loc[{'subject': pat, 'mask_type': 'liver'}])
-            self.ds['mask_mre'].loc[{'subject': pat, 'mask_type': 'combo'}] = (
-                self.ds['mask_mre'].loc[{'subject': pat, 'mask_type': 'mre'}] *
-                self.ds['mask_mre'].loc[{'subject': pat, 'mask_type': 'liver'}])
+            combo_mri = (self.ds['mask_mri'].loc[{'subject': pat, 'mask_type': 'mre'}] *
+                         self.ds['mask_mri'].loc[{'subject': pat, 'mask_type': 'liver'}])
+            combo_mri = morphology.binary_erosion(combo_mri.values)
+            # combo_mri = morphology.binary_erosion(combo_mri)
+            combo_mri *= morphology.remove_small_objects(combo_mri.astype(bool))
+            self.ds['mask_mri'].loc[{'subject': pat, 'mask_type': 'combo'}] = combo_mri
+
+            combo_mre = (self.ds['mask_mre'].loc[{'subject': pat, 'mask_type': 'mre'}] *
+                         self.ds['mask_mre'].loc[{'subject': pat, 'mask_type': 'liver'}])
+            combo_mre = morphology.binary_erosion(combo_mre.values)
+            combo_mre = morphology.binary_erosion(combo_mre)
+            combo_mre *= morphology.remove_small_objects(combo_mre.astype(bool))
+            self.ds['mask_mre'].loc[{'subject': pat, 'mask_type': 'combo'}] = combo_mre
 
             # print(f'z_mri_index {z_mri_index}')
 
         # return ds
         if self.write_file:
-            self.output_name = Path(self.data_dir.parents[0], f'xarray_{self.output_name}.nc')
+            self.output_name = Path(self.data_dir.parents[1], 'XR', f'xarray_{self.output_name}.nc')
             print(f'Writing xr file {self.output_name} ')
             self.ds.to_netcdf(self.output_name)
             print('Done')
@@ -302,7 +314,7 @@ class MREtoXr:
         input_image_np = input_image_np[np.newaxis, np.newaxis, :]
         # get the model prediction (liver mask)
         model_pred = self.model(torch.Tensor(input_image_np))
-        model_pred = F.sigmoid(model_pred)
+        model_pred = torch.sigmoid(model_pred)
         # Convert to binary mask
         ones = torch.ones_like(model_pred)
         zeros = torch.zeros_like(model_pred)
@@ -319,8 +331,7 @@ class MREtoXr:
                 mre = self.ds['image_mre'].sel(mre_type='mre', z_mre=z, subject=subj).values
                 conf = self.ds['image_mre'].sel(mre_type='mre_mask', z_mre=z, subject=subj).values
                 msk = np.zeros_like(mre)
-                msk = mre-conf
-                msk = np.where(msk > 1e-5, 1, 0)  # make mask high-contrast
+                msk = np.where(np.isclose(mre, conf, atol=0.1, rtol=1), 0, 1)
                 msk = morphology.binary_dilation(msk)  # fill in little holes
 
                 # invert the mask so that 1s are in and 0s are out
@@ -398,13 +409,16 @@ class MREtoXr:
         np_res = sitk.GetArrayFromImage(reg.moving_img_result)
         std_dev = np_res.std(axis=(1, 2))
         peaks, _ = find_peaks(std_dev, height=(np.mean(std_dev), None))
-        plt.bar(range(np_res.shape[0]), std_dev, label='Std Dev')
-        plt.plot(peaks, (std_dev)[peaks], 'x', c='C1', markersize=10, mew=5, label='Peak Location')
-        plt.title('Std Dev of each moving img slice')
-        plt.xlabel('Slice Location')
-        plt.ylabel('Std Dev')
-        plt.legend()
-        plt.show()
+        if len(peaks) != 4:
+            peaks = sorted(std_dev.argsort()[-4:])
+        # plt.bar(range(np_res.shape[0]), std_dev, label='Std Dev')
+        # plt.plot(peaks, (std_dev)[peaks], 'x', c='C1', markersize=10, mew=5,
+        # label='Peak Location')
+        # plt.title('Std Dev of each moving img slice')
+        # plt.xlabel('Slice Location')
+        # plt.ylabel('Std Dev')
+        # plt.legend()
+        # plt.show()
         return peaks
 
     def reg_inputs(self, reg_pat):
@@ -423,8 +437,6 @@ class MREtoXr:
                 reg.moving_img_result, mov_min, mov_max)
 
             resized_image = self.resize_image(reg.moving_img_result, 'input_mri')
-            # print(reg_pat.images[seq].GetOrigin(), reg_pat.images[seq].GetDirection())
-            # resized_image = self.resize_image(reg_pat.images[seq], 'input_mri')
 
             self.ds['image_mri'].loc[{'subject': reg_pat.subj, 'sequence': seq}] = (
                 sitk.GetArrayFromImage(resized_image).T)

@@ -27,19 +27,31 @@ class SlurmMaster:
         '''Make a slurm submission script.'''
         if project == 'MRE':
             module = 'train_model_full.py'
+            self.gpu = True
         elif project == 'CHAOS':
             module = 'train_seg_model.py'
+            self.gpu = True
+        elif project == 'XR':
+            module = 'make_xr.py'
+            self.gpu = False
 
         arg_string = ' '.join(f'--{i}={conf[i]}' for i in conf)
-        arg_string += f' --subj={subj} --model_version={date}_n{number}'
         script_name = f'/tmp/slurm_script_{self.date}_n{number}_subj{subj}'
         script = open(script_name, 'w')
         script.write('#!/bin/bash\n')
-        script.write('#SBATCH -A ac5616p\n')
-        script.write('#SBATCH --partition=GPU-AI\n')
-        script.write('#SBATCH --nodes=1\n')
-        script.write('#SBATCH -C EGRESS\n')
-        script.write('#SBATCH --gres=gpu:volta16:4\n')
+        if self.gpu:
+            arg_string += f' --subj={subj} --model_version={date}_n{number}'
+            script.write('#SBATCH -A ac5616p\n')
+            script.write('#SBATCH --partition=GPU-AI\n')
+            script.write('#SBATCH --nodes=1\n')
+            script.write('#SBATCH -C EGRESS\n')
+            script.write('#SBATCH --gres=gpu:volta16:4\n')
+        else:
+            arg_string += f' --subj={subj}'
+            script.write('#SBATCH -A ac5616p\n')
+            script.write('#SBATCH --partition=RM\n')
+            script.write('#SBATCH --nodes=1\n')
+            script.write('#SBATCH -C EGRESS\n')
         script.write('#SBATCH --time=1:00:00\n')
         script.write('#SBATCH --mail-user=brianleepollack@gmail.com\n')
         script.write(f'#SBATCH --output={str(self.log_dir)}/job_n{number}.stdout\n')
@@ -64,7 +76,7 @@ class SlurmMaster:
         config.read(str(self.config))
         sections = config.sections()
         self.config_dict = {}
-        self.subj_list = {}
+        self.subj_list = []
         self.project = None
 
         if 'Project' in sections:
@@ -91,12 +103,20 @@ class SlurmMaster:
             self.subj_list.append('162')
 
         # Make every possible combo of config items
-        self.config_combos = product_dict(**self.config_dict)
+        if self.project != 'XR':
+            self.config_combos = product_dict(**self.config_dict)
 
     def submit_scripts(self):
-        for i, conf in enumerate(self.config_combos):
+        if self.project != 'XR':
+            for i, conf in enumerate(self.config_combos):
+                for subj in self.subj_list:
+                    script_name = self.generate_slurm_script(i, conf, subj, self.date, self.project)
+                    print(script_name)
+                    subprocess.call(f'sbatch {script_name}', shell=True)
+        else:
             for subj in self.subj_list:
-                script_name = self.generate_slurm_script(i, conf, subj, self.date, self.project)
+                script_name = self.generate_slurm_script(0, self.config_dict, subj, self.date,
+                                                         self.project)
                 print(script_name)
                 subprocess.call(f'sbatch {script_name}', shell=True)
 

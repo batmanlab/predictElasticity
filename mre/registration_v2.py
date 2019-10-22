@@ -20,7 +20,7 @@ class RegPatient:
         self.subj = subj
         self.path = path
         self.full_path = Path(path, subj)
-        print(self.full_path)
+        # print(self.full_path)
         self.images = {}
         self.load_niftis()
 
