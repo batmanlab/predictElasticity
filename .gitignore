@@ -50,3 +50,5 @@ Thumbs.db
 # Data Files #
 **/data
 
+# Symlinks
+mre_slurm

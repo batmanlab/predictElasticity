@@ -29,17 +29,21 @@ from mre.pytorch_arch import GeneralUNet3D
 class MREtoXr:
     '''Make an xr dataset for mre nifti data.  If some patients are missing data, that data is added
     as a 0'd vector.  Includes two coordinate systems (one for MRI data, one for MRE data).
-    Includes indicators for data quality.
+    Includes indicators for data quality. Processes single patient at a time.
     '''
-    def __init__(self, data_dir=None, sequences=None, patients=None, from_file=None, **kwargs):
+    def __init__(self, data_dir=None, sequences=None, patient=None, from_file=None, **kwargs):
 
-        print(data_dir)
+        self.is_ipython = self._check_ipython()
         if None is data_dir is sequences is from_file:
             raise ValueError(
                 '(data_dir and sequences) or (from_file) must be specified to initialize')
 
         if from_file:
-            self.ds = xr.open_dataset(from_file)
+            print(from_file)
+            if '*' in from_file:
+                self.ds = xr.open_mfdataset(from_file)
+            else:
+                self.ds = xr.open_dataset(from_file)
             return None
 
         elif data_dir:
@@ -47,11 +51,15 @@ class MREtoXr:
             if sequences is None:
                 sequences = ['t1_pre_water', 't1_pre_in', 't1_pre_out', 't1_pre_fat', 't2']
             self.sequences = sequences
-            # self.patients = [p.stem for p in data_dir.iterdir()]
-            if patients is None:
-                self.patients = ['0006']
+            if len(self.sequences) == 0:
+                raise ValueError('No sequences specificed')
+            if patient is None:
+                self.patient = '0006'
             else:
-                self.patients = [patients]
+                self.patient = str(patient)
+            print(self.data_dir)
+            print(self.patient)
+            print(self.sequences)
         else:
             raise ValueError('__init__ error')
 
@@ -87,30 +95,32 @@ class MREtoXr:
     def init_new_ds(self):
         '''Initialize a new xarray dataset based on the size and shape of our inputs.'''
 
-        if len(self.patients) == 0 or len(self.sequences) == 0:
-            self.ds = None
+        if len(self.sequences) == 0:
+            raise ValueError('No sequences specificed')
         else:
             # Make an xarray dataset for the MRI sequences (and their masks), and the MRE sequences
             # (and their masks).  All 4 data vars are 5D (subject, sequence/mask_type, x, y, z).
 
             self.ds = xr.Dataset(
                 {'image_mri': (['subject', 'sequence', 'x', 'y', 'z_mri'],
-                               np.zeros((len(self.patients), len(self.sequences), self.nx, self.ny,
+                               np.zeros((1, len(self.sequences), self.nx, self.ny,
                                          self.nz_mri), dtype=np.int16)),
                  'mask_mri': (['subject', 'mask_type', 'x', 'y', 'z_mri'],
-                              np.zeros((len(self.patients), len(self.mask_types), self.nx, self.ny,
+                              np.zeros((1, len(self.mask_types), self.nx, self.ny,
                                         self.nz_mri), dtype=np.int16)),
                  'image_mre': (['subject', 'mre_type', 'x', 'y', 'z_mre'],
-                               np.zeros((len(self.patients), len(self.mre_types), self.nx, self.ny,
+                               np.zeros((1, len(self.mre_types), self.nx, self.ny,
                                          self.nz_mre), dtype=np.int16)),
                  'mask_mre': (['subject', 'mask_type', 'x', 'y', 'z_mre'],
-                              np.zeros((len(self.patients), len(self.mask_types), self.nx, self.ny,
+                              np.zeros((1, len(self.mask_types), self.nx, self.ny,
                                         self.nz_mre), dtype=np.int16)),
-                 'slice_id': (['subject', 'z_mri'],
-                              np.zeros((len(self.patients), self.nz_mri), dtype=bool))
+                 'mri_to_mre_idx': (['subject', 'z_mre'],
+                                    np.zeros((1, self.nz_mre), dtype=np.int16)),
+                 'mutual_info': (['subject', 'sequence', 'z_mre'],
+                                 np.zeros((1, len(self.sequences), self.nz_mre), dtype=np.int16))
                  },
 
-                coords={'subject': self.patients,
+                coords={'subject': [self.patient],
                         'sequence': self.sequences,
                         'mask_type': self.mask_types,
                         'mre_type': self.mre_types,
@@ -122,102 +132,94 @@ class MREtoXr:
             )
 
     def load_xr(self):
-        for i, pat in enumerate(tqdm_notebook(self.patients, desc='Patients')):
+        # Grab all available niftis using the RegPatient Class
+        reg_pat = RegPatient(self.patient, self.data_dir)
+        # Make sure patient has needed niftis:
+        for seq in self.sequences:
+            if seq not in reg_pat.images.keys():
+                raise ValueError(f'{seq}.nii not found')
+        for mre in ['mre', 'mre_raw', 'mre_mask']:
+            if mre not in reg_pat.images.keys():
+                raise ValueError(f'{mre}.nii not found')
 
-            # Grab all niftis using the RegPatient Class
-            reg_pat = RegPatient(pat, self.data_dir)
+        # Register, resize and load into xarray for all input image sequences except 'primary'.
+        # We do not keep any of their image metadata after this loop.
+        # Also, ID the correct z-locations for the mre_raw images
+        resized_t1_pre, resized_primary = self.reg_inputs(reg_pat)
+        self.ds['mri_to_mre_idx'].loc[dict()] = self.mri_to_mre_idx
 
-            # Make sure patient meets the bare min requirements
-            # print(reg_pat.images.keys())
-            if self.primary_input not in reg_pat.images.keys():
-                continue
-            if 't1_pre_in' not in reg_pat.images.keys():
-                continue
-            if 'mre' not in reg_pat.images.keys():
-                continue
-            if 'mre_mask' not in reg_pat.images.keys():
-                continue
-            if 'mre_raw' not in reg_pat.images.keys():
-                continue
+        # Get the liver mask via the deep liver segmenter
+        liver_input = self.ds['image_mri'].loc[{'subject': self.patient, 'sequence': 't1_pre_out'}]
+        liver_input = liver_input.transpose('z_mri', 'y', 'x').values
+        liver_mask = self.gen_liver_mask(liver_input)
+        self.ds['mask_mri'].loc[{'mask_type': 'liver'}] = liver_mask
 
-            # Register, resize and load into xarray for all input image sequences except 'primary'.
-            # We do not keep any of their image metadata after this loop.
-            # Also, ID the correct z-locations for the mre_raw images
-            resized_t1_pre, resized_primary = self.reg_inputs(reg_pat)
+        # Add in the MRE images next.  They must be resized to the appropriate scale to match
+        # the input sequences.
+        # Register mre_raw to center and resize. Must be done slice by slice in 2D
 
-            # Get the liver mask via the deep liver segmenter
-            liver_input = self.ds['image_mri'].loc[{'subject': pat, 'sequence': 't1_pre_out'}]
-            liver_input = liver_input.transpose('z_mri', 'y', 'x').values
-            liver_mask = self.gen_liver_mask(liver_input)
-            self.ds['mask_mri'].loc[{'subject': pat, 'mask_type': 'liver'}] = liver_mask
+        mre_raw = reg_pat.images['mre_raw']
+        for i in range(mre_raw.GetSize()[2]):
+            mre_raw_slice = mre_raw[:, :, i]
+            np_tmp = sitk.GetArrayFromImage(mre_raw[:, :, i])
+            mov_min = float(np_tmp.min())
+            mov_max = float(np_tmp.max())
 
-            # Add in the MRE images next.  They must be resized to the appropriate scale to match
-            # the input sequences.
-            # Register mre_raw to center and resize. Must be done slice by slice in 2D
+            resized_t1_pre_slice = resized_t1_pre[:, :, int(self.mri_to_mre_idx[i])]
 
-            mre_raw = reg_pat.images['mre_raw']
-            for i in range(mre_raw.GetSize()[2]):
-                mre_raw_slice = mre_raw[:, :, i]
-                np_tmp = sitk.GetArrayFromImage(mre_raw[:, :, i])
-                mov_min = float(np_tmp.min())
-                mov_max = float(np_tmp.max())
+            # resized_t1_pre.CopyInformation(mre_raw)
 
-                resized_t1_pre_slice = resized_t1_pre[:, :, int(self.z_mri_index[i])]
-
-                # resized_t1_pre.CopyInformation(mre_raw)
-
-                reg = Register(resized_t1_pre_slice, mre_raw_slice, config='mre_reg')
-                mre_raw_slice = sitk.RescaleIntensity(reg.moving_img_result, mov_min, mov_max)
-                self.ds['image_mre'].loc[{'subject': pat, 'mre_type': 'mre_raw', 'z_mre': i}] = (
+            reg = Register(resized_t1_pre_slice, mre_raw_slice, config='mre_reg')
+            mre_raw_slice = sitk.RescaleIntensity(reg.moving_img_result, mov_min, mov_max)
+            self.ds['image_mre'].loc[
+                {'mre_type': 'mre_raw', 'z_mre': i}] = (
                     sitk.GetArrayFromImage(mre_raw_slice).T)
 
-                transformixImageFilter = sitk.TransformixImageFilter()
-                transformixImageFilter.SetTransformParameterMap(
-                    reg.elastixImageFilter.GetTransformParameterMap())
+            transformixImageFilter = sitk.TransformixImageFilter()
+            transformixImageFilter.SetTransformParameterMap(
+                reg.elastixImageFilter.GetTransformParameterMap())
 
-                for mre_type in self.mre_types:
-                    if mre_type == 'mre_raw':
-                        continue
-                    elif mre_type not in reg_pat.images.keys():
-                        continue
+            for mre_type in self.mre_types:
+                if mre_type == 'mre_raw':
+                    continue
+                elif mre_type not in reg_pat.images.keys():
+                    continue
 
-                    transformixImageFilter.SetMovingImage(reg_pat.images[mre_type][:, :, i])
-                    transformixImageFilter.Execute()
-                    mre_output = transformixImageFilter.GetResultImage()
+                transformixImageFilter.SetMovingImage(reg_pat.images[mre_type][:, :, i])
+                transformixImageFilter.Execute()
+                mre_output = transformixImageFilter.GetResultImage()
 
-                    self.ds['image_mre'].loc[{'subject': pat, 'mre_type': mre_type, 'z_mre': i}] = (
+                self.ds['image_mre'].loc[
+                    {'mre_type': mre_type, 'z_mre': i}] = (
                         sitk.GetArrayFromImage(mre_output).T)
 
-            # resized_mre = self.respace_image(reg_pat.images[mre_type], 'input_mre',
-            #                                  new_spacing[0], new_spacing[1])
+        # resized_mre = self.respace_image(reg_pat.images[mre_type], 'input_mre',
+        #                                  new_spacing[0], new_spacing[1])
 
-            # Add in the liver seg mask for MRE:
-            self.ds['mask_mre'].loc[{'subject': pat, 'mask_type': 'liver'}] = (
-                self.ds['mask_mri'].loc[{'subject': pat, 'mask_type': 'liver',
-                                         'z_mri': self.z_mri_index}])
+        # Add in the liver seg mask for MRE:
+        self.ds['mask_mre'].loc[{'mask_type': 'liver'}] = (
+            self.ds['mask_mri'].loc[{'mask_type': 'liver', 'z_mri': self.mri_to_mre_idx}])
 
-            # Add in the mre mask based on the conf image:
-            self.gen_elast_mask(pat)
-            self.ds['mask_mri'].loc[
-                {'subject': pat, 'mask_type': 'mre', 'z_mri': self.z_mri_index}] = (
-                    self.ds['mask_mre'].loc[{'subject': pat, 'mask_type': 'mre'}])
+        # Add in the mre mask based on the conf image:
+        self.gen_elast_mask(self.patient)
+        self.ds['mask_mri'].loc[
+            {'mask_type': 'mre', 'z_mri': self.mri_to_mre_idx}] = (
+                self.ds['mask_mre'].loc[{'mask_type': 'mre'}])
 
-            # Add in the combo masks:
-            combo_mri = (self.ds['mask_mri'].loc[{'subject': pat, 'mask_type': 'mre'}] *
-                         self.ds['mask_mri'].loc[{'subject': pat, 'mask_type': 'liver'}])
-            combo_mri = morphology.binary_erosion(combo_mri.values)
-            # combo_mri = morphology.binary_erosion(combo_mri)
-            combo_mri *= morphology.remove_small_objects(combo_mri.astype(bool))
-            self.ds['mask_mri'].loc[{'subject': pat, 'mask_type': 'combo'}] = combo_mri
+        # Add in the combo masks:
+        combo_mri = (self.ds['mask_mri'].sel(subject=self.patient, mask_type='mre').values *
+                     self.ds['mask_mri'].sel(subject=self.patient, mask_type='liver').values)
+        # combo_mri = morphology.binary_erosion(combo_mri.values)
+        # combo_mri = morphology.binary_erosion(combo_mri)
+        combo_mri *= morphology.remove_small_objects(combo_mri.astype(bool))
+        self.ds['mask_mri'].loc[{'mask_type': 'combo'}] = combo_mri
 
-            combo_mre = (self.ds['mask_mre'].loc[{'subject': pat, 'mask_type': 'mre'}] *
-                         self.ds['mask_mre'].loc[{'subject': pat, 'mask_type': 'liver'}])
-            combo_mre = morphology.binary_erosion(combo_mre.values)
-            combo_mre = morphology.binary_erosion(combo_mre)
-            combo_mre *= morphology.remove_small_objects(combo_mre.astype(bool))
-            self.ds['mask_mre'].loc[{'subject': pat, 'mask_type': 'combo'}] = combo_mre
-
-            # print(f'z_mri_index {z_mri_index}')
+        combo_mre = (self.ds['mask_mre'].sel(subject=self.patient, mask_type='mre').values *
+                     self.ds['mask_mre'].sel(subject=self.patient, mask_type='liver').values)
+        # combo_mre = morphology.binary_erosion(combo_mre.values)
+        # combo_mre = morphology.binary_erosion(combo_mre)
+        combo_mre *= morphology.remove_small_objects(combo_mre.astype(bool))
+        self.ds['mask_mre'].loc[{'mask_type': 'combo'}] = combo_mre
 
         # return ds
         if self.write_file:
@@ -325,21 +327,20 @@ class MREtoXr:
         '''Generate a mask from the elastMsk, and place it into the given "mre_mask" slot.
         Assumes you are using an xarray dataset from the MREDataset class.'''
 
-        for sub in list(self.ds.subject):
-            for z in list(self.ds.z_mre):
-                # make initial mask from elast and elastMsk
-                mre = self.ds['image_mre'].sel(mre_type='mre', z_mre=z, subject=subj).values
-                conf = self.ds['image_mre'].sel(mre_type='mre_mask', z_mre=z, subject=subj).values
-                msk = np.zeros_like(mre)
-                msk = np.where(np.isclose(mre, conf, atol=0.1, rtol=1), 0, 1)
-                msk = morphology.binary_dilation(msk)  # fill in little holes
+        for z in list(self.ds.z_mre):
+            # make initial mask from elast and elastMsk
+            mre = self.ds['image_mre'].sel(mre_type='mre', z_mre=z, subject=subj).values
+            conf = self.ds['image_mre'].sel(mre_type='mre_mask', z_mre=z, subject=subj).values
+            msk = np.zeros_like(mre)
+            msk = np.where(np.isclose(mre, conf, atol=0.1, rtol=1), 0, 1)
+            msk = morphology.binary_dilation(msk)  # fill in little holes
 
-                # invert the mask so that 1s are in and 0s are out
-                msk = msk+np.where(mre < 1e-8, 1, 0)
-                msk = 1-np.where(msk > 1, 1, msk)
+            # invert the mask so that 1s are in and 0s are out
+            msk = msk+np.where(mre < 1e-8, 1, 0)
+            msk = 1-np.where(msk > 1, 1, msk)
 
-                # place mask into 'mask_mre' slot
-                self.ds['mask_mre'].loc[dict(mask_type='mre', z_mre=z, subject=subj)] = msk
+            # place mask into 'mask_mre' slot
+            self.ds['mask_mre'].loc[dict(mask_type='mre', z_mre=z, subject=subj)] = msk
 
     def align_mre_raw(self, fixed, moving, pat):
         pad = np.full((256, 256), 0, np.int16)
@@ -438,17 +439,47 @@ class MREtoXr:
 
             resized_image = self.resize_image(reg.moving_img_result, 'input_mri')
 
-            self.ds['image_mri'].loc[{'subject': reg_pat.subj, 'sequence': seq}] = (
-                sitk.GetArrayFromImage(resized_image).T)
+            self.ds['image_mri'].loc[{'sequence': seq}] = (sitk.GetArrayFromImage(resized_image).T)
 
             # Do the mre_raw alignment
             if seq == 't1_pre_in':
-                self.z_mri_index = self.align_mre_raw(resized_image, reg_pat.images['mre_raw'],
-                                                      reg_pat.subj)
+                self.mri_to_mre_idx = self.align_mre_raw(resized_image, reg_pat.images['mre_raw'],
+                                                         reg_pat.subj)
                 resized_t1_pre = resized_image
 
         resized_primary = self.resize_image(reg_pat.images[self.primary_input], 'input_mri')
-        self.ds['image_mri'].loc[{'subject': reg_pat.subj, 'sequence': self.primary_input}] = (
+        self.ds['image_mri'].loc[{'sequence': self.primary_input}] = (
             sitk.GetArrayFromImage(resized_primary).T)
 
         return resized_t1_pre, resized_primary
+
+    def _check_ipython(self):
+        # from: https://stackoverflow.com/questions/15341757/
+        # how-to-check-that-pylab-backend-of-matplotlib-runs-inline/17826459#17826459
+        try:
+            cfg = get_ipython().config  # noqa: F821
+            print('Called by IPython.')
+
+            # Caution: cfg is an IPython.config.loader.Config
+            if cfg['IPKernelApp']:
+                print('Within IPython QtConsole.')
+
+                try:
+                    if cfg['IPKernelApp']['pylab'] == 'inline':
+                        print('inline pylab loaded.')
+                    else:
+                        print('pylab loaded, but not in inline mode.')
+                except NameError:
+                    print('pylab not loaded.')
+            elif cfg['TerminalIPythonApp']:
+                try:
+                    if cfg['TerminalIPythonApp']['pylab'] == 'inline':
+                        print('inline pylab loaded.')
+                    else:
+                        print('pylab loaded, but not in inline mode.')
+                except NameError:
+                    print('pylab not loaded.')
+            return True
+        except NameError:
+            print('Not called by IPython.')
+            return False

@@ -48,14 +48,14 @@ class SlurmMaster:
             script.write('#SBATCH --gres=gpu:volta16:4\n')
         else:
             arg_string += f' --subj={subj}'
-            script.write('#SBATCH -A ac5616p\n')
-            script.write('#SBATCH --partition=RM\n')
-            script.write('#SBATCH --nodes=1\n')
+            script.write('#SBATCH -A bi561ip\n')
+            script.write('#SBATCH --partition=DBMI\n')
+            script.write('#SBATCH --mem=120GB\n')
             script.write('#SBATCH -C EGRESS\n')
-        script.write('#SBATCH --time=1:00:00\n')
+        script.write('#SBATCH --time=8:00:00\n')
         script.write('#SBATCH --mail-user=brianleepollack@gmail.com\n')
-        script.write(f'#SBATCH --output={str(self.log_dir)}/job_n{number}.stdout\n')
-        script.write(f'#SBATCH --error={str(self.log_dir)}/job_n{number}.stderr\n')
+        script.write(f'#SBATCH --output={str(self.log_dir)}/job_n{number}_subj{subj}.stdout\n')
+        script.write(f'#SBATCH --error={str(self.log_dir)}/job_n{number}_subj{subj}.stderr\n')
         script.write('\n')
 
         script.write('set -x\n')
