@@ -21,6 +21,7 @@ from tqdm import tqdm_notebook
 # import holoviews as hv
 
 import torch
+from torch.utils.data import Dataset, DataLoader
 
 from mre.registration_v2 import RegPatient, Register
 from mre.pytorch_arch import GeneralUNet3D
@@ -483,3 +484,162 @@ class MREtoXr:
         except NameError:
             print('Not called by IPython.')
             return False
+
+
+class MRETorchDataset(Dataset):
+    '''Make a torch dataset compatible with the torch dataloader.'''
+    def __init__(self, xa_ds, set_type, **kwargs):
+
+        # Required params
+        self.xa_ds = xa_ds
+        self.set_type = set_type
+
+        # Assign kwargs
+        self.seed = kwargs.get('seed', 100)
+        self.inputs = kwargs.get('inputs', ['t1_pre_water', 't1_pre_in', 't1_pre_out',
+                                            't1_pre_fat', 't2'])
+        self.target = kwargs.get('target', 'mre')
+        self.mask = kwargs.get('mask', 'combo')
+        # self.transform = transform
+        # self.aug = aug
+        # self.clip = clip
+        # self.mask_mixer = mask_mixer
+        # self.target_max = target_max
+        # self.target_bins = target_bins
+        # self.resize = resize
+
+        np.random.seed(self.seed)
+        shuffle_list = np.asarray(self.xa_ds.subject)
+        np.random.shuffle(shuffle_list)
+        total_subj = self.xa_ds.subject.size
+        train_idx = int(0.7*total_subj)
+        val_idx = train_idx+int(0.2*total_subj)
+
+        if self.set_type == 'train':
+            input_set = list(shuffle_list[:train_idx])
+        elif self.set_type == 'val':
+            input_set = list(shuffle_list[train_idx:val_idx])
+        elif self.set_type == 'test':
+            input_set = list(shuffle_list[val_idx:])
+        else:
+            raise AttributeError('Must choose one of ["train", "val", "test"] for `set_type`.')
+
+        # pick correct input set
+        self.xa_ds = self.xa_ds.sel(subject=input_set)
+
+        # Refactor xa_ds so that input only has 4 input slices:
+        # 1) Drop extra slices
+        self.xa_ds = self.xa_ds.drop([i for i in self.xa_ds.z_mri.values if
+                                      i not in self.xa_ds.mri_to_mre_idx.values],
+                                     dim='z_mri')
+        self.xa_ds = self.xa_ds.assign_coords(z_mri=[0, 1, 2, 3])
+        # 2) Split xa_ds
+        xa_ds_mri = self.xa_ds[['image_mri', 'mask_mri']]
+        xa_ds_mre = self.xa_ds[['image_mre', 'mask_mre']]
+        # 3) Rename z coord
+        xa_ds_mri.rename(z_mri='z')
+        xa_ds_mre.rename(z_mre='z')
+        # 4) Recombine
+        self.xa_ds = xr.merge([xa_ds_mri, xa_ds_mre])
+
+        # stack subject and z-slices to make 4 2D image groups for each 3D image group
+        self.xa_ds = self.xa_ds.stack(subject_2d=('subject', 'z')).reset_index('subject_2d')
+        subj_2d_coords = [f'{i.subject.values}_{i.z.values}' for i in self.xa_ds.subject_2d]
+        self.xa_ds = self.xa_ds.assign_coords(subject_2d=subj_2d_coords)
+
+        self.name_dict = dict(zip(range(len(xa_ds.subject_2d)), xa_ds.subject_2d.values))
+
+        self.input_images = xa_ds.sel(sequence=inputs).transpose(
+            'subject_2d', 'sequence', 'y', 'x').image.values
+        self.target_images = xa_ds.sel(sequence=targets).transpose(
+            'subject_2d', 'sequence', 'y', 'x').image.values
+        self.mask_images = xa_ds.sel(sequence=masks).transpose(
+            'subject_2d', 'sequence', 'y', 'x').image.values
+
+        self.names = xa_ds.subject_2d.values
+
+    def __len__(self):
+        return len(self.input_images)
+
+    def __getitem__(self, idx):
+        mask = self.mask_images[idx]
+        if self.mask_mixer == 'mixed':
+            pass
+        elif self.mask_mixer == 'intersection':
+            mask = np.where(mask >= 0.5, 1.0, 0.0).astype(mask.dtype)
+        elif self.mask_mixer == 'union':
+            mask = np.where(mask > 0, 1.0, 0.0).astype(mask.dtype)
+
+        image = self.input_images[idx]
+        target = self.target_images[idx]
+        if self.clip:
+            image[0, :, :]  = np.where(image[0, :, :] >= 700, 700, image[0, :, :])
+            image[1, :, :]  = np.where(image[1, :, :] >= 1250, 1250, image[1, :, :])
+            image[2, :, :]  = np.where(image[2, :, :] >= 600, 600, image[2, :, :])
+            if self.target_max is None:
+                target = np.float32(np.digitize(target, list(range(0, 20000, 200))+[1e6]))
+            else:
+                target = np.where(target >= self.target_max, self.target_max, target)
+                spacing = int(self.target_max/self.target_bins)
+                cut_points = list(range(0, self.target_max, spacing)) + [1e6]
+                target = np.float32(np.digitize(target, cut_points))
+
+        if self.transform:
+            if self.aug:
+                rot_angle = np.random.uniform(-4, 4, 1)
+                translations = np.random.uniform(-5, 5, 2)
+                scale = np.random.uniform(0.95, 1.05, 1)
+            else:
+                rot_angle = 0
+                translations = (0, 0)
+                scale = 1
+            image = self.input_transform(image, rot_angle, translations, scale)
+            mask = self.affine_transform(mask[0], rot_angle, translations, scale)
+            target = self.affine_transform(target[0], rot_angle, translations, scale)
+
+        if self.resize:
+            image_0 = transforms.ToPILImage()(image.numpy()[0])
+            image_0 = transforms.functional.resize(image_0, (224, 224))
+            image_0 = transforms.ToTensor()(image_0)
+            image_1 = transforms.ToPILImage()(image.numpy()[1])
+            image_1 = transforms.functional.resize(image_1, (224, 224))
+            image_1 = transforms.ToTensor()(image_1)
+            image_2 = transforms.ToPILImage()(image.numpy()[2])
+            image_2 = transforms.functional.resize(image_2, (224, 224))
+            image_2 = transforms.ToTensor()(image_2)
+            image = torch.cat((image_0, image_1, image_2))
+            target = transforms.ToPILImage()(target.numpy()[0])
+            target = transforms.Resize((224, 224))(target)
+            target = transforms.ToTensor()(target)
+            mask = transforms.ToPILImage()(mask.numpy()[0])
+            mask = transforms.Resize((224, 224))(mask)
+            mask = transforms.ToTensor()(mask)
+
+        image = torch.Tensor(image)
+        target = torch.Tensor(target)
+        mask = torch.Tensor(mask)
+
+        return [image, target, mask, self.names[idx]]
+
+    def affine_transform(self, input_slice, rot_angle=0, translations=0, scale=1):
+        input_slice = transforms.ToPILImage()(input_slice)
+        input_slice = TF.affine(input_slice, angle=rot_angle,
+                                translate=list(translations), scale=scale, shear=0)
+        input_slice = transforms.ToTensor()(input_slice)
+        return input_slice
+
+    def input_transform(self, input_image, rot_angle=0, translations=0, scale=1):
+
+        # normalize and offset image
+        image = input_image
+        image = np.where(input_image <= 1e-9, np.nan, input_image)
+        mean = np.nanmean(image, axis=(1, 2))
+        std = np.nanstd(image, axis=(1, 2))
+        image = ((image.T - mean)/std).T + 4
+        image = np.where(image != image, 0, image)
+
+        # perform affine transfomrations
+        image0 = self.affine_transform(image[0], rot_angle, translations, scale)
+        image1 = self.affine_transform(image[1], rot_angle, translations, scale)
+        image2 = self.affine_transform(image[2], rot_angle, translations, scale)
+        return torch.cat((image0, image1, image2))

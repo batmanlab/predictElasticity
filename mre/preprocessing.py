@@ -559,7 +559,7 @@ def dicom_to_nifti(data_path, subdirs):
                             mre=False,
                             mre_mask=False)
 
-            for img_files in img_folders:
+            for i, img_files in enumerate(img_folders):
                 dicom_names = reader.GetGDCMSeriesFileNames(str(img_files))
                 dicom_names = sorted(dicom_names, key=lambda a: Path(a).stem[2:].zfill(3))
                 reader.SetFileNames(dicom_names)
@@ -578,6 +578,8 @@ def dicom_to_nifti(data_path, subdirs):
 
                 patient_path = Path(data_path, 'NIFTI', pid)
                 patient_path.mkdir(exist_ok=True)
+                if i == 0:
+                    Path(patient_path, '_'.join([data_path.stem, subdir, patient.stem])).touch()
 
                 name = select_image(img, desc, sel_dict)
                 if name:
