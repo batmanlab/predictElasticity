@@ -507,6 +507,11 @@ class MRETorchDataset(Dataset):
         # self.target_max = target_max
         # self.target_bins = target_bins
         # self.resize = resize
+        self.organize_data()
+
+    def organize_data(self):
+        '''Reorder, seperate and manipulate input data such that it conforms to dataloader
+        standards and required format given a particular training task.'''
 
         np.random.seed(self.seed)
         shuffle_list = np.asarray(self.xa_ds.subject)
@@ -547,29 +552,22 @@ class MRETorchDataset(Dataset):
         subj_2d_coords = [f'{i.subject.values}_{i.z.values}' for i in self.xa_ds.subject_2d]
         self.xa_ds = self.xa_ds.assign_coords(subject_2d=subj_2d_coords)
 
-        self.name_dict = dict(zip(range(len(xa_ds.subject_2d)), xa_ds.subject_2d.values))
+        self.name_dict = dict(zip(range(len(self.xa_ds.subject_2d)), self.xa_ds.subject_2d.values))
 
-        self.input_images = xa_ds.sel(sequence=inputs).transpose(
-            'subject_2d', 'sequence', 'y', 'x').image.values
-        self.target_images = xa_ds.sel(sequence=targets).transpose(
-            'subject_2d', 'sequence', 'y', 'x').image.values
-        self.mask_images = xa_ds.sel(sequence=masks).transpose(
-            'subject_2d', 'sequence', 'y', 'x').image.values
+        self.input_images = self.xa_ds.sel(sequence=self.inputs).transpose(
+            'subject_2d', 'sequence', 'y', 'x').image_mri.values
+        self.target_images = self.xa_ds.sel(mre_type=[self.target]).transpose(
+            'subject_2d', 'mre_type', 'y', 'x').image_mre.values
+        self.mask_images = self.xa_ds.sel(mask_type=[self.mask]).transpose(
+            'subject_2d', 'mask_type', 'y', 'x').mask_mre.values
 
-        self.names = xa_ds.subject_2d.values
+        self.names = self.xa_ds.subject_2d.values
 
     def __len__(self):
         return len(self.input_images)
 
     def __getitem__(self, idx):
         mask = self.mask_images[idx]
-        if self.mask_mixer == 'mixed':
-            pass
-        elif self.mask_mixer == 'intersection':
-            mask = np.where(mask >= 0.5, 1.0, 0.0).astype(mask.dtype)
-        elif self.mask_mixer == 'union':
-            mask = np.where(mask > 0, 1.0, 0.0).astype(mask.dtype)
-
         image = self.input_images[idx]
         target = self.target_images[idx]
         if self.clip:
