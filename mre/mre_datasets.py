@@ -21,7 +21,9 @@ from tqdm import tqdm_notebook
 # import holoviews as hv
 
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
+from torchvision import transforms
+import torchvision.transforms.functional as TF
 
 from mre.registration_v2 import RegPatient, Register
 from mre.pytorch_arch import GeneralUNet3D
@@ -500,13 +502,9 @@ class MRETorchDataset(Dataset):
                                             't1_pre_fat', 't2'])
         self.target = kwargs.get('target', 'mre')
         self.mask = kwargs.get('mask', 'combo')
-        # self.transform = transform
-        # self.aug = aug
-        # self.clip = clip
-        # self.mask_mixer = mask_mixer
-        # self.target_max = target_max
-        # self.target_bins = target_bins
-        # self.resize = resize
+        self.clip = kwargs.get('clip', True)
+        self.transform = kwargs.get('transform', True)
+        self.aug = kwargs.get('aug', False)
         self.organize_data()
 
     def organize_data(self):
@@ -533,14 +531,18 @@ class MRETorchDataset(Dataset):
         self.xa_ds = self.xa_ds.sel(subject=input_set)
 
         # Refactor xa_ds so that input only has 4 input slices:
-        # 1) Drop extra slices
-        self.xa_ds = self.xa_ds.drop([i for i in self.xa_ds.z_mri.values if
-                                      i not in self.xa_ds.mri_to_mre_idx.values],
-                                     dim='z_mri')
-        self.xa_ds = self.xa_ds.assign_coords(z_mri=[0, 1, 2, 3])
-        # 2) Split xa_ds
-        xa_ds_mri = self.xa_ds[['image_mri', 'mask_mri']]
+        # 1) Split xa_ds
+        xa_ds_mri = self.xa_ds[['image_mri', 'mri_to_mre_idx']]
         xa_ds_mre = self.xa_ds[['image_mre', 'mask_mre']]
+        # 2) Drop extra slices
+        xa_ds_mri_list = []
+        for subj in self.xa_ds.subject:
+            xa_ds_mri_subj = xa_ds_mri.sel(subject=subj)
+            xa_ds_mri_subj = xa_ds_mri_subj.sel(z_mri=xa_ds_mri_subj.mri_to_mre_idx.values)
+            xa_ds_mri_subj.assign_coords(z_mri=[0, 1, 2, 3])
+            xa_ds_mri_list.append(xa_ds_mri_subj)
+        xa_ds_mri = xr.merge(xa_ds_mri_list)
+        xa_ds_mri = xa_ds_mri['image_mri']
         # 3) Rename z coord
         xa_ds_mri.rename(z_mri='z')
         xa_ds_mre.rename(z_mre='z')
@@ -571,16 +573,8 @@ class MRETorchDataset(Dataset):
         image = self.input_images[idx]
         target = self.target_images[idx]
         if self.clip:
-            image[0, :, :]  = np.where(image[0, :, :] >= 700, 700, image[0, :, :])
-            image[1, :, :]  = np.where(image[1, :, :] >= 1250, 1250, image[1, :, :])
-            image[2, :, :]  = np.where(image[2, :, :] >= 600, 600, image[2, :, :])
-            if self.target_max is None:
-                target = np.float32(np.digitize(target, list(range(0, 20000, 200))+[1e6]))
-            else:
-                target = np.where(target >= self.target_max, self.target_max, target)
-                spacing = int(self.target_max/self.target_bins)
-                cut_points = list(range(0, self.target_max, spacing)) + [1e6]
-                target = np.float32(np.digitize(target, cut_points))
+            image  = np.where(image >= 1000, 1000, image)
+            target = np.float32(np.digitize(target, list(range(0, 20000, 200))+[1e6]))
 
         if self.transform:
             if self.aug:
@@ -594,24 +588,6 @@ class MRETorchDataset(Dataset):
             image = self.input_transform(image, rot_angle, translations, scale)
             mask = self.affine_transform(mask[0], rot_angle, translations, scale)
             target = self.affine_transform(target[0], rot_angle, translations, scale)
-
-        if self.resize:
-            image_0 = transforms.ToPILImage()(image.numpy()[0])
-            image_0 = transforms.functional.resize(image_0, (224, 224))
-            image_0 = transforms.ToTensor()(image_0)
-            image_1 = transforms.ToPILImage()(image.numpy()[1])
-            image_1 = transforms.functional.resize(image_1, (224, 224))
-            image_1 = transforms.ToTensor()(image_1)
-            image_2 = transforms.ToPILImage()(image.numpy()[2])
-            image_2 = transforms.functional.resize(image_2, (224, 224))
-            image_2 = transforms.ToTensor()(image_2)
-            image = torch.cat((image_0, image_1, image_2))
-            target = transforms.ToPILImage()(target.numpy()[0])
-            target = transforms.Resize((224, 224))(target)
-            target = transforms.ToTensor()(target)
-            mask = transforms.ToPILImage()(mask.numpy()[0])
-            mask = transforms.Resize((224, 224))(mask)
-            mask = transforms.ToTensor()(mask)
 
         image = torch.Tensor(image)
         target = torch.Tensor(target)
@@ -633,11 +609,11 @@ class MRETorchDataset(Dataset):
         image = np.where(input_image <= 1e-9, np.nan, input_image)
         mean = np.nanmean(image, axis=(1, 2))
         std = np.nanstd(image, axis=(1, 2))
-        image = ((image.T - mean)/std).T + 4
+        image = ((image.T - mean)/std).T
         image = np.where(image != image, 0, image)
 
         # perform affine transfomrations
-        image0 = self.affine_transform(image[0], rot_angle, translations, scale)
-        image1 = self.affine_transform(image[1], rot_angle, translations, scale)
-        image2 = self.affine_transform(image[2], rot_angle, translations, scale)
-        return torch.cat((image0, image1, image2))
+        img_list = []
+        for i in len(image.shape[0]):
+            img_list.append(self.affine_transform(image[i], rot_angle, translations, scale))
+        return torch.cat(img_list)
