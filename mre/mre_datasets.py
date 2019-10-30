@@ -543,26 +543,26 @@ class MRETorchDataset(Dataset):
         # pick correct input set
         self.xa_ds = self.xa_ds.sel(subject=input_set)
 
-        # Refactor xa_ds so that input only has 4 input slices:
-        # 1) Split xa_ds
-        xa_ds_mri = self.xa_ds[['image_mri', 'mri_to_mre_idx']]
-        xa_ds_mre = self.xa_ds[['image_mre', 'mask_mre']]
-        # 2) Drop extra slices
-        xa_ds_mri_list = []
-        for subj in self.xa_ds.subject.values:
-            xa_ds_mri_subj = xa_ds_mri.sel(subject=[subj])
-            xa_ds_mri = xa_ds_mri.drop(subj, dim='subject')
-            xa_ds_mri_subj = xa_ds_mri_subj.sel(
-                z_mri=xa_ds_mri_subj.mri_to_mre_idx.values.flatten())
-            xa_ds_mri_subj.assign_coords(z_mri=[0, 1, 2, 3])
-            xa_ds_mri_list.append(xa_ds_mri_subj)
-        xa_ds_mri = xr.merge(xa_ds_mri_list)
-        xa_ds_mri = xa_ds_mri['image_mri']
-        # 3) Rename z coord
-        xa_ds_mri.rename(z_mri='z')
-        xa_ds_mre.rename(z_mre='z')
-        # 4) Recombine
-        self.xa_ds = xr.merge([xa_ds_mri, xa_ds_mre])
+        # # Refactor xa_ds so that input only has 4 input slices:
+        # # 1) Split xa_ds
+        # xa_ds_mri = self.xa_ds[['image_mri', 'mri_to_mre_idx']]
+        # xa_ds_mre = self.xa_ds[['image_mre', 'mask_mre']]
+        # # 2) Drop extra slices
+        # xa_ds_mri_list = []
+        # for subj in self.xa_ds.subject.values:
+        #     xa_ds_mri_subj = xa_ds_mri.sel(subject=[subj])
+        #     xa_ds_mri = xa_ds_mri.drop(subj, dim='subject')
+        #     xa_ds_mri_subj = xa_ds_mri_subj.sel(
+        #         z_mri=xa_ds_mri_subj.mri_to_mre_idx.values.flatten())
+        #     xa_ds_mri_subj.assign_coords(z_mri=[0, 1, 2, 3])
+        #     xa_ds_mri_list.append(xa_ds_mri_subj)
+        # xa_ds_mri = xr.merge(xa_ds_mri_list)
+        # xa_ds_mri = xa_ds_mri['image_mri']
+        # # 3) Rename z coord
+        # xa_ds_mri.rename(z_mri='z')
+        # xa_ds_mre.rename(z_mre='z')
+        # # 4) Recombine
+        # self.xa_ds = xr.merge([xa_ds_mri, xa_ds_mre])
 
         # stack subject and z-slices to make 4 2D image groups for each 3D image group
         self.xa_ds = self.xa_ds.stack(subject_2d=('subject', 'z')).reset_index('subject_2d')
@@ -571,12 +571,12 @@ class MRETorchDataset(Dataset):
 
         self.name_dict = dict(zip(range(len(self.xa_ds.subject_2d)), self.xa_ds.subject_2d.values))
 
-        self.input_images = self.xa_ds.sel(sequence=self.inputs).transpose(
-            'subject_2d', 'sequence', 'y', 'x').image_mri.values
-        self.target_images = self.xa_ds.sel(mre_type=[self.target]).transpose(
-            'subject_2d', 'mre_type', 'y', 'x').image_mre.values
-        self.mask_images = self.xa_ds.sel(mask_type=[self.mask]).transpose(
-            'subject_2d', 'mask_type', 'y', 'x').mask_mre.values
+        self.input_images = self.xa_ds.sel(sequence=self.inputs).image_mri.transpose(
+            'subject_2d', 'sequence', 'y', 'x').values
+        self.target_images = self.xa_ds.sel(mre_type=[self.target]).image_mre.transpose(
+            'subject_2d', 'mre_type', 'y', 'x').values
+        self.mask_images = self.xa_ds.sel(mask_type=[self.mask]).mask_mre.transpose(
+            'subject_2d', 'mask_type', 'y', 'x').values
 
         self.names = self.xa_ds.subject_2d.values
 
@@ -584,7 +584,7 @@ class MRETorchDataset(Dataset):
         return len(self.input_images)
 
     def __getitem__(self, idx):
-        mask = self.mask_images[idx]
+        mask = self.mask_images[idx].astype(np.float32)
         image = self.input_images[idx]
         target = self.target_images[idx]
         if self.clip:
@@ -604,9 +604,9 @@ class MRETorchDataset(Dataset):
             mask = self.affine_transform(mask[0], rot_angle, translations, scale)
             target = self.affine_transform(target[0], rot_angle, translations, scale)
 
-        image = torch.Tensor(image)
-        target = torch.Tensor(target)
-        mask = torch.Tensor(mask)
+        image = torch.FloatTensor(image)
+        target = torch.FloatTensor(target)
+        mask = torch.FloatTensor(mask)
 
         return [image, target, mask, self.names[idx]]
 
@@ -626,9 +626,10 @@ class MRETorchDataset(Dataset):
         std = np.nanstd(image, axis=(1, 2))
         image = ((image.T - mean)/std).T
         image = np.where(image != image, 0, image)
+        image = image.astype(np.float32)
 
         # perform affine transfomrations
         img_list = []
-        for i in len(image.shape[0]):
+        for i in range(image.shape[0]):
             img_list.append(self.affine_transform(image[i], rot_angle, translations, scale))
         return torch.cat(img_list)

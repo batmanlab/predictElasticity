@@ -65,7 +65,6 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         print('train: ', len(train_set))
         print('val: ', len(val_set))
         print('test: ', len(test_set))
-    return None
     if cfg['train_sample'] == 'shuffle':
         dataloaders['train'] = DataLoader(train_set, batch_size=batch_size, shuffle=True,
                                           num_workers=0)
@@ -99,9 +98,9 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
     elif cfg['model_arch'] == 'transfer':
         model = pytorch_arch.PretrainedModel('name').to(device)
     elif cfg['model_arch'] == 'modular':
-        model = pytorch_arch.GeneralUNet(cfg['n_layers'], cfg['in_channels'], cfg['model_cap'],
-                                         cfg['out_channels_final'], cfg['channel_growth'],
-                                         cfg['coord_conv'], cfg['transfer_layer']).to(device)
+        model = pytorch_arch.GeneralUNet2D(cfg['n_layers'], cfg['in_channels'], cfg['model_cap'],
+                                           cfg['out_channels_final'], cfg['channel_growth'],
+                                           cfg['coord_conv'], cfg['transfer_layer']).to(device)
         # model = pytorch_arch.GeneralUNet(4, 32, 8, 1, True, cfg['coord_conv'],
         #                                  transfer_layer=True).to(device)
 
@@ -118,6 +117,12 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
     # Define optimizer
     exp_lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=cfg['step_size'],
                                                  gamma=cfg['gamma'])
+
+    if torch.cuda.device_count() > 1:
+        print("Let's use", torch.cuda.device_count(), "GPUs!")
+        model = nn.DataParallel(model)
+
+    model.to(device)
 
     if cfg['dry_run']:
         inputs, targets, masks, names = next(iter(dataloaders['test']))
@@ -136,11 +141,11 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         # Tensorboardx writer, model, config paths
         writer_dir = Path(output_path, 'tb_runs')
         config_dir = Path(output_path, 'config')
-        model_dir = Path(output_path, 'trained_models', subj)
+        model_dir = Path(output_path, 'trained_models')
         writer_dir.mkdir(parents=True, exist_ok=True)
         config_dir.mkdir(parents=True, exist_ok=True)
         model_dir.mkdir(parents=True, exist_ok=True)
-        writer = SummaryWriter(str(writer_dir)+f'/{model_version}_subj_{subj}')
+        writer = SummaryWriter(str(writer_dir)+f'/{model_version}')
         # Model graph is useless without additional tweaks to name layers appropriately
         # writer.add_graph(model, torch.zeros(1, 3, 256, 256).to(device), verbose=True)
 
@@ -152,11 +157,15 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         # Write outputs and save model
         cfg['best_loss'] = best_loss
         inputs, targets, masks, names = next(iter(dataloaders['test']))
+        inputs = inputs.to('cuda:0')
+        targets = targets.to('cpu')
+        masks.to('cpu')
         model.eval()
-        model.to('cpu')
+        # model.to('cpu')
         model_pred = model(inputs)
+        model_pred.to('cpu')
         masked_target = targets.detach().numpy()*masks.numpy()
-        masked_pred = model_pred.detach().numpy()*masks.numpy()
+        masked_pred = model_pred.detach().cpu().numpy()*masks.numpy()
         test_mse = ((masked_target-masked_pred)**2).sum()/masks.numpy().sum()
         cfg['test_mse'] = test_mse
         masked_target = np.where(masked_target > 0, masked_target, np.nan)
@@ -164,7 +173,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         cfg['true_ave_stiff'] = np.nanmean(masked_target)
         cfg['test_ave_stiff'] = np.nanmean(masked_pred)
 
-        config_file = Path(config_dir, f'{model_version}_subj_{subj}.pkl')
+        config_file = Path(config_dir, f'{model_version}.pkl')
         with open(config_file, 'wb') as f:
             pkl.dump(cfg, f, pkl.HIGHEST_PROTOCOL)
 
@@ -197,9 +206,9 @@ def default_cfg():
            'val_trans': True, 'val_clip': True, 'val_aug': False, 'val_sample': 'shuffle',
            'test_trans': True, 'test_clip': True, 'test_aug': False,
            'batch_size': 50, 'model_cap': 16, 'lr': 1e-2, 'step_size': 20,
-           'gamma': 0.1, 'num_epochs': 40, 'dry_run': False, 'coord_conv': True, 'loss': 'l2',
+           'gamma': 0.1, 'num_epochs': 40, 'dry_run': False, 'coord_conv': False, 'loss': 'l2',
            'mask_trimmer': False, 'mask_mixer': 'mixed', 'target_max': None, 'target_bins': 100,
-           'model_arch': 'base', 'n_layers': 3, 'in_channels': 3, 'out_channels_final': 1,
+           'model_arch': 'modular', 'n_layers': 7, 'in_channels': 5, 'out_channels_final': 1,
            'channel_growth': False, 'transfer_layer': False, 'seed': 100,
            'resize': False}
     return cfg

@@ -230,7 +230,6 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
         # Each epoch has a training and validation phase
         for phase in ['train', 'val']:
             if phase == 'train':
-                scheduler.step()
                 for param_group in optimizer.param_groups:
                     if verbose:
                         print("LR", param_group['lr'])
@@ -260,6 +259,8 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                 # accrue total number of samples
                 epoch_samples += inputs.size(0)
 
+            if phase == 'train':
+                scheduler.step()
             if verbose:
                 print_metrics(metrics, epoch_samples, phase)
             epoch_loss = metrics['loss'] / epoch_samples
