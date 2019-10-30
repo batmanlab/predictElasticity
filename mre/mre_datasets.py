@@ -42,6 +42,7 @@ class MREtoXr:
                 '(data_dir and sequences) or (from_file) must be specified to initialize')
 
         if from_file:
+            from_file = str(from_file)
             print(from_file)
             if '*' in from_file:
                 self.ds = xr.open_mfdataset(from_file)
@@ -93,6 +94,18 @@ class MREtoXr:
 
     def get_ds(self):
         '''Return the ds loaded via 'from_file'.'''
+        return self.ds
+
+    def get_trimmed_ds(self):
+        self.ds = self.ds.load()
+        ds_subj_list = []
+        for subj in tqdm_notebook(self.ds.subject.values):
+            ds_subj = self.ds.sel(subject=[subj])
+            self.ds = self.ds.drop(subj, dim='subject')
+            ds_subj = ds_subj.sel(z_mri=ds_subj.mri_to_mre_idx.values.flatten())
+            ds_subj.assign_coords(z_mri=[0, 1, 2, 3])
+            ds_subj_list.append(ds_subj)
+        self.ds = xr.merge(ds_subj_list)
         return self.ds
 
     def init_new_ds(self):
@@ -502,9 +515,9 @@ class MRETorchDataset(Dataset):
                                             't1_pre_fat', 't2'])
         self.target = kwargs.get('target', 'mre')
         self.mask = kwargs.get('mask', 'combo')
-        self.clip = kwargs.get('clip', True)
-        self.transform = kwargs.get('transform', True)
-        self.aug = kwargs.get('aug', False)
+        self.clip = kwargs.get(f'{set_type}_clip', True)
+        self.transform = kwargs.get(f'{set_type}_transform', True)
+        self.aug = kwargs.get(f'{set_type}_aug', False)
         self.organize_data()
 
     def organize_data(self):
@@ -536,9 +549,11 @@ class MRETorchDataset(Dataset):
         xa_ds_mre = self.xa_ds[['image_mre', 'mask_mre']]
         # 2) Drop extra slices
         xa_ds_mri_list = []
-        for subj in self.xa_ds.subject:
-            xa_ds_mri_subj = xa_ds_mri.sel(subject=subj)
-            xa_ds_mri_subj = xa_ds_mri_subj.sel(z_mri=xa_ds_mri_subj.mri_to_mre_idx.values)
+        for subj in self.xa_ds.subject.values:
+            xa_ds_mri_subj = xa_ds_mri.sel(subject=[subj])
+            xa_ds_mri = xa_ds_mri.drop(subj, dim='subject')
+            xa_ds_mri_subj = xa_ds_mri_subj.sel(
+                z_mri=xa_ds_mri_subj.mri_to_mre_idx.values.flatten())
             xa_ds_mri_subj.assign_coords(z_mri=[0, 1, 2, 3])
             xa_ds_mri_list.append(xa_ds_mri_subj)
         xa_ds_mri = xr.merge(xa_ds_mri_list)

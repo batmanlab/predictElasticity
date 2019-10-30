@@ -13,7 +13,8 @@ from torch.utils.data import DataLoader
 from torch.utils.data.sampler import RandomSampler
 from torchsummary import summary
 from tensorboardX import SummaryWriter
-from mre.prediction_v2 import MREDataset
+
+from mre.mre_datasets import MREtoXr, MRETorchDataset
 from mre.prediction_v2 import train_model
 from mre import pytorch_unet_tb
 from mre import pytorch_arch
@@ -31,7 +32,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
 
     Args:
         data_path (str): Full path to location of data.
-        data_file (str): Name of pickled data file.
+        data_file (str): Name (or wildcard names) of input netcdf files.
         output_path (str): Full path to output directory.
         model_version (str): Name of model.
         verbose (str): Print or suppress cout statements.
@@ -40,41 +41,31 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         None
     '''
     # Load config and data
-    torch.manual_seed(100)
     cfg = process_kwargs(kwargs)
     if verbose:
         print(cfg)
-    ds = pkl.load(open(Path(data_path, data_file), 'rb'))
+    torch.manual_seed(cfg['seed'])
+
+    xr_maker = MREtoXr(from_file=Path(data_path, data_file))
+    # xr_maker = MREtoXr(from_file='/pghbio/dbmi/batmanlab/Data/MRE/XR/*.nc')
+    ds = xr_maker.get_ds()
+    ds = ds.load()
     if verbose:
         print(ds)
-    subj = cfg['subj']
     batch_size = cfg['batch_size']
     loss_type = cfg['loss']
 
     # Start filling dataloaders
     dataloaders = {}
-    train_set = MREDataset(ds, set_type='train', transform=cfg['train_trans'],
-                           clip=cfg['train_clip'], aug=cfg['train_aug'],
-                           mask_trimmer=cfg['mask_trimmer'], mask_mixer=cfg['mask_mixer'],
-                           target_max=cfg['target_max'], target_bins=cfg['target_bins'],
-                           resize=cfg['resize'],
-                           test=subj)
-    val_set = MREDataset(ds, set_type='val', transform=cfg['val_trans'],
-                         clip=cfg['val_clip'], aug=cfg['val_aug'],
-                         mask_trimmer=cfg['mask_trimmer'], mask_mixer=cfg['mask_mixer'],
-                         target_max=cfg['target_max'], target_bins=cfg['target_bins'],
-                         resize=cfg['resize'],
-                         test=subj)
-    test_set = MREDataset(ds, set_type='test', transform=cfg['test_trans'],
-                          clip=cfg['test_clip'], aug=cfg['test_aug'],
-                          mask_trimmer=cfg['mask_trimmer'], mask_mixer=cfg['mask_mixer'],
-                          target_max=cfg['target_max'], target_bins=cfg['target_bins'],
-                          resize=cfg['resize'],
-                          test=subj)
+    train_set = MRETorchDataset(ds, set_type='train', **cfg)
+    val_set = MRETorchDataset(ds, set_type='val', **cfg)
+    test_set = MRETorchDataset(ds, set_type='test', **cfg)
+
     if verbose:
         print('train: ', len(train_set))
         print('val: ', len(val_set))
         print('test: ', len(test_set))
+    return None
     if cfg['train_sample'] == 'shuffle':
         dataloaders['train'] = DataLoader(train_set, batch_size=batch_size, shuffle=True,
                                           num_workers=0)
@@ -202,14 +193,14 @@ def str2bool(val):
 
 
 def default_cfg():
-    cfg = {'train_trans': True, 'train_clip': True, 'train_aug': True, 'train_sample': 'shuffle',
+    cfg = {'train_trans': True, 'train_clip': True, 'train_aug': False, 'train_sample': 'shuffle',
            'val_trans': True, 'val_clip': True, 'val_aug': False, 'val_sample': 'shuffle',
            'test_trans': True, 'test_clip': True, 'test_aug': False,
-           'subj': '162', 'batch_size': 50, 'model_cap': 16, 'lr': 1e-2, 'step_size': 20,
+           'batch_size': 50, 'model_cap': 16, 'lr': 1e-2, 'step_size': 20,
            'gamma': 0.1, 'num_epochs': 40, 'dry_run': False, 'coord_conv': True, 'loss': 'l2',
            'mask_trimmer': False, 'mask_mixer': 'mixed', 'target_max': None, 'target_bins': 100,
            'model_arch': 'base', 'n_layers': 3, 'in_channels': 3, 'out_channels_final': 1,
-           'channel_growth': False, 'transfer_layer': False,
+           'channel_growth': False, 'transfer_layer': False, 'seed': 100,
            'resize': False}
     return cfg
 
