@@ -67,24 +67,24 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         print('test: ', len(test_set))
     if cfg['train_sample'] == 'shuffle':
         dataloaders['train'] = DataLoader(train_set, batch_size=batch_size, shuffle=True,
-                                          num_workers=0)
+                                          num_workers=8)
     elif cfg['train_sample'] == 'resample':
         dataloaders['train'] = DataLoader(train_set, batch_size=batch_size, shuffle=False,
                                           sampler=RandomSampler(
                                               train_set, replacement=True,
                                               num_samples=cfg['train_num_samples']),
-                                          num_workers=0),
+                                          num_workers=8),
     if cfg['val_sample'] == 'shuffle':
         dataloaders['val'] = DataLoader(val_set, batch_size=batch_size, shuffle=True,
-                                        num_workers=0)
+                                        num_workers=8)
     elif cfg['val_sample'] == 'resample':
         dataloaders['val'] = DataLoader(val_set, batch_size=batch_size, shuffle=False,
                                         sampler=RandomSampler(
                                             val_set, replacement=True,
                                             num_samples=cfg['val_num_samples']),
-                                        num_workers=0),
+                                        num_workers=8),
     dataloaders['test'] = DataLoader(test_set, batch_size=batch_size, shuffle=False,
-                                     num_workers=0)
+                                     num_workers=8)
 
     # Set device for computation
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -205,7 +205,7 @@ def default_cfg():
     cfg = {'train_trans': True, 'train_clip': True, 'train_aug': False, 'train_sample': 'shuffle',
            'val_trans': True, 'val_clip': True, 'val_aug': False, 'val_sample': 'shuffle',
            'test_trans': True, 'test_clip': True, 'test_aug': False,
-           'batch_size': 50, 'model_cap': 16, 'lr': 1e-2, 'step_size': 20,
+           'batch_size': 64, 'model_cap': 16, 'lr': 1e-2, 'step_size': 20,
            'gamma': 0.1, 'num_epochs': 40, 'dry_run': False, 'coord_conv': False, 'loss': 'l2',
            'mask_trimmer': False, 'mask_mixer': 'mixed', 'target_max': None, 'target_bins': 100,
            'model_arch': 'modular', 'n_layers': 7, 'in_channels': 5, 'out_channels_final': 1,

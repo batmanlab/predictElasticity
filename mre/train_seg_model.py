@@ -149,7 +149,8 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
         # dry_size[0] = 1
         print(dry_size)
         summary(model, input_size=tuple(dry_size))
-        return inputs, targets, names, None
+        # return inputs, targets, names, None
+        return [dataloaders]
 
     else:
         # Tensorboardx writer, model, config paths
@@ -201,7 +202,7 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
 
         writer.close()
         torch.save(model.state_dict(), str(model_dir)+f'/model_{model_version}.pkl')
-        return inputs, targets, names, model
+        return [inputs, targets, names, model]
 
 
 def process_kwargs(kwargs):
@@ -305,7 +306,8 @@ def train_model_core(model, optimizer, scheduler, device, dataloaders, num_epoch
             time_elapsed = time.time() - since
             print('{:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
     if verbose:
-        print('Best val loss: {:4f}'.format(best_loss))
+        # print('Best val loss: {:4f}'.format(best_loss))
+        print(f'Best val bce: {best_bce:.3f}, dice: {best_dice:.3f}, loss: {best_loss:.3f}')
 
     # load best model weights
     model.load_state_dict(best_model_wts)

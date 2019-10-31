@@ -9,13 +9,13 @@ from mre.CoordConv import CoordConv
 def double_conv3d(in_channels, out_channels):
     '''Function for defining a standard double conv operation.'''
 
-    first_3dconv = nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1)
-
     return nn.Sequential(
-        first_3dconv,
+        nn.Conv3d(in_channels, out_channels, kernel_size=3,
+                  padding=(1, 1, 1)),
         nn.BatchNorm3d(out_channels),
         nn.ReLU(inplace=True),
-        nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1),
+        nn.Conv3d(out_channels, out_channels, kernel_size=3,
+                  padding=(1, 1, 1)),
         nn.BatchNorm3d(out_channels),
         nn.ReLU(inplace=True)
     )
@@ -51,7 +51,7 @@ def down_layer(in_channels, out_channels):
 def down_layer3d(in_channels, out_channels):
     '''Simple down layer: maxpool then double conv'''
     return nn.Sequential(
-        nn.MaxPool3d(2),
+        nn.MaxPool3d(2, padding=(0, 0, 0)),
         double_conv3d(in_channels, out_channels)
     )
 
@@ -94,6 +94,7 @@ class up_layer3d(nn.Module):
     def forward(self, x1, x2):
 
         x1 = self.upsample(x1)
+        print(x1.shape, x2.shape)
         x = torch.cat([x1, x2], dim=1)
         return self.dconv(x)
 
