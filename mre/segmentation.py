@@ -83,12 +83,24 @@ class ChaosDataset(Dataset):
             self.target_images = self.target_images.astype(np.int32)
 
         else:
-            self.names = xr_ds.subject.values
-            self.input_images = xr_ds.sel(sequence=self.my_sequence)['image'].transpose(
-                'subject', 'sequence', 'z', 'y', 'x').values
+            self.names = np.concatenate([xr_ds.subject.values for seq in self.all_sequences])
+            # self.input_images = xr_ds.sel(sequence=self.my_sequence)['image'].transpose(
+            #     'subject', 'sequence', 'z', 'y', 'x').values
+            # self.input_images = self.input_images.astype(np.float32)
+            # self.target_images = xr_ds.sel(sequence=self.my_sequence)['mask'].transpose(
+            #     'subject', 'sequence', 'z', 'y', 'x').values
+            # self.target_images = self.target_images.astype(np.int32)
+
+            # Stack all the sequences together for appropriate random sampling
+            self.input_images = xr_ds['image'].transpose(
+                'subject', 'sequence', 'z', 'y', 'x')
+            self.input_images = np.concatenate(
+                [self.input_images.sel(sequence=[seq]).values for seq in self.all_sequences])
             self.input_images = self.input_images.astype(np.float32)
-            self.target_images = xr_ds.sel(sequence=self.my_sequence)['mask'].transpose(
-                'subject', 'sequence', 'z', 'y', 'x').values
+            self.target_images = xr_ds['mask'].transpose(
+                'subject', 'sequence', 'z', 'y', 'x')
+            self.target_images = np.concatenate(
+                [self.target_images.sel(sequence=[seq]).values for seq in self.all_sequences])
             self.target_images = self.target_images.astype(np.int32)
 
         # Additional flags
@@ -102,6 +114,8 @@ class ChaosDataset(Dataset):
 
     def __getitem__(self, idx):
 
+        seq = np.random.randint(0, 3)
+        print(seq)
         if self.verbose:
             print(self.names[idx])
         if self.model_arch == '3D':
