@@ -10,12 +10,12 @@ def double_conv3d(in_channels, out_channels):
     '''Function for defining a standard double conv operation.'''
 
     return nn.Sequential(
-        nn.Conv3d(in_channels, out_channels, kernel_size=7,
-                  padding=(3, 3, 3)),
+        nn.Conv3d(in_channels, out_channels, kernel_size=5,
+                  padding=(2, 2, 2)),
         nn.BatchNorm3d(out_channels),
         nn.ReLU(inplace=True),
-        nn.Conv3d(out_channels, out_channels, kernel_size=7,
-                  padding=(3, 3, 3)),
+        nn.Conv3d(out_channels, out_channels, kernel_size=5,
+                  padding=(2, 2, 2)),
         nn.BatchNorm3d(out_channels),
         nn.ReLU(inplace=True)
     )

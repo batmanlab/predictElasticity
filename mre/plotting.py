@@ -106,12 +106,15 @@ def hv_dl_vis_chaos(inputs, targets, names, seq_names=None, predictions=None):
 
     inputs = inputs.data.cpu().numpy()
     targets = targets.data.cpu().numpy()
+    print(inputs.shape)
+    print(targets.shape)
 
     if inputs.ndim == 5:
         all_dims = ['subject', 'sequence', 'z', 'y', 'x']
         group_dims = ['subject', 'sequence', 'z']
         all_coords = [list(names), seq_names, range(inputs.shape[2]),
                       range(0, -inputs.shape[3], -1), range(inputs.shape[4])]
+        print(all_coords)
 
     elif inputs.ndim == 4:
         all_dims = ['subject', 'sequence', 'y', 'x']
@@ -140,6 +143,7 @@ def hv_dl_vis_chaos(inputs, targets, names, seq_names=None, predictions=None):
 
     if predictions is not None:
         predictions = predictions.data.cpu().numpy()
+        print(predictions.shape)
         ds_predictions = xr.DataArray(predictions,
                                       dims=all_dims,
                                       coords=all_coords,
@@ -152,6 +156,7 @@ def hv_dl_vis_chaos(inputs, targets, names, seq_names=None, predictions=None):
         pred_range = (ds_predictions.min(), ds_predictions.max())
         hv_predictions = hv_predictions.redim.range(predictions=pred_range)
 
+        print('here')
         layout = hv.Layout(hv_inputs + hv_targets + hv_predictions).cols(3)
     else:
         layout = hv.Layout(hv_inputs + hv_targets).cols(3)

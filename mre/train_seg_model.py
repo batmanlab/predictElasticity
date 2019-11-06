@@ -67,41 +67,41 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
                              clip=cfg['train_clip'], aug=cfg['train_aug'],
                              sequence_mode=cfg['train_seq_mode'],
                              resize=cfg['resize'], model_arch=cfg['model_arch'],
-                             test=subj, seed=cfg['seed'], verbose=cfg['dry_run'])
+                             test_subj=subj, seed=cfg['seed'], verbose=cfg['dry_run'])
     val_set = ChaosDataset(ds, set_type='val', transform=cfg['val_trans'],
                            clip=cfg['val_clip'], aug=cfg['val_aug'],
                            sequence_mode=cfg['val_seq_mode'],
                            resize=cfg['resize'], model_arch=cfg['model_arch'],
-                           test=subj, seed=cfg['seed'], verbose=cfg['dry_run'])
+                           test_subj=subj, seed=cfg['seed'], verbose=cfg['dry_run'])
     test_set = ChaosDataset(ds, set_type='test', transform=cfg['test_trans'],
                             clip=cfg['test_clip'], aug=cfg['test_aug'],
                             sequence_mode=cfg['test_seq_mode'],
                             resize=cfg['resize'], model_arch=cfg['model_arch'],
-                            test=subj, seed=cfg['seed'], verbose=cfg['dry_run'])
+                            test_subj=subj, seed=cfg['seed'], verbose=cfg['dry_run'])
     if verbose:
         print('train: ', len(train_set))
         print('val: ', len(val_set))
         print('test: ', len(test_set))
     if cfg['train_sample'] == 'shuffle':
         dataloaders['train'] = DataLoader(train_set, batch_size=batch_size, shuffle=True,
-                                          num_workers=0)
+                                          num_workers=2)
     elif cfg['train_sample'] == 'resample':
         dataloaders['train'] = DataLoader(train_set, batch_size=batch_size, shuffle=False,
                                           sampler=RandomSampler(
                                               train_set, replacement=True,
                                               num_samples=cfg['train_num_samples']),
-                                          num_workers=0),
+                                          num_workers=2),
     if cfg['val_sample'] == 'shuffle':
         dataloaders['val'] = DataLoader(val_set, batch_size=batch_size, shuffle=True,
-                                        num_workers=0)
+                                        num_workers=2)
     elif cfg['val_sample'] == 'resample':
         dataloaders['val'] = DataLoader(val_set, batch_size=batch_size, shuffle=False,
                                         sampler=RandomSampler(
                                             val_set, replacement=True,
                                             num_samples=cfg['val_num_samples']),
-                                        num_workers=0),
-    dataloaders['test'] = DataLoader(test_set, batch_size=batch_size, shuffle=False,
-                                     num_workers=0)
+                                        num_workers=2),
+    dataloaders['test'] = DataLoader(test_set, batch_size=len(test_set), shuffle=False,
+                                     num_workers=2)
 
     # Set device for computation
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -178,22 +178,28 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
         targets = targets.to('cuda:0')
         model.eval()
 
-        model_pred = model(inputs[:, 0:1, :])
-        model_pred = torch.sigmoid(model_pred)
-        test_dice = dice_loss(model_pred, targets[:, 0:1, :])
+        model_pred = torch.sigmoid(model(inputs[0:1, :]))
+        test_dice = dice_loss(model_pred, targets[0:1, :])
         test_dice = test_dice.to('cpu')
+        model_pred_t1_in = model_pred.cpu().detach()
+        del model_pred
+        torch.cuda.empty_cache()
         cfg['test_dice_t1_in'] = test_dice.item()
 
-        model_pred = model(inputs[:, 1:2, :])
-        model_pred = torch.sigmoid(model_pred)
-        test_dice = dice_loss(model_pred, targets[:, 1:2, :])
+        model_pred = torch.sigmoid(model(inputs[1:2, :]))
+        test_dice = dice_loss(model_pred, targets[1:2, :])
         test_dice = test_dice.to('cpu')
+        model_pred_t1_out = model_pred.cpu().detach()
+        del model_pred
+        torch.cuda.empty_cache()
         cfg['test_dice_t1_out'] = test_dice.item()
 
-        model_pred = model(inputs[:, 2:3, :])
-        model_pred = torch.sigmoid(model_pred)
-        test_dice = dice_loss(model_pred, targets[:, 2:3, :])
+        model_pred = torch.sigmoid(model(inputs[2:3, :]))
+        test_dice = dice_loss(model_pred, targets[2:3, :])
         test_dice = test_dice.to('cpu')
+        model_pred_t2 = model_pred.cpu().detach()
+        del model_pred
+        torch.cuda.empty_cache()
         cfg['test_dice_t2'] = test_dice.item()
 
         config_file = Path(config_dir, f'{model_version}_subj_{subj}.pkl')
@@ -202,7 +208,9 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
 
         writer.close()
         torch.save(model.state_dict(), str(model_dir)+f'/model_{model_version}.pkl')
-        return [inputs, targets, names, model]
+        names = [names[0]+'_t1_in', names[1]+'_t1_out', names[2]+'_t2']
+        return [inputs, targets, names,
+                torch.cat([model_pred_t1_in, model_pred_t1_out, model_pred_t2])]
 
 
 def process_kwargs(kwargs):
@@ -299,9 +307,9 @@ def train_model_core(model, optimizer, scheduler, device, dataloaders, num_epoch
                 best_model_wts = copy.deepcopy(model.state_dict())
 
             if tb_writer:
-                tb_writer.add_scalar(f'loss_{phase}', loss, epoch)
-                tb_writer.add_scalar(f'dice_{phase}', dice, epoch)
-                tb_writer.add_scalar(f'bce_{phase}', bce, epoch)
+                tb_writer.add_scalar(f'loss_{phase}', epoch_loss, epoch)
+                tb_writer.add_scalar(f'dice_{phase}', epoch_dice, epoch)
+                tb_writer.add_scalar(f'bce_{phase}', epoch_bce, epoch)
         if verbose:
             time_elapsed = time.time() - since
             print('{:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
