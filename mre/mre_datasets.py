@@ -82,12 +82,14 @@ class MREtoXr:
 
         # Load the liver mask model (hard-coded for now)
         model_path = Path('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/CHAOS/',
-                          'trained_models', '01', 'model_2019-10-15_11-41-56.pkl')
-        self.model = GeneralUNet3D(5, 1, 8, 1, True, False, False)
-        model_dict = torch.load(model_path, map_location='cpu')
-        model_dict = OrderedDict([(key[7:], val) for key, val in model_dict.items()])
-        self.model.load_state_dict(model_dict, strict=True)
-        self.model.eval()
+                          'trained_models', '01', 'model_2019-11-06_18-27-49.pkl')
+        # 'trained_models', '01', 'model_2019-10-15_11-41-56.pkl')
+        with torch.no_grad():
+            self.model = GeneralUNet3D(5, 1, 24, 1, True, False, False)
+            model_dict = torch.load(model_path, map_location='cpu')
+            model_dict = OrderedDict([(key[7:], val) for key, val in model_dict.items()])
+            self.model.load_state_dict(model_dict, strict=True)
+            self.model.eval()
 
         # Initialize empty ds
         self.init_new_ds()
@@ -227,15 +229,17 @@ class MREtoXr:
                      self.ds['mask_mri'].sel(subject=self.patient, mask_type='liver').values)
         # combo_mri = morphology.binary_erosion(combo_mri.values)
         # combo_mri = morphology.binary_erosion(combo_mri)
-        combo_mri *= morphology.remove_small_objects(combo_mri.astype(bool))
-        self.ds['mask_mri'].loc[{'mask_type': 'combo'}] = combo_mri
+        combo_mri = morphology.remove_small_objects(combo_mri.astype(bool), 400)
+        self.ds['mask_mri'].loc[{'mask_type': 'combo'}] = combo_mri.astype(int)
 
         combo_mre = (self.ds['mask_mre'].sel(subject=self.patient, mask_type='mre').values *
                      self.ds['mask_mre'].sel(subject=self.patient, mask_type='liver').values)
         # combo_mre = morphology.binary_erosion(combo_mre.values)
         # combo_mre = morphology.binary_erosion(combo_mre)
-        combo_mre *= morphology.remove_small_objects(combo_mre.astype(bool))
-        self.ds['mask_mre'].loc[{'mask_type': 'combo'}] = combo_mre
+        combo_mre = combo_mre.astype(bool)
+        for z in range(combo_mre.shape[-1]):
+            combo_mre[:, :, z] = morphology.remove_small_objects(combo_mre[:, :, z], 400)
+        self.ds['mask_mre'].loc[{'mask_type': 'combo'}] = combo_mre.astype(int)
 
         # return ds
         if self.write_file:
@@ -331,13 +335,21 @@ class MREtoXr:
 
         input_image_np = input_image_np[np.newaxis, np.newaxis, :]
         # get the model prediction (liver mask)
-        model_pred = self.model(torch.Tensor(input_image_np))
-        model_pred = torch.sigmoid(model_pred)
-        # Convert to binary mask
-        ones = torch.ones_like(model_pred)
-        zeros = torch.zeros_like(model_pred)
-        model_pred = torch.where(model_pred > 1e-3, ones, zeros)
-        return np.transpose(model_pred.cpu().numpy()[0, 0, :], (2, 1, 0))
+        with torch.no_grad():
+            print('starting torch model loading')
+            model_pred = self.model(torch.Tensor(input_image_np))
+            print('sigmoid func')
+            model_pred = torch.sigmoid(model_pred)
+            print('torch done')
+            # Convert to binary mask
+            # print('ones and zeros')
+            # ones = torch.ones_like(model_pred)
+            # zeros = torch.zeros_like(model_pred)
+            # print('where')
+            # model_pred = torch.where(model_pred > 1e-1, ones, zeros)
+        output_image_np = np.transpose(model_pred.cpu().numpy()[0, 0, :], (2, 1, 0))
+        output_image_np = np.where(output_image_np > 0.4, 1, 0)
+        return output_image_np
 
     def gen_elast_mask(self, subj):
         '''Generate a mask from the elastMsk, and place it into the given "mre_mask" slot.
