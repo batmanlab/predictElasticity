@@ -584,7 +584,7 @@ def xr_viewer(xr_ds, grid_coords=None, group_coords=None, overlay_data='default'
 
 
 def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
-                 overlay_data='default', selection=None):
+                 overlay_data='default', selection=None, size=550):
     '''generic xr ds viewer for pollack-format image holders, this time with support for the
     3d mre-style xarrays.  Some argument customization will be sacrificed for consistency and ease
     of use. Maybe.
@@ -596,7 +596,7 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
         opts.GridSpace(shared_xaxis=True, shared_yaxis=True,
                        fontsize={'title': 16, 'labels': 16, 'xticks': 12, 'yticks': 12},
                        plot_size=300),
-        opts.Image(cmap='viridis', width=550, height=550, xaxis=None,
+        opts.Image(cmap='viridis', width=size, height=size, xaxis=None,
                    yaxis=None),
         opts.Labels(text_color='white', text_font_size='20pt', text_align='left',
                     text_baseline='bottom'),
@@ -625,7 +625,10 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
     hv_ds_mre_mask_2 = hv_ds_mre_2.to(hv.Image, kdims=['x', 'y'], vdims='mask_mre',
                                       dynamic=True).opts(tools=[])
 
-    slider = pn.widgets.FloatSlider(start=0, end=1, value=0.5, name='mask transparency')
+    slider = pn.widgets.FloatSlider(start=0, end=1, value=0.7, name='mask transparency')
+
+    redim_image_mri = {'image_mri': (0, 800)}
+    hv_ds_mri_image = hv_ds_mri_image.redim.range(**redim_image_mri)
     redim_mask_mri = {'mask_mri': (0.1, 2)}
     hv_ds_mri_mask = hv_ds_mri_mask.opts(cmap='Category10', clipping_colors={'min': 'transparent'},
                                          color_levels=10)
@@ -654,6 +657,9 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
               (hv_ds_mre_image_2 * hv_ds_mre_mask_2).grid('mre_type') +
               (hv_ds_mri_image * hv_ds_mri_mask).grid('sequence')
               ).cols(1)
+    #           (hv_ds_mri_image * hv_ds_mri_mask).grid('sequence').add_dimension(
+    #               "fake_dim_name",0, "").opts(plot=dict(xaxis=False))
+    #           ).cols(1)
     # import pdb; pdb.set_trace()
     # layout = (hv_ds_mri_image).grid('sequence')
     # layout = (hv_ds_mre_image).grid('sequence')
