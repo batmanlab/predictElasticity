@@ -42,9 +42,9 @@ class MREtoXr:
                 '(data_dir and sequences) or (from_file) must be specified to initialize')
 
         if from_file:
-            from_file = str(from_file)
-            print(from_file)
-            if '*' in from_file:
+            if type(from_file) is not list:
+                from_file = str(from_file)
+            if '*' in from_file or type(from_file) is list:
                 self.ds = xr.open_mfdataset(from_file)
             else:
                 self.ds = xr.open_dataset(from_file)
@@ -553,6 +553,7 @@ class MRETorchDataset(Dataset):
             raise AttributeError('Must choose one of ["train", "val", "test"] for `set_type`.')
 
         # pick correct input set
+        print(input_set)
         self.xa_ds = self.xa_ds.sel(subject=input_set)
 
         # # Refactor xa_ds so that input only has 4 input slices:
@@ -591,6 +592,10 @@ class MRETorchDataset(Dataset):
             'subject_2d', 'mask_type', 'y', 'x').values
 
         self.names = self.xa_ds.subject_2d.values
+
+        # self.target_images = ((self.target_images -
+        #                        np.mean(self.target_images))/np.std(self.target_images))
+        # self.target_images = np.float32(self.target_images)
 
     def __len__(self):
         return len(self.input_images)

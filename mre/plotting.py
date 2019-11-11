@@ -211,7 +211,7 @@ def hv_dl_vis(inputs, targets, masks, names, predictions=None):
                               dynamic=True).apply.opts(alpha=slider.param.value)
     masks.opts(cmap='Reds', tools=[])
     targets = hv_ds_targets[0].to(hv.Image, ['x', 'y'], groupby=['subject'], dynamic=True)
-    targets = targets.redim.range(target=(0, 70)).opts(title='Target')*masks
+    targets = targets.redim.range(targets=(0, 80)).opts(title='Target')*masks
 
     input_list = [hv_ds.to(hv.Image, ['x', 'y'], groupby=['subject'],
                            dynamic=True).opts(cmap='viridis',
@@ -231,7 +231,7 @@ def hv_dl_vis(inputs, targets, masks, names, predictions=None):
                              ds_prediction.sequence]
         predictions = hv_ds_predictions[0].to(hv.Image, ['x', 'y'], groupby=['subject'],
                                               dynamic=True).redim.range(
-                                                  prediction=(0, 50)).opts(title='Prediction')*masks
+                                                  prediction=(0, 80)).opts(title='Prediction')*masks
 
         layout = hv.Layout(input_list + [targets] + [predictions]).cols(3)
     else:

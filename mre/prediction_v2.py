@@ -273,7 +273,7 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                 best_model_wts = copy.deepcopy(model.state_dict())
 
             if tb_writer:
-                tb_writer.add_scalar(f'loss_{phase}', loss, epoch)
+                tb_writer.add_scalar(f'loss_{phase}', epoch_loss, epoch)
                 if loss_func is not None:
                     alpha = loss_func.alpha()[0, 0].detach().numpy()
                     scale = loss_func.scale()[0, 0].detach().numpy()

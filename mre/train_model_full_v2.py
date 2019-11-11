@@ -46,7 +46,11 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         print(cfg)
     torch.manual_seed(cfg['seed'])
 
-    xr_maker = MREtoXr(from_file=Path(data_path, data_file))
+    if cfg['patient_list']:
+        files = [Path(data_path, 'xarray_'+i.strip()+'.nc') for i in open(cfg['patient_list'])]
+        xr_maker = MREtoXr(from_file=files)
+    else:
+        xr_maker = MREtoXr(from_file=Path(data_path, data_file))
     # xr_maker = MREtoXr(from_file='/pghbio/dbmi/batmanlab/Data/MRE/XR/*.nc')
     ds = xr_maker.get_ds()
     ds = ds.load()
@@ -67,24 +71,24 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         print('test: ', len(test_set))
     if cfg['train_sample'] == 'shuffle':
         dataloaders['train'] = DataLoader(train_set, batch_size=batch_size, shuffle=True,
-                                          num_workers=8)
+                                          num_workers=2)
     elif cfg['train_sample'] == 'resample':
         dataloaders['train'] = DataLoader(train_set, batch_size=batch_size, shuffle=False,
                                           sampler=RandomSampler(
                                               train_set, replacement=True,
                                               num_samples=cfg['train_num_samples']),
-                                          num_workers=8),
+                                          num_workers=2),
     if cfg['val_sample'] == 'shuffle':
         dataloaders['val'] = DataLoader(val_set, batch_size=batch_size, shuffle=True,
-                                        num_workers=8)
+                                        num_workers=2)
     elif cfg['val_sample'] == 'resample':
         dataloaders['val'] = DataLoader(val_set, batch_size=batch_size, shuffle=False,
                                         sampler=RandomSampler(
                                             val_set, replacement=True,
                                             num_samples=cfg['val_num_samples']),
-                                        num_workers=8),
+                                        num_workers=2),
     dataloaders['test'] = DataLoader(test_set, batch_size=batch_size, shuffle=False,
-                                     num_workers=8)
+                                     num_workers=2)
 
     # Set device for computation
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -210,7 +214,7 @@ def default_cfg():
            'mask_trimmer': False, 'mask_mixer': 'mixed', 'target_max': None, 'target_bins': 100,
            'model_arch': 'modular', 'n_layers': 7, 'in_channels': 5, 'out_channels_final': 1,
            'channel_growth': False, 'transfer_layer': False, 'seed': 100,
-           'resize': False}
+           'resize': False, 'patient_list': None}
     return cfg
 
 
