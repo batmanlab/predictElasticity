@@ -596,6 +596,7 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
         opts.GridSpace(shared_xaxis=True, shared_yaxis=True,
                        fontsize={'title': 16, 'labels': 16, 'xticks': 12, 'yticks': 12},
                        plot_size=300),
+        opts.Layout(fontsize={'title': 16, 'labels': 16, 'xticks': 12, 'yticks': 12}),
         opts.Image(cmap='viridis', width=size, height=size, xaxis=None,
                    yaxis=None),
         opts.Labels(text_color='white', text_font_size='20pt', text_align='left',
@@ -653,10 +654,10 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
                                              color_levels=10)
     hv_ds_mre_mask_2 = hv_ds_mre_mask_2.redim.range(**redim_mask_mre)
     hv_ds_mre_mask_2 = hv_ds_mre_mask_2.apply.opts(alpha=slider.param.value)
-    layout = ((hv_ds_mre_image_1 * hv_ds_mre_mask_1).grid('mre_type') +
-              (hv_ds_mre_image_2 * hv_ds_mre_mask_2).grid('mre_type') +
-              (hv_ds_mri_image * hv_ds_mri_mask).grid('sequence')
-              ).cols(1)
+    layout = (((hv_ds_mre_image_1 * hv_ds_mre_mask_1).grid('mre_type') +
+              (hv_ds_mre_image_2 * hv_ds_mre_mask_2).grid('mre_type')) +
+              (hv_ds_mri_image * hv_ds_mri_mask).layout('sequence').cols(3)
+              ).cols(2)
     #           (hv_ds_mri_image * hv_ds_mri_mask).grid('sequence').add_dimension(
     #               "fake_dim_name",0, "").opts(plot=dict(xaxis=False))
     #           ).cols(1)

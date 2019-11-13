@@ -53,7 +53,9 @@ class MREtoXr:
         elif data_dir:
             self.data_dir = data_dir
             if sequences is None:
-                sequences = ['t1_pre_water', 't1_pre_in', 't1_pre_out', 't1_pre_fat', 't2']
+                sequences = ['t1_pre_water', 't1_pre_in', 't1_pre_out', 't1_pre_fat', 't2',
+                             't1_pos_0_water', 't1_pos_70_water', 't1_pos_160_water',
+                             't1_pos_300_water']
             self.sequences = sequences
             if len(self.sequences) == 0:
                 raise ValueError('No sequences specificed')
@@ -61,9 +63,17 @@ class MREtoXr:
                 self.patient = '0006'
             else:
                 self.patient = str(patient)
+
+            # Check if any contrast images are specified
+            if np.any(['pos' in seq for seq in self.sequences]):
+                out_subdir = 'XR_with_contrast'
+            else:
+                out_subdir = 'XR'
+            self.output_dir = Path(self.data_dir.parents[1], out_subdir)
             print(self.data_dir)
             print(self.patient)
             print(self.sequences)
+            print(self.output_dir)
         else:
             raise ValueError('__init__ error')
 
@@ -243,7 +253,7 @@ class MREtoXr:
 
         # return ds
         if self.write_file:
-            self.output_name = Path(self.data_dir.parents[1], 'XR', f'xarray_{self.output_name}.nc')
+            self.output_name = Path(self.output_dir, f'xarray_{self.output_name}.nc')
             print(f'Writing xr file {self.output_name} ')
             self.ds.to_netcdf(self.output_name)
             print('Done')
