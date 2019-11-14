@@ -61,9 +61,17 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
 
     # Start filling dataloaders
     dataloaders = {}
-    train_set = MRETorchDataset(ds, set_type='train', **cfg)
-    val_set = MRETorchDataset(ds, set_type='val', **cfg)
-    test_set = MRETorchDataset(ds, set_type='test', **cfg)
+    np.random.seed(cfg['seed'])
+    shuffle_list = np.asarray(ds.subject)
+    train_idx = int(0.7*len(shuffle_list))
+    val_idx = train_idx+int(0.2*len(shuffle_list))
+    train_list = list(shuffle_list[:train_idx])
+    val_list = list(shuffle_list[train_idx:val_idx])
+    test_list = list(shuffle_list[val_idx:])
+
+    train_set = MRETorchDataset(ds.sel(subject=train_list), set_type='train', **cfg)
+    val_set = MRETorchDataset(ds.sel(subject=val_list), set_type='val', **cfg)
+    test_set = MRETorchDataset(ds.sel(subject=test_list), set_type='test', **cfg)
 
     if verbose:
         print('train: ', len(train_set))

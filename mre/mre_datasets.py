@@ -44,6 +44,9 @@ class MREtoXr:
         if from_file:
             if type(from_file) is not list:
                 from_file = str(from_file)
+            else:
+                from_file = [f for f in from_file if Path(f).exists()]
+
             if '*' in from_file or type(from_file) is list:
                 self.ds = xr.open_mfdataset(from_file)
             else:
@@ -533,8 +536,9 @@ class MRETorchDataset(Dataset):
 
         # Assign kwargs
         self.seed = kwargs.get('seed', 100)
-        self.inputs = kwargs.get('inputs', ['t1_pre_water', 't1_pre_in', 't1_pre_out',
-                                            't1_pre_fat', 't2'])
+        self.inputs = kwargs.get('inputs', ['t1_pre_water', 't1_pre_in', 't1_pre_out', 't1_pre_fat',
+                                            't2', 't1_pos_0_water', 't1_pos_70_water',
+                                            't1_pos_160_water', 't1_pos_300_water'])
         self.target = kwargs.get('target', 'mre')
         self.mask = kwargs.get('mask', 'combo')
         self.clip = kwargs.get(f'{set_type}_clip', True)
@@ -547,45 +551,26 @@ class MRETorchDataset(Dataset):
         standards and required format given a particular training task.'''
 
         np.random.seed(self.seed)
-        shuffle_list = np.asarray(self.xa_ds.subject)
-        np.random.shuffle(shuffle_list)
-        total_subj = self.xa_ds.subject.size
-        train_idx = int(0.7*total_subj)
-        val_idx = train_idx+int(0.2*total_subj)
+        if self.set_type != 'eval':
+            # shuffle_list = np.asarray(self.xa_ds.subject)
+            # np.random.shuffle(shuffle_list)
+            # total_subj = self.xa_ds.subject.size
+            # train_idx = int(0.7*total_subj)
+            # val_idx = train_idx+int(0.2*total_subj)
 
-        if self.set_type == 'train':
-            input_set = list(shuffle_list[:train_idx])
-        elif self.set_type == 'val':
-            input_set = list(shuffle_list[train_idx:val_idx])
-        elif self.set_type == 'test':
-            input_set = list(shuffle_list[val_idx:])
-        else:
-            raise AttributeError('Must choose one of ["train", "val", "test"] for `set_type`.')
+            # if self.set_type == 'train':
+            #     input_set = list(shuffle_list[:train_idx])
+            # elif self.set_type == 'val':
+            #     input_set = list(shuffle_list[train_idx:val_idx])
+            # elif self.set_type == 'test':
+            #     input_set = list(shuffle_list[val_idx:])
+            # else:
+            #     raise AttributeError('Must choose one of
+            # ["train", "val", "test"] for `set_type`.')
 
-        # pick correct input set
-        print(input_set)
-        self.xa_ds = self.xa_ds.sel(subject=input_set)
-
-        # # Refactor xa_ds so that input only has 4 input slices:
-        # # 1) Split xa_ds
-        # xa_ds_mri = self.xa_ds[['image_mri', 'mri_to_mre_idx']]
-        # xa_ds_mre = self.xa_ds[['image_mre', 'mask_mre']]
-        # # 2) Drop extra slices
-        # xa_ds_mri_list = []
-        # for subj in self.xa_ds.subject.values:
-        #     xa_ds_mri_subj = xa_ds_mri.sel(subject=[subj])
-        #     xa_ds_mri = xa_ds_mri.drop(subj, dim='subject')
-        #     xa_ds_mri_subj = xa_ds_mri_subj.sel(
-        #         z_mri=xa_ds_mri_subj.mri_to_mre_idx.values.flatten())
-        #     xa_ds_mri_subj.assign_coords(z_mri=[0, 1, 2, 3])
-        #     xa_ds_mri_list.append(xa_ds_mri_subj)
-        # xa_ds_mri = xr.merge(xa_ds_mri_list)
-        # xa_ds_mri = xa_ds_mri['image_mri']
-        # # 3) Rename z coord
-        # xa_ds_mri.rename(z_mri='z')
-        # xa_ds_mre.rename(z_mre='z')
-        # # 4) Recombine
-        # self.xa_ds = xr.merge([xa_ds_mri, xa_ds_mre])
+            # # pick correct input set
+            print(self.xa_ds.subject)
+            # self.xa_ds = self.xa_ds.sel(subject=input_set)
 
         # stack subject and z-slices to make 4 2D image groups for each 3D image group
         self.xa_ds = self.xa_ds.stack(subject_2d=('subject', 'z')).reset_index('subject_2d')
@@ -615,7 +600,7 @@ class MRETorchDataset(Dataset):
         image = self.input_images[idx]
         target = self.target_images[idx]
         if self.clip:
-            image  = np.where(image >= 1000, 1000, image)
+            image  = np.where(image >= 2000, 2000, image)
             target = np.float32(np.digitize(target, list(range(0, 20000, 200))+[1e6]))
 
         if self.transform:

@@ -12,6 +12,7 @@ import time
 import copy
 from mre import pytorch_unet_tb
 from mre.plotting import hv_dl_vis
+from mre.mre_datasets import MRETorchDataset
 from robust_loss_pytorch import adaptive
 import warnings
 from datetime import datetime
@@ -360,3 +361,18 @@ def add_LOO_predictions(ds, path='/pghbio/dbmi/batmanlab/Data/MRE/', version='20
     new_sequence = [a.replace(extra_name, 'mre_pred') for a in ds.sequence.values]
     ds = ds.assign_coords(sequence=new_sequence)
     return ds
+
+
+def add_predictions(ds, model, model_params):
+    '''Given a standard MRE dataset, a model, and the associated params, generate MRE predictions
+    and load them into that dataset.'''
+    model.eval()
+    eval_set = MRETorchDataset(ds, set_type='eval')
+    dataloader = DataLoader(eval_set, batch_size=32, shuffle=False, num_workers=2)
+    for inputs, targets, masks, names in dataloader:
+        prediction = model(inputs).data.cpu().numpy()
+        for i, name in enumerate(names):
+            subj, z = name.split('_')
+            z = int(z)
+            ds['image_mre'].loc[{'subject': subj, 'z': z,
+                                 'mre_type': 'mre_pred'}] = prediction[i, 0].T*200

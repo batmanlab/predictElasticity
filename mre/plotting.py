@@ -584,7 +584,7 @@ def xr_viewer(xr_ds, grid_coords=None, group_coords=None, overlay_data='default'
 
 
 def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
-                 overlay_data='default', selection=None, size=550):
+                 overlay_data='default', selection=None, size=550, prediction=False):
     '''generic xr ds viewer for pollack-format image holders, this time with support for the
     3d mre-style xarrays.  Some argument customization will be sacrificed for consistency and ease
     of use. Maybe.
@@ -610,7 +610,8 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
     # xr_ds = xr_ds.sel(subject=['0006', '0384'])
     hv_ds_mri = hv.Dataset(xr_ds[['image_mri', 'mask_mri']])
     hv_ds_mre = hv.Dataset(xr_ds[['image_mre', 'mask_mre']])
-    hv_ds_mre_1 = hv_ds_mre.select(mre_type=['mre', 'mre_mask'])
+    if prediction:
+        hv_ds_mre_1 = hv_ds_mre.select(mre_type=['mre', 'mre_mask', 'mre_pred'])
     hv_ds_mre_2 = hv_ds_mre.select(mre_type=['mre_raw', 'mre_wave'])
     print(hv_ds_mri)
     print(hv_ds_mre)
@@ -629,7 +630,7 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
     slider = pn.widgets.FloatSlider(start=0, end=1, value=0.7, name='mask transparency')
 
     redim_image_mri = {'image_mri': (0, 800)}
-    hv_ds_mri_image = hv_ds_mri_image.redim.range(**redim_image_mri)
+    hv_ds_mri_image = hv_ds_mri_image.redim.range(**redim_image_mri).opts(tools=['hover'])
     redim_mask_mri = {'mask_mri': (0.1, 2)}
     hv_ds_mri_mask = hv_ds_mri_mask.opts(cmap='Category10', clipping_colors={'min': 'transparent'},
                                          color_levels=10)
@@ -638,7 +639,7 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
 
     redim_image_mre_1 = {'image_mre_1': (0, 10000)}
     hv_ds_mre_image_1 = hv_ds_mre_image_1.redim(image_mre='image_mre_1')
-    hv_ds_mre_image_1 = hv_ds_mre_image_1.redim.range(**redim_image_mre_1)
+    hv_ds_mre_image_1 = hv_ds_mre_image_1.redim.range(**redim_image_mre_1).opts(tools=['hover'])
     redim_mask_mre = {'mask_mre': (0.1, 2)}
     hv_ds_mre_mask_1 = hv_ds_mre_mask_1.opts(cmap='Category10',
                                              clipping_colors={'min': 'transparent'},
@@ -647,7 +648,7 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
     hv_ds_mre_mask_1 = hv_ds_mre_mask_1.apply.opts(alpha=slider.param.value)
 
     redim_image_mre_2 = {'image_mre': (-200, 200)}
-    hv_ds_mre_image_2 = hv_ds_mre_image_2.redim.range(**redim_image_mre_2)
+    hv_ds_mre_image_2 = hv_ds_mre_image_2.redim.range(**redim_image_mre_2).opts(tools=['hover'])
     redim_mask_mre = {'mask_mre': (0.1, 2)}
     hv_ds_mre_mask_2 = hv_ds_mre_mask_2.opts(cmap='Category10',
                                              clipping_colors={'min': 'transparent'},
