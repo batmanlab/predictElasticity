@@ -393,8 +393,8 @@ def patient_series_viewer(path, patient, img_type='DICOM', info=''):
             desc = reader.GetMetaData(0, '0008|103e').strip().encode('utf-8', 'ignore').decode()
             pid = reader.GetMetaData(0, '0010|0010').strip()
             desc = ' '.join([img_files.stem, desc, pid])
-            if image.GetOrigin()[-1] > 0:
-                image = image[:, :, ::-1]
+            # if image.GetOrigin()[-1] > 0:
+            #     image = image[:, :, ::-1]
         elif img_type == 'NIFTI':
             reader.SetFileName(str(img_files))
             desc = ' '.join(img_files.parts[-2:])
@@ -419,6 +419,7 @@ def patient_series_viewer(path, patient, img_type='DICOM', info=''):
                                                                              invert_yaxis=False))
         else:
             hv_images.append(hv.Image(npimg[0, :], label=desc).opts(**imopts))
+        print()
     return hv.Layout(hv_images).opts(shared_axes=False, merge_tools=False, normalize=False,
                                      title=' '.join([patient, info])).cols(3)
 

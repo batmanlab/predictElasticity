@@ -539,6 +539,8 @@ def dicom_to_nifti(data_path, subdirs):
         semi_path = Path(data_path, subdir)
         for patient in tqdm_notebook(list(semi_path.iterdir()), desc='patient'):
             patient_path = Path(semi_path, patient, 'ST0')
+            if 'PA4' not in str(patient_path):
+                continue
             img_folders = sorted(list(patient_path.iterdir()), key=lambda a: int(a.stem[2:]))
             reader = sitk.ImageSeriesReader()
 
@@ -586,17 +588,17 @@ def dicom_to_nifti(data_path, subdirs):
                     if 'art' in name:
                         img1, img2, img3 = split_image(img, reader, 'art')
                         if img1 is not None:
-                            # img1 = orient_image(img1, name)
+                            img1 = orient_image(img1, name)
                             sitk.WriteImage(
                                 img1, str(patient_path) + '/' + name.replace('art', '0') + '.nii')
                         if img2 is not None:
                             # print('img2')
-                            # img2 = orient_image(img2, name)
+                            img2 = orient_image(img2, name)
                             # print(img2.GetOrigin())
                             sitk.WriteImage(
                                 img2, str(patient_path) + '/' + name.replace('art', '70') + '.nii')
                         if img3 is not None:
-                            # img3 = orient_image(img3, name)
+                            img3 = orient_image(img3, name)
                             sitk.WriteImage(
                                 img3, str(patient_path) + '/' + name.replace('art', '160') + '.nii')
                     elif 'raw' in name:
@@ -611,6 +613,7 @@ def dicom_to_nifti(data_path, subdirs):
                             '/' + name + '.nii')
                     elif name == 'mre':
                         img, mre_info = scrape_mre(dicom_names)
+                        img = orient_image(img, name)
                         sitk.WriteImage(img, str(patient_path) + '/' + name + '.nii')
                         with open(Path(patient_path, f'{name}.pkl'), 'wb') as f:
                             pkl.dump(mre_info, f)
@@ -636,17 +639,29 @@ def scrape_mre(dicom_names):
 
 
 def orient_image(img, name):
-    orig = img.GetOrigin()
-    if orig[-1] > 0:
-        # print(name)
-        # print('orig', orig)
-        # print('direction', img.GetDirection())
-        # print('spacing', img.GetSpacing())
-        new_z_orig = orig[-1]-img.GetSpacing()[-1]*img.GetSize()[-1]
+    # orig = img.GetOrigin()
+    # if orig[-1] > 0:
+    #     # print(name)
+    #     # print('orig', orig)
+    #     # print('direction', img.GetDirection())
+    #     # print('spacing', img.GetSpacing())
+    #     new_z_orig = orig[-1]-img.GetSpacing()[-1]*img.GetSize()[-1]
+    #     img = img[:, :, ::-1]
+    #     img.SetOrigin((orig[0], orig[1], new_z_orig))
+    #     img.SetDirection((1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0))
+    #     # print('new orig', (orig[0], orig[1], new_z_orig))
+    # orig = img.GetOrigin()
+    z_dir = img.GetDirection()[-1]
+    print(name)
+    print(img.GetDirection())
+    if z_dir > 0:
+        print('swappin')
+        # new_z_orig = orig[-1]-img.GetSpacing()[-1]*img.GetSize()[-1]
         img = img[:, :, ::-1]
-        img.SetOrigin((orig[0], orig[1], new_z_orig))
-        img.SetDirection((1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0))
+        # img.SetOrigin((orig[0], orig[1], new_z_orig))
+        # img.SetDirection((1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0))
         # print('new orig', (orig[0], orig[1], new_z_orig))
+    print()
     return img
 
 
