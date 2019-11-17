@@ -539,8 +539,8 @@ def dicom_to_nifti(data_path, subdirs):
         semi_path = Path(data_path, subdir)
         for patient in tqdm_notebook(list(semi_path.iterdir()), desc='patient'):
             patient_path = Path(semi_path, patient, 'ST0')
-            if 'PA4' not in str(patient_path):
-                continue
+            # if 'PA5' not in str(patient_path):
+            #     continue
             img_folders = sorted(list(patient_path.iterdir()), key=lambda a: int(a.stem[2:]))
             reader = sitk.ImageSeriesReader()
 
@@ -586,40 +586,38 @@ def dicom_to_nifti(data_path, subdirs):
                 name = select_image(img, desc, sel_dict)
                 if name:
                     if 'art' in name:
-                        img1, img2, img3 = split_image(img, reader, 'art')
-                        if img1 is not None:
-                            img1 = orient_image(img1, name)
-                            sitk.WriteImage(
-                                img1, str(patient_path) + '/' + name.replace('art', '0') + '.nii')
-                        if img2 is not None:
-                            # print('img2')
-                            img2 = orient_image(img2, name)
-                            # print(img2.GetOrigin())
-                            sitk.WriteImage(
-                                img2, str(patient_path) + '/' + name.replace('art', '70') + '.nii')
-                        if img3 is not None:
-                            img3 = orient_image(img3, name)
-                            sitk.WriteImage(
-                                img3, str(patient_path) + '/' + name.replace('art', '160') + '.nii')
+                        name_map = ['0', '70', '160']
+                        img_list = dicom_split_sort(dicom_names, 'art')
+                        for j, img in enumerate(img_list):
+                            try:
+                                sitk.WriteImage(
+                                    img, str(patient_path) + '/' +
+                                    name.replace('art', name_map[j]) + '.nii')
+                            except IndexError:
+                                sitk.WriteImage(
+                                    img, str(patient_path) + '/' +
+                                    name.replace('art', 'extra_art') + '.nii')
+
                     elif 'raw' in name:
                         img_wave, img_raw = split_image(img, reader, 'mre')
-                        img_wave = orient_image(img_wave, name)
                         sitk.WriteImage(
                             img_wave, str(patient_path) +
                             '/' + name.replace('raw', 'wave') + '.nii')
-                        img_raw = orient_image(img_raw, name)
                         sitk.WriteImage(
                             img_raw, str(patient_path) +
                             '/' + name + '.nii')
                     elif name == 'mre':
                         img, mre_info = scrape_mre(dicom_names)
-                        img = orient_image(img, name)
                         sitk.WriteImage(img, str(patient_path) + '/' + name + '.nii')
                         with open(Path(patient_path, f'{name}.pkl'), 'wb') as f:
                             pkl.dump(mre_info, f)
+                    elif name == 'mre_mask':
+                        img, mre_info = scrape_mre(dicom_names)
+                        sitk.WriteImage(img, str(patient_path) + '/' + name + '.nii')
 
                     else:
-                        img = orient_image(img, name)
+                        # img = orient_image(img, name)
+                        img = dicom_split_sort(dicom_names, name)
                         sitk.WriteImage(img, str(patient_path) + '/' + name + '.nii')
 
 
@@ -628,7 +626,7 @@ def scrape_mre(dicom_names):
     returns all those z-values along with the full image.'''
 
     mre_list = [(sitk.ReadImage(path).GetOrigin()[-1], path) for path in dicom_names]
-    sorted_mre_list = sorted(mre_list, key=lambda x: x[0])
+    sorted_mre_list = sorted(mre_list, key=lambda x: x[0], reverse=False)
     mre_paths = []
     z_vals = []
     for i in sorted_mre_list:
@@ -638,31 +636,38 @@ def scrape_mre(dicom_names):
     return sitk.ReadImage(mre_paths), z_vals
 
 
-def orient_image(img, name):
-    # orig = img.GetOrigin()
-    # if orig[-1] > 0:
-    #     # print(name)
-    #     # print('orig', orig)
-    #     # print('direction', img.GetDirection())
-    #     # print('spacing', img.GetSpacing())
-    #     new_z_orig = orig[-1]-img.GetSpacing()[-1]*img.GetSize()[-1]
-    #     img = img[:, :, ::-1]
-    #     img.SetOrigin((orig[0], orig[1], new_z_orig))
-    #     img.SetDirection((1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0))
-    #     # print('new orig', (orig[0], orig[1], new_z_orig))
-    # orig = img.GetOrigin()
-    z_dir = img.GetDirection()[-1]
-    print(name)
-    print(img.GetDirection())
-    if z_dir > 0:
-        print('swappin')
-        # new_z_orig = orig[-1]-img.GetSpacing()[-1]*img.GetSize()[-1]
-        img = img[:, :, ::-1]
-        # img.SetOrigin((orig[0], orig[1], new_z_orig))
-        # img.SetDirection((1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0))
-        # print('new orig', (orig[0], orig[1], new_z_orig))
-    print()
-    return img
+def dicom_split_sort(dicom_names, name):
+    '''sitk does not seem to be able to orient images correctly in some cases.  This reads in the
+    dicom files slice by slice, grabbing the origin info from each slice, then sorting the slices
+    based off of those origins.  Includes special cases for dicoms that consist of more than one
+    type of sequence.'''
+
+    if 'art' in name:
+        # 'art' (arterial) files contain up to 3 different sets of images at 3 timesteps
+        # after administering contrast. This function split each timestep into its own image.
+        current_trigger = -999
+        multi_z_path_pair = []
+        for path in dicom_names:
+            img_slice = sitk.ReadImage(path)
+            trigger = img_slice.GetMetaData('0018|1060')  # Get trigger time
+            if trigger != current_trigger:
+                multi_z_path_pair.append([])
+                current_trigger = trigger
+            multi_z_path_pair[-1].append((img_slice.GetOrigin()[-1], path))
+        img_list = []
+        for i, pair in enumerate(multi_z_path_pair):
+            _, sorted_dicom_names = zip(*sorted(pair, key=lambda x: x[0], reverse=False))
+            img_list.append(sitk.ReadImage(sorted_dicom_names))
+
+        return img_list
+    elif 'raw' in name:
+        pass
+    else:
+        z_path_pair = [(sitk.ReadImage(path).GetOrigin()[-1], path) for path in dicom_names]
+        z_path_pair = sorted(z_path_pair, key=lambda x: x[0], reverse=False)
+        _, sorted_dicom_names = zip(*z_path_pair)
+
+        return sitk.ReadImage(sorted_dicom_names)
 
 
 def split_image(img, reader, mode='art'):
@@ -708,24 +713,28 @@ def split_image(img, reader, mode='art'):
                     meta_data_raw[location] = i
 
         wave_slices = []
-        for i, k in enumerate(sorted(list(meta_data_wave.keys()))):
+        for i, k in enumerate(sorted(list(meta_data_wave.keys()), reverse=False)):
             my_slice = img[:, :, meta_data_wave[k]]
             # Clean up origin to prevent join conflicts
             if i == 0:
                 origin = my_slice.GetOrigin()
+                direction = my_slice.GetDirection()
             else:
                 my_slice.SetOrigin(origin)
+                my_slice.SetDirection(direction)
             wave_slices.append(my_slice)
         img_wave = sitk.JoinSeries(wave_slices)
 
         raw_slices = []
-        for i, k in enumerate(sorted(list(meta_data_raw.keys()))):
+        for i, k in enumerate(sorted(list(meta_data_raw.keys()), reverse=False)):
             my_slice = img[:, :, meta_data_raw[k]]
             # Clean up origin to prevent join conflicts
             if i == 0:
                 origin = my_slice.GetOrigin()
+                direction = my_slice.GetDirection()
             else:
                 my_slice.SetOrigin(origin)
+                my_slice.SetDirection(direction)
             raw_slices.append(my_slice)
         img_raw = sitk.JoinSeries(raw_slices)
 
