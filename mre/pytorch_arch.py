@@ -21,30 +21,35 @@ def double_conv3d(in_channels, out_channels):
     )
 
 
-def double_conv(in_channels, out_channels, coord_conv=False):
+def double_conv(in_channels, out_channels, coord_conv=False, kernel=3):
     '''Function for defining a standard double conv operation.  Additional option to replace first
     conv2d with CoordConv.'''
 
-    if coord_conv:
-        first_2dconv = CoordConv(in_channels, out_channels, False, kernel_size=3, padding=1)
+    if kernel == 3:
+        padding = 1
     else:
-        first_2dconv = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
+        padding = 0
+    if coord_conv:
+        first_2dconv = CoordConv(in_channels, out_channels, False, kernel_size=kernel,
+                                 padding=padding)
+    else:
+        first_2dconv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel, padding=padding)
 
     return nn.Sequential(
         first_2dconv,
         nn.BatchNorm2d(out_channels),
         nn.ReLU(inplace=True),
-        nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
+        nn.Conv2d(out_channels, out_channels, kernel_size=kernel, padding=padding),
         nn.BatchNorm2d(out_channels),
         nn.ReLU(inplace=True)
     )
 
 
-def down_layer(in_channels, out_channels):
+def down_layer(in_channels, out_channels, kernel=3):
     '''Simple down layer: maxpool then double conv'''
     return nn.Sequential(
         nn.MaxPool2d(2),
-        double_conv(in_channels, out_channels)
+        double_conv(in_channels, out_channels, kernel=kernel)
     )
 
 
@@ -132,9 +137,13 @@ class GeneralUNet2D(nn.Module):
         if channel_growth:
             for i in range(n_layers):
                 # Double number of channels for each down layer
+                if i == 6:
+                    kernel = 1
+                else:
+                    kernel = 3
                 self.down_layers.append(
                     down_layer(out_channels_init*(2**i),
-                               out_channels_init*(2**(i+1)))
+                               out_channels_init*(2**(i+1)), kernel)
                 )
                 # Quarter number of channels for each up layer (due to concats)
                 self.up_layers.append(

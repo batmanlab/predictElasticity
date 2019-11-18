@@ -69,7 +69,7 @@ class MREtoXr:
 
             # Check if any contrast images are specified
             if np.any(['pos' in seq for seq in self.sequences]):
-                out_subdir = 'XR_with_contrast'
+                out_subdir = 'XR_with_contrast_v2'
             else:
                 out_subdir = 'XR'
             self.output_dir = Path(self.data_dir.parents[1], out_subdir)

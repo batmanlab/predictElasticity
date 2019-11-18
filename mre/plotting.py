@@ -613,6 +613,8 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
     hv_ds_mre = hv.Dataset(xr_ds[['image_mre', 'mask_mre']])
     if prediction:
         hv_ds_mre_1 = hv_ds_mre.select(mre_type=['mre', 'mre_mask', 'mre_pred'])
+    else:
+        hv_ds_mre_1 = hv_ds_mre.select(mre_type=['mre', 'mre_mask'])
     hv_ds_mre_2 = hv_ds_mre.select(mre_type=['mre_raw', 'mre_wave'])
     print(hv_ds_mri)
     print(hv_ds_mre)
@@ -629,9 +631,11 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
                                       dynamic=True).opts(tools=[])
 
     slider = pn.widgets.FloatSlider(start=0, end=1, value=0.7, name='mask transparency')
+    cslider = pn.widgets.RangeSlider(start=0, end=1500, value=(0, 1000), name='contrast')
 
-    redim_image_mri = {'image_mri': (0, 800)}
+    redim_image_mri = {'image_mri': (0, 1200)}
     hv_ds_mri_image = hv_ds_mri_image.redim.range(**redim_image_mri).opts(tools=['hover'])
+    hv_ds_mri_image = hv_ds_mri_image.apply.opts(clim=cslider.param.value)
     redim_mask_mri = {'mask_mri': (0.1, 2)}
     hv_ds_mri_mask = hv_ds_mri_mask.opts(cmap='Category10', clipping_colors={'min': 'transparent'},
                                          color_levels=10)
@@ -667,5 +671,6 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
     # layout = (hv_ds_mri_image).grid('sequence')
     # layout = (hv_ds_mre_image).grid('sequence')
 
-    return pn.Column(slider, layout)
+    return pn.Column(slider, layout, cslider)
+    # return hv_ds_mri_image
     # return hv_ds_mre_image
