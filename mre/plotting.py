@@ -598,7 +598,7 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
                        fontsize={'title': 16, 'labels': 16, 'xticks': 12, 'yticks': 12},
                        plot_size=300),
         opts.Layout(fontsize={'title': 16, 'labels': 16, 'xticks': 12, 'yticks': 12}),
-        opts.Image(cmap='viridis', width=size, height=size, xaxis=None,
+        opts.Image(cmap='gray', width=size, height=size, xaxis=None,
                    yaxis=None),
         opts.Labels(text_color='white', text_font_size='20pt', text_align='left',
                     text_baseline='bottom'),
@@ -623,15 +623,17 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
     hv_ds_mri_mask = hv_ds_mri.to(hv.Image, kdims=['x', 'y'], vdims='mask_mri',
                                   dynamic=True).opts(tools=[])
 
-    hv_ds_mre_image_1 = hv_ds_mre_1.to(hv.Image, kdims=['x', 'y'], vdims='image_mre', dynamic=True)
+    hv_ds_mre_image_1 = hv_ds_mre_1.to(hv.Image, kdims=['x', 'y'], vdims='image_mre',
+                                       dynamic=True).opts(cmap='viridis')
     hv_ds_mre_mask_1 = hv_ds_mre_1.to(hv.Image, kdims=['x', 'y'], vdims='mask_mre',
                                       dynamic=True).opts(tools=[])
-    hv_ds_mre_image_2 = hv_ds_mre_2.to(hv.Image, kdims=['x', 'y'], vdims='image_mre', dynamic=True)
+    hv_ds_mre_image_2 = hv_ds_mre_2.to(hv.Image, kdims=['x', 'y'], vdims='image_mre',
+                                       dynamic=True).opts(cmap='viridis')
     hv_ds_mre_mask_2 = hv_ds_mre_2.to(hv.Image, kdims=['x', 'y'], vdims='mask_mre',
                                       dynamic=True).opts(tools=[])
 
     slider = pn.widgets.FloatSlider(start=0, end=1, value=0.7, name='mask transparency')
-    cslider = pn.widgets.RangeSlider(start=0, end=1500, value=(0, 1000), name='contrast')
+    cslider = pn.widgets.RangeSlider(start=0, end=2000, value=(0, 1000), name='contrast')
 
     redim_image_mri = {'image_mri': (0, 1200)}
     hv_ds_mri_image = hv_ds_mri_image.redim.range(**redim_image_mri).opts(tools=['hover'])

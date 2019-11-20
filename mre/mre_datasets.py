@@ -15,6 +15,7 @@ import SimpleITK as sitk
 import skimage as skim
 from skimage import feature, morphology
 from skimage.filters import sobel
+import PIL
 import pdb
 from tqdm import tqdm_notebook
 # import matplotlib.pyplot as plt
@@ -612,9 +613,12 @@ class MRETorchDataset(Dataset):
                 rot_angle = 0
                 translations = (0, 0)
                 scale = 1
-            image = self.input_transform(image, rot_angle, translations, scale)
-            mask = self.affine_transform(mask[0], rot_angle, translations, scale)
-            target = self.affine_transform(target[0], rot_angle, translations, scale)
+            image = self.input_transform(image, rot_angle, translations, scale,
+                                         resample=PIL.Image.BILINEAR)
+            mask = self.affine_transform(mask[0], rot_angle, translations, scale,
+                                         resample=PIL.Image.NEAREST)
+            target = self.affine_transform(target[0], rot_angle, translations, scale,
+                                           resample=PIL.Image.BILINEAR)
 
         image = torch.FloatTensor(image)
         target = torch.FloatTensor(target)
@@ -622,14 +626,15 @@ class MRETorchDataset(Dataset):
 
         return [image, target, mask, self.names[idx]]
 
-    def affine_transform(self, input_slice, rot_angle=0, translations=0, scale=1):
+    def affine_transform(self, input_slice, rot_angle=0, translations=0, scale=1, resample=None):
         input_slice = transforms.ToPILImage()(input_slice)
         input_slice = TF.affine(input_slice, angle=rot_angle,
-                                translate=list(translations), scale=scale, shear=0)
+                                translate=list(translations), scale=scale, shear=0,
+                                resample=resample)
         input_slice = transforms.ToTensor()(input_slice)
         return input_slice
 
-    def input_transform(self, input_image, rot_angle=0, translations=0, scale=1):
+    def input_transform(self, input_image, rot_angle=0, translations=0, scale=1, resample=None):
 
         # normalize and offset image
         image = input_image
@@ -643,5 +648,6 @@ class MRETorchDataset(Dataset):
         # perform affine transfomrations
         img_list = []
         for i in range(image.shape[0]):
-            img_list.append(self.affine_transform(image[i], rot_angle, translations, scale))
+            img_list.append(self.affine_transform(image[i], rot_angle, translations, scale,
+                                                  resample=resample))
         return torch.cat(img_list)

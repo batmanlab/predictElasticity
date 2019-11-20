@@ -77,26 +77,27 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         print('train: ', len(train_set))
         print('val: ', len(val_set))
         print('test: ', len(test_set))
+    num_workers = cfg['num_workers']
     if cfg['train_sample'] == 'shuffle':
         dataloaders['train'] = DataLoader(train_set, batch_size=batch_size, shuffle=True,
-                                          num_workers=2)
+                                          num_workers=num_workers)
     elif cfg['train_sample'] == 'resample':
         dataloaders['train'] = DataLoader(train_set, batch_size=batch_size, shuffle=False,
                                           sampler=RandomSampler(
                                               train_set, replacement=True,
                                               num_samples=cfg['train_num_samples']),
-                                          num_workers=2),
+                                          num_workers=num_workers),
     if cfg['val_sample'] == 'shuffle':
         dataloaders['val'] = DataLoader(val_set, batch_size=batch_size, shuffle=True,
-                                        num_workers=2)
+                                        num_workers=num_workers)
     elif cfg['val_sample'] == 'resample':
         dataloaders['val'] = DataLoader(val_set, batch_size=batch_size, shuffle=False,
                                         sampler=RandomSampler(
                                             val_set, replacement=True,
                                             num_samples=cfg['val_num_samples']),
-                                        num_workers=2),
+                                        num_workers=num_workers),
     dataloaders['test'] = DataLoader(test_set, batch_size=batch_size, shuffle=False,
-                                     num_workers=2)
+                                     num_workers=num_workers)
 
     # Set device for computation
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -127,10 +128,12 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         optimizer = optim.Adam(model.parameters(), lr=cfg['lr'])
 
     # Define optimizer
-    exp_lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=cfg['step_size'],
-                                                 gamma=cfg['gamma'])
+    # exp_lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=cfg['step_size'],
+    #                                              gamma=cfg['gamma'])
+    exp_lr_scheduler = optim.lr_scheduler.CyclicLR(optimizer, base_lr=0.0001, max_lr=0.05,
+                                                   cycle_momentum=False, step_size_up=8)
 
-    if torch.cuda.device_count() > 1:
+    if torch.cuda.device_count() > 1 and not cfg['dry_run']:
         print("Let's use", torch.cuda.device_count(), "GPUs!")
         model = nn.DataParallel(model)
 
@@ -222,7 +225,7 @@ def default_cfg():
            'mask_trimmer': False, 'mask_mixer': 'mixed', 'target_max': None, 'target_bins': 100,
            'model_arch': 'modular', 'n_layers': 7, 'in_channels': 5, 'out_channels_final': 1,
            'channel_growth': False, 'transfer_layer': False, 'seed': 100,
-           'resize': False, 'patient_list': None}
+           'resize': False, 'patient_list': None, 'num_workers': 0}
     return cfg
 
 

@@ -25,10 +25,7 @@ def double_conv(in_channels, out_channels, coord_conv=False, kernel=3):
     '''Function for defining a standard double conv operation.  Additional option to replace first
     conv2d with CoordConv.'''
 
-    if kernel == 3:
-        padding = 1
-    else:
-        padding = 0
+    padding = int((kernel-1)/2)
     if coord_conv:
         first_2dconv = CoordConv(in_channels, out_channels, False, kernel_size=kernel,
                                  padding=padding)
@@ -137,10 +134,14 @@ class GeneralUNet2D(nn.Module):
         if channel_growth:
             for i in range(n_layers):
                 # Double number of channels for each down layer
-                if i == 6:
-                    kernel = 1
-                else:
+                if i == 0:
+                    kernel = 7
+                elif i == 1:
+                    kernel = 5
+                elif 2 <= i <= 5:
                     kernel = 3
+                else:
+                    kernel = 1
                 self.down_layers.append(
                     down_layer(out_channels_init*(2**i),
                                out_channels_init*(2**(i+1)), kernel)

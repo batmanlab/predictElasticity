@@ -223,66 +223,70 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
     best_model_wts = copy.deepcopy(model.state_dict())
     best_loss = 1e16
     for epoch in range(num_epochs):
-        if verbose:
-            print('Epoch {}/{}'.format(epoch, num_epochs - 1))
-            print('-' * 10)
-            since = time.time()
-
-        # Each epoch has a training and validation phase
-        for phase in ['train', 'val']:
-            if phase == 'train':
-                for param_group in optimizer.param_groups:
-                    if verbose:
-                        print("LR", param_group['lr'])
-
-                model.train()  # Set model to training mode
-            else:
-                model.eval()   # Set model to evaluate mode
-            metrics = defaultdict(float)
-            epoch_samples = 0
-
-            # iterate through batches of data for each epoch
-            for data in dataloaders[phase]:
-                inputs = data[0].to(device)
-                labels = data[1].to(device)
-                masks = data[2].to(device)
-                # zero the parameter gradients
-                optimizer.zero_grad()
-                # forward
-                # track history if only in train
-                with torch.set_grad_enabled(phase == 'train'):
-                    outputs = model(inputs)
-                    loss = calc_loss(outputs, labels, masks, metrics, loss_func)
-                    # backward + optimize only if in training phase
-                    if phase == 'train':
-                        loss.backward()
-                        optimizer.step()
-                # accrue total number of samples
-                epoch_samples += inputs.size(0)
-
-            if phase == 'train':
-                scheduler.step()
+        try:
             if verbose:
-                print_metrics(metrics, epoch_samples, phase)
-            epoch_loss = metrics['loss'] / epoch_samples
+                print('Epoch {}/{}'.format(epoch, num_epochs - 1))
+                print('-' * 10)
+                since = time.time()
 
-            # deep copy the model if is it best
-            if phase == 'val' and epoch_loss < best_loss:
+            # Each epoch has a training and validation phase
+            for phase in ['train', 'val']:
+                if phase == 'train':
+                    for param_group in optimizer.param_groups:
+                        if verbose:
+                            print("LR", param_group['lr'])
+
+                    model.train()  # Set model to training mode
+                else:
+                    model.eval()   # Set model to evaluate mode
+                metrics = defaultdict(float)
+                epoch_samples = 0
+
+                # iterate through batches of data for each epoch
+                for data in dataloaders[phase]:
+                    inputs = data[0].to(device)
+                    labels = data[1].to(device)
+                    masks = data[2].to(device)
+                    # zero the parameter gradients
+                    optimizer.zero_grad()
+                    # forward
+                    # track history if only in train
+                    with torch.set_grad_enabled(phase == 'train'):
+                        outputs = model(inputs)
+                        loss = calc_loss(outputs, labels, masks, metrics, loss_func)
+                        # backward + optimize only if in training phase
+                        if phase == 'train':
+                            loss.backward()
+                            optimizer.step()
+                    # accrue total number of samples
+                    epoch_samples += inputs.size(0)
+
+                if phase == 'train':
+                    scheduler.step()
                 if verbose:
-                    print("saving best model")
-                best_loss = epoch_loss
-                best_model_wts = copy.deepcopy(model.state_dict())
+                    print_metrics(metrics, epoch_samples, phase)
+                epoch_loss = metrics['loss'] / epoch_samples
 
-            if tb_writer:
-                tb_writer.add_scalar(f'loss_{phase}', epoch_loss, epoch)
-                if loss_func is not None:
-                    alpha = loss_func.alpha()[0, 0].detach().numpy()
-                    scale = loss_func.scale()[0, 0].detach().numpy()
-                    tb_writer.add_scalar(f'alpha', alpha, epoch)
-                    tb_writer.add_scalar(f'scale', scale, epoch)
-        if verbose:
-            time_elapsed = time.time() - since
-            print('{:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+                # deep copy the model if is it best
+                if phase == 'val' and epoch_loss < best_loss:
+                    if verbose:
+                        print("saving best model")
+                    best_loss = epoch_loss
+                    best_model_wts = copy.deepcopy(model.state_dict())
+
+                if tb_writer:
+                    tb_writer.add_scalar(f'loss_{phase}', epoch_loss, epoch)
+                    if loss_func is not None:
+                        alpha = loss_func.alpha()[0, 0].detach().numpy()
+                        scale = loss_func.scale()[0, 0].detach().numpy()
+                        tb_writer.add_scalar(f'alpha', alpha, epoch)
+                        tb_writer.add_scalar(f'scale', scale, epoch)
+            if verbose:
+                time_elapsed = time.time() - since
+                print('{:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+        except KeyboardInterrupt:
+            print('Breaking out of training early.')
+            break
     if verbose:
         print('Best val loss: {:4f}'.format(best_loss))
 
