@@ -25,18 +25,24 @@ def double_conv(in_channels, out_channels, coord_conv=False, kernel=3):
     '''Function for defining a standard double conv operation.  Additional option to replace first
     conv2d with CoordConv.'''
 
-    padding = int((kernel-1)/2)
+    if kernel >= 3:
+        dilation = 2
+    else:
+        dilation = 1
+    padding1 = int((kernel-1)/2)
+    padding2 = int(((kernel*dilation-1)-1)/2)
     if coord_conv:
         first_2dconv = CoordConv(in_channels, out_channels, False, kernel_size=kernel,
-                                 padding=padding)
+                                 padding=padding1)
     else:
-        first_2dconv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel, padding=padding)
+        first_2dconv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel, padding=padding1)
 
     return nn.Sequential(
         first_2dconv,
         nn.BatchNorm2d(out_channels),
         nn.ReLU(inplace=True),
-        nn.Conv2d(out_channels, out_channels, kernel_size=kernel, padding=padding),
+        nn.Conv2d(out_channels, out_channels, kernel_size=kernel, padding=padding2,
+                  dilation=dilation),
         nn.BatchNorm2d(out_channels),
         nn.ReLU(inplace=True)
     )

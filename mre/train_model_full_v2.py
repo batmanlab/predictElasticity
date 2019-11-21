@@ -130,7 +130,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
     # Define optimizer
     # exp_lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=cfg['step_size'],
     #                                              gamma=cfg['gamma'])
-    exp_lr_scheduler = optim.lr_scheduler.CyclicLR(optimizer, base_lr=0.0001, max_lr=0.05,
+    exp_lr_scheduler = optim.lr_scheduler.CyclicLR(optimizer, base_lr=0.0001, max_lr=0.02,
                                                    cycle_momentum=False, step_size_up=8)
 
     if torch.cuda.device_count() > 1 and not cfg['dry_run']:
