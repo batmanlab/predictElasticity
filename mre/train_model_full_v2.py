@@ -60,14 +60,24 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
     loss_type = cfg['loss']
 
     # Start filling dataloaders
-    dataloaders = {}
-    np.random.seed(cfg['seed'])
-    shuffle_list = np.asarray(ds.subject)
-    train_idx = int(0.7*len(shuffle_list))
-    val_idx = train_idx+int(0.2*len(shuffle_list))
-    train_list = list(shuffle_list[:train_idx])
-    val_list = list(shuffle_list[train_idx:val_idx])
-    test_list = list(shuffle_list[val_idx:])
+    if cfg['subj'] is None:
+        dataloaders = {}
+        np.random.seed(cfg['seed'])
+        shuffle_list = np.asarray(ds.subject)
+        train_idx = int(0.7*len(shuffle_list))
+        val_idx = train_idx+int(0.2*len(shuffle_list))
+        train_list = list(shuffle_list[:train_idx])
+        val_list = list(shuffle_list[train_idx:val_idx])
+        test_list = list(shuffle_list[val_idx:])
+    else:
+        dataloaders = {}
+        test_list = cfg['subj']
+        np.random.seed(cfg['seed'])
+        shuffle_list = np.asarray([subj for subj in ds.subject if subj not in test_list])
+        shuffle_list = np.random.shuffle(shuffle_list)
+        train_idx = int(0.8*len(shuffle_list))
+        train_list = list(shuffle_list[:train_idx])
+        val_list = list(shuffle_list[train_idx:])
 
     train_set = MRETorchDataset(ds.sel(subject=train_list), set_type='train', **cfg)
     val_set = MRETorchDataset(ds.sel(subject=val_list), set_type='val', **cfg)
@@ -128,10 +138,14 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         optimizer = optim.Adam(model.parameters(), lr=cfg['lr'])
 
     # Define optimizer
-    # exp_lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=cfg['step_size'],
-    #                                              gamma=cfg['gamma'])
-    exp_lr_scheduler = optim.lr_scheduler.CyclicLR(optimizer, base_lr=0.0001, max_lr=0.02,
-                                                   cycle_momentum=False, step_size_up=8)
+    if cfg['lr_scheduler'] == 'step':
+        exp_lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=cfg['step_size'],
+                                                     gamma=cfg['gamma'])
+    else:
+        exp_lr_scheduler = optim.lr_scheduler.CyclicLR(optimizer, base_lr=cfg['lr_min'],
+                                                       max_lr=cfg['lr_max'],
+                                                       cycle_momentum=False,
+                                                       step_size_up=cfg['step_size'])
 
     if torch.cuda.device_count() > 1 and not cfg['dry_run']:
         print("Let's use", torch.cuda.device_count(), "GPUs!")
@@ -220,12 +234,13 @@ def default_cfg():
     cfg = {'train_trans': True, 'train_clip': True, 'train_aug': False, 'train_sample': 'shuffle',
            'val_trans': True, 'val_clip': True, 'val_aug': False, 'val_sample': 'shuffle',
            'test_trans': True, 'test_clip': True, 'test_aug': False,
-           'batch_size': 64, 'model_cap': 16, 'lr': 1e-2, 'step_size': 20,
+           'batch_size': 64, 'model_cap': 16, 'subj': None,
            'gamma': 0.1, 'num_epochs': 40, 'dry_run': False, 'coord_conv': False, 'loss': 'l2',
            'mask_trimmer': False, 'mask_mixer': 'mixed', 'target_max': None, 'target_bins': 100,
            'model_arch': 'modular', 'n_layers': 7, 'in_channels': 5, 'out_channels_final': 1,
            'channel_growth': False, 'transfer_layer': False, 'seed': 100,
-           'resize': False, 'patient_list': None, 'num_workers': 0}
+           'resize': False, 'patient_list': None, 'num_workers': 0, 'lr_scheduler': 'step',
+           'lr': 1e-2, 'lr_max': 1e-2, 'lr_min': 1e-4, 'step_size': 20}
     return cfg
 
 

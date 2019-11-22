@@ -596,7 +596,7 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
     opts.defaults(
         opts.GridSpace(shared_xaxis=True, shared_yaxis=True,
                        fontsize={'title': 16, 'labels': 16, 'xticks': 12, 'yticks': 12},
-                       plot_size=300),
+                       plot_size=250),
         opts.Layout(fontsize={'title': 16, 'labels': 16, 'xticks': 12, 'yticks': 12}),
         opts.Image(cmap='gray', width=size, height=size, xaxis=None,
                    yaxis=None),
@@ -634,6 +634,7 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
 
     slider = pn.widgets.FloatSlider(start=0, end=1, value=0.7, name='mask transparency')
     cslider = pn.widgets.RangeSlider(start=0, end=2000, value=(0, 1000), name='contrast')
+    cslider2 = pn.widgets.RangeSlider(start=0, end=12000, value=(0, 10000), name='mre contrast')
 
     redim_image_mri = {'image_mri': (0, 1200)}
     hv_ds_mri_image = hv_ds_mri_image.redim.range(**redim_image_mri).opts(tools=['hover'])
@@ -645,7 +646,8 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
     hv_ds_mri_mask = hv_ds_mri_mask.apply.opts(alpha=slider.param.value)
 
     redim_image_mre_1 = {'image_mre_1': (0, 10000)}
-    hv_ds_mre_image_1 = hv_ds_mre_image_1.redim(image_mre='image_mre_1')
+    # hv_ds_mre_image_1 = hv_ds_mre_image_1.redim(image_mre='image_mre_1')
+    hv_ds_mre_image_1 = hv_ds_mre_image_1.apply.opts(clim=cslider2.param.value)
     hv_ds_mre_image_1 = hv_ds_mre_image_1.redim.range(**redim_image_mre_1).opts(tools=['hover'])
     redim_mask_mre = {'mask_mre': (0.1, 2)}
     hv_ds_mre_mask_1 = hv_ds_mre_mask_1.opts(cmap='Category10',
@@ -673,6 +675,6 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
     # layout = (hv_ds_mri_image).grid('sequence')
     # layout = (hv_ds_mre_image).grid('sequence')
 
-    return pn.Column(slider, layout, cslider)
+    return pn.Column(slider, cslider2, layout, cslider)
     # return hv_ds_mri_image
     # return hv_ds_mre_image
