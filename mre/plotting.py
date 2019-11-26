@@ -596,7 +596,7 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
     opts.defaults(
         opts.GridSpace(shared_xaxis=True, shared_yaxis=True,
                        fontsize={'title': 16, 'labels': 16, 'xticks': 12, 'yticks': 12},
-                       plot_size=250),
+                       plot_size=200),
         opts.Layout(fontsize={'title': 16, 'labels': 16, 'xticks': 12, 'yticks': 12}),
         opts.Image(cmap='gray', width=size, height=size, xaxis=None,
                    yaxis=None),
@@ -668,13 +668,13 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
               (hv_ds_mre_image_2 * hv_ds_mre_mask_2).grid('mre_type')) +
               (hv_ds_mri_image * hv_ds_mri_mask).layout('sequence').cols(3)
               ).cols(2)
-    #           (hv_ds_mri_image * hv_ds_mri_mask).grid('sequence').add_dimension(
-    #               "fake_dim_name",0, "").opts(plot=dict(xaxis=False))
-    #           ).cols(1)
-    # import pdb; pdb.set_trace()
-    # layout = (hv_ds_mri_image).grid('sequence')
-    # layout = (hv_ds_mre_image).grid('sequence')
+    pn_layout = pn.pane.HoloViews(layout)
+    wb = pn_layout.widget_box
+    wb.append(slider)
+    wb.append(cslider)
+    wb.append(cslider2)
 
-    return pn.Column(slider, cslider2, layout, cslider)
+    # return pn.Column(slider, cslider2, layout, cslider)
+    return pn.Column(pn_layout, wb)
     # return hv_ds_mri_image
     # return hv_ds_mre_image
