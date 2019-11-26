@@ -11,7 +11,7 @@ from torch.utils.data.sampler import RandomSampler
 import time
 import copy
 from mre import pytorch_unet_tb
-from mre.plotting import hv_dl_vis
+# from mre.plotting import hv_dl_vis
 from mre.mre_datasets import MRETorchDataset
 from robust_loss_pytorch import adaptive
 import warnings
