@@ -65,16 +65,19 @@ def down_layer3d(in_channels, out_channels):
 
 
 class up_layer(nn.Module):
-    def __init__(self, in_channels, out_channels, channel_growth=True):
+    def __init__(self, in_channels, out_channels, channel_growth=True, kernel_size=2):
         '''Up layers require a class instead of a function in order to define a forward function
         that takes two inputs instead of 1 (for concat)'''
         super().__init__()
+        stride = kernel_size
 
         # Note: may have to revist upsampling options (ConvTranspose2D might have padding issues?)
         if channel_growth:
-            self.upsample = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2)
+            self.upsample = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=kernel_size,
+                                               stride=stride)
         else:
-            self.upsample = nn.ConvTranspose2d(out_channels, out_channels, kernel_size=2, stride=2)
+            self.upsample = nn.ConvTranspose2d(out_channels, out_channels, kernel_size=kernel_size,
+                                               stride=stride)
 
         self.dconv = double_conv(in_channels, out_channels)
 
@@ -140,8 +143,10 @@ class GeneralUNet2D(nn.Module):
         if channel_growth:
             for i in range(n_layers):
                 # Double number of channels for each down layer
+                up_kernel = 2
                 if i == 0:
                     kernel = 7
+                    up_kernel = 1
                 elif i == 1:
                     kernel = 5
                 elif 2 <= i <= 5:
@@ -155,7 +160,7 @@ class GeneralUNet2D(nn.Module):
                 # Quarter number of channels for each up layer (due to concats)
                 self.up_layers.append(
                     up_layer(out_channels_init*(2**(i+1)),
-                             out_channels_init*(2**i))
+                             out_channels_init*(2**i), up_kernel)
                 )
         else:
             for i in range(n_layers):

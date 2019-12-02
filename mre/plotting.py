@@ -675,6 +675,6 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
     wb.append(cslider2)
 
     # return pn.Column(slider, cslider2, layout, cslider)
-    return pn.Column(pn_layout, wb)
+    return pn.Column(wb, pn_layout)
     # return hv_ds_mri_image
     # return hv_ds_mre_image

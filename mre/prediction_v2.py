@@ -372,7 +372,7 @@ def add_predictions(ds, model, model_params):
     and load them into that dataset.'''
     model.eval()
     eval_set = MRETorchDataset(ds, set_type='eval')
-    dataloader = DataLoader(eval_set, batch_size=32, shuffle=False, num_workers=2)
+    dataloader = DataLoader(eval_set, batch_size=16, shuffle=False, num_workers=2)
     for inputs, targets, masks, names in dataloader:
         prediction = model(inputs).data.cpu().numpy()
         for i, name in enumerate(names):

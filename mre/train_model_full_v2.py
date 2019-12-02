@@ -15,13 +15,14 @@ from torchsummary import summary
 from tensorboardX import SummaryWriter
 
 from mre.mre_datasets import MREtoXr, MRETorchDataset
-from mre.prediction_v2 import train_model
+from mre.prediction_v2 import train_model, add_predictions
 from mre import pytorch_unet_tb
 from mre import pytorch_arch
 from robust_loss_pytorch import adaptive
 
 
 def train_model_full(data_path: str, data_file: str, output_path: str, model_version: str = 'tmp',
+                     subj_group: str = 'notebook',
                      verbose: str = True, **kwargs) -> None:
     '''Function to start training MRE model given a user-defined set of parameters.
 
@@ -172,9 +173,12 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         # Tensorboardx writer, model, config paths
         writer_dir = Path(output_path, 'tb_runs')
         config_dir = Path(output_path, 'config')
-        model_dir = Path(output_path, 'trained_models')
+        xr_dir = Path(output_path, 'XR', model_version)
+        model_dir = Path(output_path, 'trained_models', subj_group)
+
         writer_dir.mkdir(parents=True, exist_ok=True)
         config_dir.mkdir(parents=True, exist_ok=True)
+        xr_dir.mkdir(parents=True, exist_ok=True)
         model_dir.mkdir(parents=True, exist_ok=True)
         writer = SummaryWriter(str(writer_dir)+f'/{model_version}')
         # Model graph is useless without additional tweaks to name layers appropriately
@@ -210,6 +214,11 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
 
         writer.close()
         torch.save(model.state_dict(), str(model_dir)+f'/model_{model_version}.pkl')
+
+        ds = ds.sel(subject=test_list)
+        add_predictions(ds, model, None)
+        ds.to_netcdf(Path(xr_dir, f'xarray_{subj_group}.nc'))
+
         return inputs, targets, masks, names, model
 
 
@@ -257,6 +266,8 @@ if __name__ == "__main__":
     parser.add_argument('--model_version', type=str, help='Name given to this set of configs'
                         'and corresponding model results.',
                         default='tmp')
+    parser.add_argument('--subj_group', type=str, help='Name of the held-out subject group.',
+                        default='notebook')
     parser.add_argument('--verbose', type=bool, help='Verbose printouts.',
                         default=True)
     cfg = default_cfg()

@@ -46,13 +46,14 @@ class SlurmMaster:
         script = open(script_name, 'w')
         script.write('#!/bin/bash\n')
         if self.gpu:
-            arg_string += f' --subj {subj} --model_version={date}_n{number}'
-            # script.write('#SBATCH -A ac5616p\n')
-            # script.write('#SBATCH --partition=GPU-AI\n')
-            # script.write('#SBATCH --gres=gpu:volta16:4\n')
-            script.write('#SBATCH -A bi561ip\n')
-            script.write('#SBATCH --partition=DBMI-GPU\n')
-            script.write('#SBATCH --gres=gpu:p100:2\n')
+            arg_string += f' --subj {subj} --subj_group={subj_name}'
+            arg_string += f' --model_version={date}_n{number}'
+            script.write('#SBATCH -A ac5616p\n')
+            script.write('#SBATCH --partition=GPU-AI\n')
+            script.write('#SBATCH --gres=gpu:volta16:4\n')
+            # script.write('#SBATCH -A bi561ip\n')
+            # script.write('#SBATCH --partition=DBMI-GPU\n')
+            # script.write('#SBATCH --gres=gpu:p100:2\n')
             script.write('#SBATCH --nodes=1\n')
             script.write('#SBATCH -C EGRESS\n')
         else:
