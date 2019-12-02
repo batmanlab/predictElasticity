@@ -37,6 +37,7 @@ class SlurmMaster:
 
         if type(subj) is list:
             subj_name = f'GROUP{subj_num}'
+            subj = ' '.join(subj)
         else:
             subj_name = subj
 
@@ -45,12 +46,15 @@ class SlurmMaster:
         script = open(script_name, 'w')
         script.write('#!/bin/bash\n')
         if self.gpu:
-            arg_string += f' --subj={subj} --model_version={date}_n{number}'
-            script.write('#SBATCH -A ac5616p\n')
-            script.write('#SBATCH --partition=GPU-AI\n')
+            arg_string += f' --subj {subj} --model_version={date}_n{number}'
+            # script.write('#SBATCH -A ac5616p\n')
+            # script.write('#SBATCH --partition=GPU-AI\n')
+            # script.write('#SBATCH --gres=gpu:volta16:4\n')
+            script.write('#SBATCH -A bi561ip\n')
+            script.write('#SBATCH --partition=DBMI-GPU\n')
+            script.write('#SBATCH --gres=gpu:p100:2\n')
             script.write('#SBATCH --nodes=1\n')
             script.write('#SBATCH -C EGRESS\n')
-            script.write('#SBATCH --gres=gpu:volta16:4\n')
         else:
             arg_string += f' --subj={subj}'
             script.write('#SBATCH -A bi561ip\n')
@@ -73,6 +77,7 @@ class SlurmMaster:
                      f'mre/{module} {arg_string}\n')
 
         script.close()
+        print(arg_string)
         return script_name
 
     def parse_config(self):

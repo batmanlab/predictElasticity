@@ -64,6 +64,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         dataloaders = {}
         np.random.seed(cfg['seed'])
         shuffle_list = np.asarray(ds.subject)
+        np.random.shuffle(shuffle_list)
         train_idx = int(0.7*len(shuffle_list))
         val_idx = train_idx+int(0.2*len(shuffle_list))
         train_list = list(shuffle_list[:train_idx])
@@ -73,8 +74,9 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         dataloaders = {}
         test_list = cfg['subj']
         np.random.seed(cfg['seed'])
-        shuffle_list = np.asarray([subj for subj in ds.subject if subj not in test_list])
-        shuffle_list = np.random.shuffle(shuffle_list)
+        shuffle_list = [subj for subj in ds.subject.values if subj not in test_list]
+        shuffle_list = np.asarray(shuffle_list)
+        np.random.shuffle(shuffle_list)
         train_idx = int(0.8*len(shuffle_list))
         train_list = list(shuffle_list[:train_idx])
         val_list = list(shuffle_list[train_idx:])
@@ -239,7 +241,7 @@ def default_cfg():
            'mask_trimmer': False, 'mask_mixer': 'mixed', 'target_max': None, 'target_bins': 100,
            'model_arch': 'modular', 'n_layers': 7, 'in_channels': 5, 'out_channels_final': 1,
            'channel_growth': False, 'transfer_layer': False, 'seed': 100,
-           'resize': False, 'patient_list': None, 'num_workers': 0, 'lr_scheduler': 'step',
+           'resize': False, 'patient_list': False, 'num_workers': 0, 'lr_scheduler': 'step',
            'lr': 1e-2, 'lr_max': 1e-2, 'lr_min': 1e-4, 'step_size': 20}
     return cfg
 
@@ -249,7 +251,7 @@ if __name__ == "__main__":
     parser.add_argument('--data_path', type=str, help='Path to input data.',
                         default='/pghbio/dbmi/batmanlab/Data/MRE/')
     parser.add_argument('--data_file', type=str, help='Name of input pickle.',
-                        default='mre_ds_preprocess_4_combomask.p')
+                        default='*.nc')
     parser.add_argument('--output_path', type=str, help='Path to store outputs.',
                         default='/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data')
     parser.add_argument('--model_version', type=str, help='Name given to this set of configs'
@@ -260,7 +262,10 @@ if __name__ == "__main__":
     cfg = default_cfg()
     for key in cfg:
         val = str2bool(cfg[key])
-        if type(val) is bool:
+        if key == 'subj':
+            parser.add_argument(f'--{key}', nargs='*',
+                                default=val)
+        elif type(val) is bool:
             parser.add_argument(f'--{key}', action='store', type=str2bool,
                                 default=val)
         else:
