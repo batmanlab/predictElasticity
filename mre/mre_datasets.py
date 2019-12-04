@@ -536,6 +536,7 @@ class MRETorchDataset(Dataset):
         self.set_type = set_type
 
         # Assign kwargs
+        self.dims = kwargs.get('dims', 2)
         self.seed = kwargs.get('seed', 100)
         self.inputs = kwargs.get('inputs', ['t1_pre_water', 't1_pre_in', 't1_pre_out', 't1_pre_fat',
                                             't2', 't1_pos_0_water', 't1_pos_70_water',
@@ -553,45 +554,35 @@ class MRETorchDataset(Dataset):
 
         np.random.seed(self.seed)
         if self.set_type != 'eval':
-            # shuffle_list = np.asarray(self.xa_ds.subject)
-            # np.random.shuffle(shuffle_list)
-            # total_subj = self.xa_ds.subject.size
-            # train_idx = int(0.7*total_subj)
-            # val_idx = train_idx+int(0.2*total_subj)
-
-            # if self.set_type == 'train':
-            #     input_set = list(shuffle_list[:train_idx])
-            # elif self.set_type == 'val':
-            #     input_set = list(shuffle_list[train_idx:val_idx])
-            # elif self.set_type == 'test':
-            #     input_set = list(shuffle_list[val_idx:])
-            # else:
-            #     raise AttributeError('Must choose one of
-            # ["train", "val", "test"] for `set_type`.')
-
-            # # pick correct input set
             print(self.xa_ds.subject)
-            # self.xa_ds = self.xa_ds.sel(subject=input_set)
 
-        # stack subject and z-slices to make 4 2D image groups for each 3D image group
-        self.xa_ds = self.xa_ds.stack(subject_2d=('subject', 'z')).reset_index('subject_2d')
-        subj_2d_coords = [f'{i.subject.values}_{i.z.values}' for i in self.xa_ds.subject_2d]
-        self.xa_ds = self.xa_ds.assign_coords(subject_2d=subj_2d_coords)
+        if self.dims == 2:
+            # stack subject and z-slices to make 4 2D image groups for each 3D image group
+            self.xa_ds = self.xa_ds.stack(subject_2d=('subject', 'z')).reset_index('subject_2d')
+            subj_2d_coords = [f'{i.subject.values}_{i.z.values}' for i in self.xa_ds.subject_2d]
+            self.xa_ds = self.xa_ds.assign_coords(subject_2d=subj_2d_coords)
 
-        self.name_dict = dict(zip(range(len(self.xa_ds.subject_2d)), self.xa_ds.subject_2d.values))
+            self.name_dict = dict(zip(range(len(self.xa_ds.subject_2d)),
+                                      self.xa_ds.subject_2d.values))
 
-        self.input_images = self.xa_ds.sel(sequence=self.inputs).image_mri.transpose(
-            'subject_2d', 'sequence', 'y', 'x').values
-        self.target_images = self.xa_ds.sel(mre_type=[self.target]).image_mre.transpose(
-            'subject_2d', 'mre_type', 'y', 'x').values
-        self.mask_images = self.xa_ds.sel(mask_type=[self.mask]).mask_mre.transpose(
-            'subject_2d', 'mask_type', 'y', 'x').values
+            self.input_images = self.xa_ds.sel(sequence=self.inputs).image_mri.transpose(
+                'subject_2d', 'sequence', 'y', 'x').values
+            self.target_images = self.xa_ds.sel(mre_type=[self.target]).image_mre.transpose(
+                'subject_2d', 'mre_type', 'y', 'x').values
+            self.mask_images = self.xa_ds.sel(mask_type=[self.mask]).mask_mre.transpose(
+                'subject_2d', 'mask_type', 'y', 'x').values
 
-        self.names = self.xa_ds.subject_2d.values
+            self.names = self.xa_ds.subject_2d.values
 
-        # self.target_images = ((self.target_images -
-        #                        np.mean(self.target_images))/np.std(self.target_images))
-        # self.target_images = np.float32(self.target_images)
+        elif self.dims == 3:
+            self.input_images = self.xa_ds.sel(sequence=self.inputs).image_mri.transpose(
+                'subject', 'sequence', 'z', 'y', 'x').values
+            self.target_images = self.xa_ds.sel(mre_type=[self.target]).image_mre.transpose(
+                'subject', 'mre_type', 'z', 'y', 'x').values
+            self.mask_images = self.xa_ds.sel(mask_type=[self.mask]).mask_mre.transpose(
+                'subject', 'mask_type', 'z', 'y', 'x').values
+
+            self.names = self.xa_ds.subject.values
 
     def __len__(self):
         return len(self.input_images)
@@ -604,6 +595,12 @@ class MRETorchDataset(Dataset):
             image  = np.where(image >= 2000, 2000, image)
             target = np.float32(np.digitize(target, list(range(0, 20000, 200))+[1e6]))
 
+        if self.dims == 2:
+            image, target, mask = self.get_data_aug_2d(image, target, mask)
+
+        return [image, target, mask, self.names[idx]]
+
+    def get_data_aug_2d(self, image, target, mask):
         if self.transform:
             if self.aug:
                 rot_angle = np.random.uniform(-4, 4, 1)
@@ -624,7 +621,7 @@ class MRETorchDataset(Dataset):
         target = torch.FloatTensor(target)
         mask = torch.FloatTensor(mask)
 
-        return [image, target, mask, self.names[idx]]
+        return image, target, mask
 
     def affine_transform(self, input_slice, rot_angle=0, translations=0, scale=1, resample=None):
         input_slice = transforms.ToPILImage()(input_slice)

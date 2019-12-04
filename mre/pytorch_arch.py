@@ -35,14 +35,14 @@ def double_conv(in_channels, out_channels, coord_conv=False, kernel=3):
         first_2dconv = CoordConv(in_channels, out_channels, False, kernel_size=kernel,
                                  padding=padding1)
     else:
-        first_2dconv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel, padding=padding1)
+        first_2dconv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel, padding=padding2,
+                                 dilation=dilation)
 
     return nn.Sequential(
         first_2dconv,
         nn.BatchNorm2d(out_channels),
         nn.ReLU(inplace=True),
-        nn.Conv2d(out_channels, out_channels, kernel_size=kernel, padding=padding2,
-                  dilation=dilation),
+        nn.Conv2d(out_channels, out_channels, kernel_size=kernel, padding=padding1),
         nn.BatchNorm2d(out_channels),
         nn.ReLU(inplace=True)
     )
@@ -149,6 +149,7 @@ class GeneralUNet2D(nn.Module):
                     up_kernel = 1
                 elif i == 1:
                     kernel = 5
+                    # up_kernel = 1
                 elif 2 <= i <= 5:
                     kernel = 3
                 else:

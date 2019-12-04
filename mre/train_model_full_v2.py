@@ -78,7 +78,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         shuffle_list = [subj for subj in ds.subject.values if subj not in test_list]
         shuffle_list = np.asarray(shuffle_list)
         np.random.shuffle(shuffle_list)
-        train_idx = int(0.8*len(shuffle_list))
+        train_idx = int(0.75*len(shuffle_list))
         train_list = list(shuffle_list[:train_idx])
         val_list = list(shuffle_list[train_idx:])
 
@@ -127,8 +127,10 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         model = pytorch_arch.GeneralUNet2D(cfg['n_layers'], cfg['in_channels'], cfg['model_cap'],
                                            cfg['out_channels_final'], cfg['channel_growth'],
                                            cfg['coord_conv'], cfg['transfer_layer']).to(device)
-        # model = pytorch_arch.GeneralUNet(4, 32, 8, 1, True, cfg['coord_conv'],
-        #                                  transfer_layer=True).to(device)
+    elif cfg['model_arch'] == '3D':
+        model = pytorch_arch.GeneralUNet3D(cfg['n_layers'], cfg['in_channels'], cfg['model_cap'],
+                                           cfg['out_channels_final'], cfg['channel_growth'],
+                                           cfg['coord_conv'], cfg['transfer_layer']).to(device)
 
     # Set up adaptive loss if selected
     loss = None
@@ -180,7 +182,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         config_dir.mkdir(parents=True, exist_ok=True)
         xr_dir.mkdir(parents=True, exist_ok=True)
         model_dir.mkdir(parents=True, exist_ok=True)
-        writer = SummaryWriter(str(writer_dir)+f'/{model_version}')
+        writer = SummaryWriter(str(writer_dir)+f'/{model_version}_{subj_group}')
         # Model graph is useless without additional tweaks to name layers appropriately
         # writer.add_graph(model, torch.zeros(1, 3, 256, 256).to(device), verbose=True)
 
@@ -208,7 +210,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         cfg['true_ave_stiff'] = np.nanmean(masked_target)
         cfg['test_ave_stiff'] = np.nanmean(masked_pred)
 
-        config_file = Path(config_dir, f'{model_version}.pkl')
+        config_file = Path(config_dir, f'{model_version}_{subj_group}.pkl')
         with open(config_file, 'wb') as f:
             pkl.dump(cfg, f, pkl.HIGHEST_PROTOCOL)
 

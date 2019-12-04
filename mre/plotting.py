@@ -596,7 +596,7 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
     opts.defaults(
         opts.GridSpace(shared_xaxis=True, shared_yaxis=True,
                        fontsize={'title': 16, 'labels': 16, 'xticks': 12, 'yticks': 12},
-                       plot_size=200),
+                       plot_size=size),
         opts.Layout(fontsize={'title': 16, 'labels': 16, 'xticks': 12, 'yticks': 12}),
         opts.Image(cmap='gray', width=size, height=size, xaxis=None,
                    yaxis=None),
