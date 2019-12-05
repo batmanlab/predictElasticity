@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import os
 from pathlib import Path
 import warnings
 import argparse
@@ -41,6 +42,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
     Returns:
         None
     '''
+    print(os.getcwd())
     # Load config and data
     cfg = process_kwargs(kwargs)
     if verbose:

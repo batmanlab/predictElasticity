@@ -597,6 +597,8 @@ class MRETorchDataset(Dataset):
 
         if self.dims == 2:
             image, target, mask = self.get_data_aug_2d(image, target, mask)
+        elif self.dims == 2:
+            image, target, mask = self.get_data_aug_3d(image, target, mask)
 
         return [image, target, mask, self.names[idx]]
 
@@ -610,8 +612,47 @@ class MRETorchDataset(Dataset):
                 rot_angle = 0
                 translations = (0, 0)
                 scale = 1
-            image = self.input_transform(image, rot_angle, translations, scale,
-                                         resample=PIL.Image.BILINEAR)
+
+            image = self.input_norm(image)
+            img_list = []
+            # Iterate over channels
+            for i in range(image.shape[0]):
+                img_list.append(self.affine_transform(image[i], rot_angle, translations, scale,
+                                                      resample=PIL.Image.BILINEAR))
+            image = torch.cat(img_list)
+
+            mask = self.affine_transform(mask[0], rot_angle, translations, scale,
+                                         resample=PIL.Image.NEAREST)
+            target = self.affine_transform(target[0], rot_angle, translations, scale,
+                                           resample=PIL.Image.BILINEAR)
+
+        image = torch.FloatTensor(image)
+        target = torch.FloatTensor(target)
+        mask = torch.FloatTensor(mask)
+
+        return image, target, mask
+
+    def get_data_aug_3d(self, image, target, mask):
+        if self.transform:
+            if self.aug:
+                rot_angle = np.random.uniform(-4, 4, 1)
+                translations = np.random.uniform(-5, 5, 2)
+                scale = np.random.uniform(0.95, 1.05, 1)
+            else:
+                rot_angle = 0
+                translations = (0, 0)
+                scale = 1
+
+            image = self.input_norm(self, image)
+            img_list = []
+            # Iterate over channels
+            for i in range(image.shape[0]):
+                # Iterate over z-slices
+                for j in range(image.shape[1]):
+                    img_list.append(self.affine_transform(image[i], rot_angle, translations, scale,
+                                                          resample=PIL.Image.BILINEAR))
+            image = torch.cat(img_list)
+
             mask = self.affine_transform(mask[0], rot_angle, translations, scale,
                                          resample=PIL.Image.NEAREST)
             target = self.affine_transform(target[0], rot_angle, translations, scale,
@@ -631,9 +672,9 @@ class MRETorchDataset(Dataset):
         input_slice = transforms.ToTensor()(input_slice)
         return input_slice
 
-    def input_transform(self, input_image, rot_angle=0, translations=0, scale=1, resample=None):
+    def input_norm(self, input_image, rot_angle=0, translations=0, scale=1, resample=None):
 
-        # normalize and offset image
+        # normalize image
         image = input_image
         image = np.where(input_image <= 1e-9, np.nan, input_image)
         mean = np.nanmean(image, axis=(1, 2))
@@ -641,10 +682,4 @@ class MRETorchDataset(Dataset):
         image = ((image.T - mean)/std).T
         image = np.where(image != image, 0, image)
         image = image.astype(np.float32)
-
-        # perform affine transfomrations
-        img_list = []
-        for i in range(image.shape[0]):
-            img_list.append(self.affine_transform(image[i], rot_angle, translations, scale,
-                                                  resample=resample))
-        return torch.cat(img_list)
+        return image

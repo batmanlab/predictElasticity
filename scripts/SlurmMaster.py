@@ -5,6 +5,7 @@
 
 import sys
 import os
+import shutil
 from pathlib import Path
 import argparse
 import configparser
@@ -22,6 +23,16 @@ class SlurmMaster:
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self.config = Path(config)
         self.parse_config()
+        print('wiping and recreating staging dir')
+        shutil.rmtree('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging')
+        os.mkdir('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging')
+        shutil.copytree('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/mre',
+                        '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/mre')
+        shutil.copytree('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/mre.egg-info',
+                        '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/mre.egg-info')
+        shutil.copy('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/__init__.py',
+                    '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/__init__.py')
+        os.chdir('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging')
 
     def generate_slurm_script(self, number, conf, subj, subj_num, date, project):
         '''Make a slurm submission script.'''
@@ -48,6 +59,7 @@ class SlurmMaster:
         if self.gpu:
             arg_string += f' --subj {subj} --subj_group={subj_name}'
             arg_string += f' --model_version={date}_n{number}'
+            script.write('#SBATCH -D /pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging')
             script.write('#SBATCH -A ac5616p\n')
             script.write('#SBATCH --partition=GPU-AI\n')
             script.write('#SBATCH --gres=gpu:volta16:2\n')
