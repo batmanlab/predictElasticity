@@ -26,7 +26,7 @@ from torch.utils.data import Dataset
 from torchvision import transforms
 import torchvision.transforms.functional as TF
 
-from mre.registration_v2 import RegPatient, Register
+from mre.registration import RegPatient, Register
 from mre.pytorch_arch import GeneralUNet3D
 
 
@@ -658,7 +658,7 @@ class MRETorchDataset(Dataset):
                 img_list.append(self.affine_transform_3d(i, rot_angle_xy, rot_angle_xz,
                                                          rot_angle_yz, translations_xy, scale,
                                                          order=3))
-            image = torch.cat(img_list)
+            image = torch.stack(img_list)
 
             mask = self.affine_transform_3d(mask[0], rot_angle_xy, rot_angle_xz, rot_angle_yz,
                                             translations_xy, scale, order=0)
@@ -667,7 +667,9 @@ class MRETorchDataset(Dataset):
 
         image = torch.FloatTensor(image)
         target = torch.FloatTensor(target)
+        target = target.unsqueeze(0)
         mask = torch.FloatTensor(mask)
+        mask = mask.unsqueeze(0)
 
         return image, target, mask
 
@@ -681,10 +683,13 @@ class MRETorchDataset(Dataset):
 
     def affine_transform_3d(self, image, rot_angle_xy=None, rot_angle_xz=None, rot_angle_yz=None,
                             translations_xy=None, scale=None, order=None):
-        image = ndi.ndimage.interpolation.rotate(image, rot_angle_xy, axes=(1, 2))
-        image = ndi.ndimage.interpolation.rotate(image, rot_angle_xz, axes=(0, 2))
-        image = ndi.ndimage.interpolation.rotate(image, rot_angle_yz, axes=(0, 1))
-        image = ndi.zoom()
+        image = ndi.ndimage.interpolation.rotate(image, rot_angle_xy, axes=(1, 2), order=order)
+        image = ndi.ndimage.interpolation.rotate(image, rot_angle_xz, axes=(0, 2), order=order)
+        image = ndi.ndimage.interpolation.rotate(image, rot_angle_yz, axes=(0, 1), order=order)
+        image = ndi.ndimage.interpolation.shift(image, shift=[0, translations_xy[1],
+                                                              translations_xy[0]], order=order)
+        image = ndi.ndimage.interpolation.zoom(image, zoom=scale, order=order)
+        return image
 
     def input_norm(self, input_image, rot_angle=0, translations=0, scale=1, resample=None):
 
