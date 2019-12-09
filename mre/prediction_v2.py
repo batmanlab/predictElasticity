@@ -379,4 +379,4 @@ def add_predictions(ds, model, model_params):
             subj, z = name.split('_')
             z = int(z)
             ds['image_mre'].loc[{'subject': subj, 'z': z,
-                                 'mre_type': 'mre_pred'}] = prediction[i, 0].T**2
+                                 'mre_type': 'mre_pred'}] = prediction[i, 0].T*1000

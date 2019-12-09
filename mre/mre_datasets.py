@@ -594,12 +594,13 @@ class MRETorchDataset(Dataset):
         if self.clip:
             image  = np.where(image >= 2000, 2000, image)
             # target = np.float32(np.digitize(target, list(range(0, 20000, 200))+[1e6]))
-            with np.errstate(divide='ignore', invalid='ignore'):
-                target = np.float32(np.where(target > 0, np.sqrt(target), 0))
+            # with np.errstate(divide='ignore', invalid='ignore'):
+            #     target = np.float32(np.where(target > 0, np.sqrt(target), 0))
+            target = np.float32(target/1000.0)
 
         if self.dims == 2:
             image, target, mask = self.get_data_aug_2d(image, target, mask)
-        elif self.dims == 2:
+        elif self.dims == 3:
             image, target, mask = self.get_data_aug_3d(image, target, mask)
 
         return [image, target, mask, self.names[idx]]
@@ -622,11 +623,14 @@ class MRETorchDataset(Dataset):
                 img_list.append(self.affine_transform(image[i], rot_angle, translations, scale,
                                                       resample=PIL.Image.BILINEAR))
             image = torch.cat(img_list)
+            print(image.shape)
 
             mask = self.affine_transform(mask[0], rot_angle, translations, scale,
                                          resample=PIL.Image.NEAREST)
+            print(mask.shape)
             target = self.affine_transform(target[0], rot_angle, translations, scale,
                                            resample=PIL.Image.BILINEAR)
+            print(target.shape)
 
         image = torch.FloatTensor(image)
         target = torch.FloatTensor(target)
@@ -637,28 +641,29 @@ class MRETorchDataset(Dataset):
     def get_data_aug_3d(self, image, target, mask):
         if self.transform:
             if self.aug:
-                rot_angle = np.random.uniform(-4, 4, 1)
-                translations = np.random.uniform(-5, 5, 2)
+                rot_angle_xy = np.random.uniform(-4, 4, 1)
+                translations_xy = np.random.uniform(-5, 5, 2)
+
+                rot_angle_xz = np.random.uniform(-1, 1, 1)
+                rot_angle_yz = np.random.uniform(-1, 1, 1)
+
                 scale = np.random.uniform(0.95, 1.05, 1)
             else:
-                rot_angle = 0
-                translations = (0, 0)
-                scale = 1
+                raise NotImplementedError('you must transform 3d images')
 
             image = self.input_norm(self, image)
             img_list = []
             # Iterate over channels
             for i in range(image.shape[0]):
-                # Iterate over z-slices
-                for j in range(image.shape[1]):
-                    img_list.append(self.affine_transform(image[i], rot_angle, translations, scale,
-                                                          resample=PIL.Image.BILINEAR))
+                img_list.append(self.affine_transform_3d(i, rot_angle_xy, rot_angle_xz,
+                                                         rot_angle_yz, translations_xy, scale,
+                                                         order=3))
             image = torch.cat(img_list)
 
-            mask = self.affine_transform(mask[0], rot_angle, translations, scale,
-                                         resample=PIL.Image.NEAREST)
-            target = self.affine_transform(target[0], rot_angle, translations, scale,
-                                           resample=PIL.Image.BILINEAR)
+            mask = self.affine_transform_3d(mask[0], rot_angle_xy, rot_angle_xz, rot_angle_yz,
+                                            translations_xy, scale, order=0)
+            target = self.affine_transform_3d(target[0], rot_angle_xy, rot_angle_xz, rot_angle_yz,
+                                              translations_xy, scale, order=3)
 
         image = torch.FloatTensor(image)
         target = torch.FloatTensor(target)
@@ -673,6 +678,13 @@ class MRETorchDataset(Dataset):
                                 resample=resample)
         input_slice = transforms.ToTensor()(input_slice)
         return input_slice
+
+    def affine_transform_3d(self, image, rot_angle_xy=None, rot_angle_xz=None, rot_angle_yz=None,
+                            translations_xy=None, scale=None, order=None):
+        image = ndi.ndimage.interpolation.rotate(image, rot_angle_xy, axes=(1, 2))
+        image = ndi.ndimage.interpolation.rotate(image, rot_angle_xz, axes=(0, 2))
+        image = ndi.ndimage.interpolation.rotate(image, rot_angle_yz, axes=(0, 1))
+        image = ndi.zoom()
 
     def input_norm(self, input_image, rot_angle=0, translations=0, scale=1, resample=None):
 
