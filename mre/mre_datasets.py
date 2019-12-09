@@ -702,3 +702,65 @@ class MRETorchDataset(Dataset):
         image = np.where(image != image, 0, image)
         image = image.astype(np.float32)
         return image
+
+
+class TorchToXr:
+    '''Make an xr dataset for mre torch inputs directly from the output of a dataloader.  This is
+    specifically for feeding into the xr_viewer_v2 for debugging purposes.  This views the input
+    images, masks, and targets right before feeding them into an ML model.
+    '''
+    def __init__(self, images, masks, targets, names, **kwargs):
+
+        # Required params
+        if images.shape[0] != masks.shape[0] != targets.shape[0] != len(names):
+            print(f'images: {images.shape}')
+            print(f'masks: {masks.shape}')
+            print(f'targets: {targets.shape}')
+            print(f'names: {len(names)}')
+            raise ValueError('Number of subjects not equal.')
+        if (images.shape[2:] != masks.shape[2:] != targets.shape[2:]):
+            print(f'images: {images.shape}')
+            print(f'masks: {masks.shape}')
+            print(f'targets: {targets.shape}')
+            raise ValueError('Image shapes not equal.')
+        self.nx = images.shape[4]
+        self.ny = images.shape[3]
+        self.nz = images.shape[2]
+        self.nseq = images.shape[1]
+        self.nsub = len(names)
+
+        # Assign kwargs
+        self.sequences = kwargs.get('sequences', ['t1_pre_water', 't1_pre_in', 't1_pre_out',
+                                                  't1_pre_fat', 't2', 't1_pos_0_water',
+                                                  't1_pos_70_water', 't1_pos_160_water',
+                                                  't1_pos_300_water'])
+        self.init_new_ds()
+        for name in self.names:
+            self.ds['image_mri'].loc[{'subject': name}] =
+            self.ds[
+
+
+    def init_new_ds(self):
+        '''Initialize a new xarray dataset based on the size and shape of our inputs.'''
+
+        self.ds = xr.Dataset(
+            {'image_mri': (['subject', 'sequence', 'z', 'y', 'x'],
+                           np.zeros((self.nsub, self.nseq, self.nz, self.ny,
+                                     self.nx), dtype=np.float32)),
+             'image_mre': (['subject', 'mre_type', 'z', 'y', 'x'],
+                           np.zeros((self.nsub, 1, self.nz, self.ny,
+                                     self.nx), dtype=np.float32)),
+             'mask_mre': (['subject', 'mask_type', 'z', 'y', 'x'],
+                          np.zeros((self.nsub, 1, self.nz, self.ny,
+                                    self.nx), dtype=np.float32)),
+             },
+
+            coords={'subject': self.names,
+                    'sequence': self.sequences,
+                    'mask_type': ['combo'],
+                    'mre_type': ['mre'],
+                    'x': range(self.nx),
+                    'y': range(self.ny)[::-1],
+                    'z': range(self.nz),
+                    }
+        )
