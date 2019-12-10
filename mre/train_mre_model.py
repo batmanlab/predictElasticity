@@ -221,7 +221,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         torch.save(model.state_dict(), str(model_dir)+f'/model_{model_version}.pkl')
 
         ds = ds.sel(subject=test_list)
-        add_predictions(ds, model, None)
+        add_predictions(ds, model, None, dims=cfg['dims'])
         ds.to_netcdf(Path(xr_dir, f'xarray_{subj_group}.nc'))
 
         return inputs, targets, masks, names, model

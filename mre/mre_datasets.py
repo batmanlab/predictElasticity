@@ -594,9 +594,9 @@ class MRETorchDataset(Dataset):
         if self.clip:
             image  = np.where(image >= 2000, 2000, image)
             # target = np.float32(np.digitize(target, list(range(0, 20000, 200))+[1e6]))
-            # with np.errstate(divide='ignore', invalid='ignore'):
-            #     target = np.float32(np.where(target > 0, np.sqrt(target), 0))
-            target = np.float32(target/1000.0)
+            with np.errstate(divide='ignore', invalid='ignore'):
+                target = np.float32(np.where(target > 0, np.sqrt(target), 0))
+            # target = np.float32(target/1000.0)
 
         if self.dims == 2:
             image, target, mask = self.get_data_aug_2d(image, target, mask)
@@ -644,8 +644,8 @@ class MRETorchDataset(Dataset):
                 rot_angle_xy = np.random.uniform(-4, 4, 1)[0]
                 translations_xy = np.random.uniform(-5, 5, 2)
 
-                rot_angle_xz = np.random.uniform(-1, 1, 1)[0]
-                rot_angle_yz = np.random.uniform(-1, 1, 1)[0]
+                # rot_angle_xz = np.random.uniform(-1, 1, 1)[0]
+                # rot_angle_yz = np.random.uniform(-1, 1, 1)[0]
 
                 scale = np.random.uniform(0.95, 1.05, 1)[0]
             else:
@@ -653,8 +653,8 @@ class MRETorchDataset(Dataset):
                 rot_angle_xy = 0
                 translations_xy = (0, 0)
 
-                rot_angle_xz = 0
-                rot_angle_yz = 0
+                # rot_angle_xz = 0
+                # rot_angle_yz = 0
 
                 scale = 1
 
@@ -662,15 +662,26 @@ class MRETorchDataset(Dataset):
             img_list = []
             # Iterate over channels
             for i in range(image.shape[0]):
-                img_list.append(self.affine_transform_3d(image[i], rot_angle_xy, rot_angle_xz,
-                                                         rot_angle_yz, translations_xy, scale,
-                                                         order=3))
-            image = np.stack(img_list)
+                slice_list = []
+                # Iterate over z-slice
+                for j in range(image.shape[1]):
+                    slice_list.append(self.affine_transform(image[i][j], rot_angle_xy,
+                                                            translations_xy, scale,
+                                                            resample=PIL.Image.BILINEAR))
+                img_list.append(torch.cat(slice_list))
+            image = torch.stack(img_list)
 
-            mask = self.affine_transform_3d(mask[0], rot_angle_xy, rot_angle_xz, rot_angle_yz,
-                                            translations_xy, scale, order=0)
-            target = self.affine_transform_3d(target[0], rot_angle_xy, rot_angle_xz, rot_angle_yz,
-                                              translations_xy, scale, order=3)
+            # Iterate over z-slice
+            mask_list = []
+            target_list = []
+            for j in range(mask.shape[1]):
+                mask_list.append(self.affine_transform(mask[0][j], rot_angle_xy, translations_xy,
+                                                       scale, resample=PIL.Image.NEAREST))
+                target_list.append(self.affine_transform(target[0][j], rot_angle_xy,
+                                                         translations_xy, scale,
+                                                         resample=PIL.Image.BILINEAR))
+            mask = torch.cat(mask_list)
+            target = torch.cat(target_list)
 
         image = torch.FloatTensor(image)
         target = torch.FloatTensor(target)

@@ -140,16 +140,21 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
     return model, best_loss
 
 
-def add_predictions(ds, model, model_params):
+def add_predictions(ds, model, model_params, dims=2):
     '''Given a standard MRE dataset, a model, and the associated params, generate MRE predictions
     and load them into that dataset.'''
     model.eval()
-    eval_set = MRETorchDataset(ds, set_type='eval')
+    eval_set = MRETorchDataset(ds, set_type='eval', dims=dims)
     dataloader = DataLoader(eval_set, batch_size=16, shuffle=False, num_workers=2)
     for inputs, targets, masks, names in dataloader:
         prediction = model(inputs).data.cpu().numpy()
-        for i, name in enumerate(names):
-            subj, z = name.split('_')
-            z = int(z)
-            ds['image_mre'].loc[{'subject': subj, 'z': z,
-                                 'mre_type': 'mre_pred'}] = prediction[i, 0].T*1000
+        if dims == 2:
+            for i, name in enumerate(names):
+                subj, z = name.split('_')
+                z = int(z)
+                ds['image_mre'].loc[{'subject': subj, 'z': z,
+                                     'mre_type': 'mre_pred'}] = prediction[i, 0].T**2
+        elif dims == 3:
+            for i, name in enumerate(names):
+                ds['image_mre'].loc[{'subject': name,
+                                     'mre_type': 'mre_pred'}] = prediction[i, 0].T**2
