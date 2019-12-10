@@ -641,24 +641,31 @@ class MRETorchDataset(Dataset):
     def get_data_aug_3d(self, image, target, mask):
         if self.transform:
             if self.aug:
-                rot_angle_xy = np.random.uniform(-4, 4, 1)
+                rot_angle_xy = np.random.uniform(-4, 4, 1)[0]
                 translations_xy = np.random.uniform(-5, 5, 2)
 
-                rot_angle_xz = np.random.uniform(-1, 1, 1)
-                rot_angle_yz = np.random.uniform(-1, 1, 1)
+                rot_angle_xz = np.random.uniform(-1, 1, 1)[0]
+                rot_angle_yz = np.random.uniform(-1, 1, 1)[0]
 
-                scale = np.random.uniform(0.95, 1.05, 1)
+                scale = np.random.uniform(0.95, 1.05, 1)[0]
             else:
-                raise NotImplementedError('you must transform 3d images')
+                # raise NotImplementedError('you must transform 3d images')
+                rot_angle_xy = 0
+                translations_xy = (0, 0)
 
-            image = self.input_norm(self, image)
+                rot_angle_xz = 0
+                rot_angle_yz = 0
+
+                scale = 1
+
+            image = self.input_norm(image)
             img_list = []
             # Iterate over channels
             for i in range(image.shape[0]):
-                img_list.append(self.affine_transform_3d(i, rot_angle_xy, rot_angle_xz,
+                img_list.append(self.affine_transform_3d(image[i], rot_angle_xy, rot_angle_xz,
                                                          rot_angle_yz, translations_xy, scale,
                                                          order=3))
-            image = torch.stack(img_list)
+            image = np.stack(img_list)
 
             mask = self.affine_transform_3d(mask[0], rot_angle_xy, rot_angle_xz, rot_angle_yz,
                                             translations_xy, scale, order=0)
@@ -683,24 +690,36 @@ class MRETorchDataset(Dataset):
 
     def affine_transform_3d(self, image, rot_angle_xy=None, rot_angle_xz=None, rot_angle_yz=None,
                             translations_xy=None, scale=None, order=None):
-        image = ndi.ndimage.interpolation.rotate(image, rot_angle_xy, axes=(1, 2), order=order)
-        image = ndi.ndimage.interpolation.rotate(image, rot_angle_xz, axes=(0, 2), order=order)
-        image = ndi.ndimage.interpolation.rotate(image, rot_angle_yz, axes=(0, 1), order=order)
-        image = ndi.ndimage.interpolation.shift(image, shift=[0, translations_xy[1],
-                                                              translations_xy[0]], order=order)
-        image = ndi.ndimage.interpolation.zoom(image, zoom=scale, order=order)
+        image = ndi.interpolation.rotate(image, rot_angle_xy, axes=(1, 2), order=order,
+                                         reshape=False)
+        # image = ndi.interpolation.rotate(image, rot_angle_xz, axes=(0, 2), order=order,
+        #                                  reshape=False)
+        # image = ndi.interpolation.rotate(image, rot_angle_yz, axes=(0, 1), order=order,
+        #                                  reshape=False)
+        image = ndi.interpolation.shift(image, shift=[0, translations_xy[1], translations_xy[0]],
+                                        order=order)
+        # image = ndi.interpolation.zoom(image, zoom=scale, order=order)
         return image
 
     def input_norm(self, input_image, rot_angle=0, translations=0, scale=1, resample=None):
 
         # normalize image
-        image = input_image
-        image = np.where(input_image <= 1e-9, np.nan, input_image)
-        mean = np.nanmean(image, axis=(1, 2))
-        std = np.nanstd(image, axis=(1, 2))
-        image = ((image.T - mean)/std).T
-        image = np.where(image != image, 0, image)
-        image = image.astype(np.float32)
+        if self.dims == 2:
+            image = input_image
+            image = np.where(input_image <= 1e-9, np.nan, input_image)
+            mean = np.nanmean(image, axis=(1, 2))
+            std = np.nanstd(image, axis=(1, 2))
+            image = ((image.T - mean)/std).T
+            image = np.where(image != image, 0, image)
+            image = image.astype(np.float32)
+        elif self.dims == 3:
+            image = input_image
+            image = np.where(input_image <= 1e-9, np.nan, input_image)
+            mean = np.nanmean(image, axis=(1, 2, 3))
+            std = np.nanstd(image, axis=(1, 2, 3))
+            image = ((image.T - mean)/std).T
+            image = np.where(image != image, 0, image)
+            image = image.astype(np.float32)
         return image
 
 
@@ -710,6 +729,9 @@ class TorchToXr:
     images, masks, and targets right before feeding them into an ML model.
     '''
     def __init__(self, images, masks, targets, names, **kwargs):
+        images = images.numpy()
+        masks = masks.numpy()
+        targets = targets.numpy()
 
         # Required params
         if images.shape[0] != masks.shape[0] != targets.shape[0] != len(names):
@@ -728,6 +750,7 @@ class TorchToXr:
         self.nz = images.shape[2]
         self.nseq = images.shape[1]
         self.nsub = len(names)
+        self.names = list(names)
 
         # Assign kwargs
         self.sequences = kwargs.get('sequences', ['t1_pre_water', 't1_pre_in', 't1_pre_out',
@@ -735,10 +758,10 @@ class TorchToXr:
                                                   't1_pos_70_water', 't1_pos_160_water',
                                                   't1_pos_300_water'])
         self.init_new_ds()
-        for name in self.names:
-            self.ds['image_mri'].loc[{'subject': name}] =
-            self.ds[
-
+        self.ds['image_mri'] = (('subject', 'sequence', 'z', 'y', 'x'), images)
+        self.ds['image_mre'] = (('subject', 'mre_type', 'z', 'y', 'x'), targets)
+        self.ds['mask_mri'] = (('subject', 'mask_type', 'z', 'y', 'x'), masks)
+        self.ds['mask_mre'] = (('subject', 'mask_type', 'z', 'y', 'x'), masks)
 
     def init_new_ds(self):
         '''Initialize a new xarray dataset based on the size and shape of our inputs.'''
@@ -751,6 +774,9 @@ class TorchToXr:
                            np.zeros((self.nsub, 1, self.nz, self.ny,
                                      self.nx), dtype=np.float32)),
              'mask_mre': (['subject', 'mask_type', 'z', 'y', 'x'],
+                          np.zeros((self.nsub, 1, self.nz, self.ny,
+                                    self.nx), dtype=np.float32)),
+             'mask_mri': (['subject', 'mask_type', 'z', 'y', 'x'],
                           np.zeros((self.nsub, 1, self.nz, self.ny,
                                     self.nx), dtype=np.float32)),
              },

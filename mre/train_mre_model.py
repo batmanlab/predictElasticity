@@ -124,13 +124,16 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
     elif cfg['model_arch'] == 'transfer':
         model = pytorch_arch.PretrainedModel('name').to(device)
     elif cfg['model_arch'] == 'modular':
-        model = pytorch_arch.GeneralUNet2D(cfg['n_layers'], cfg['in_channels'], cfg['model_cap'],
-                                           cfg['out_channels_final'], cfg['channel_growth'],
-                                           cfg['coord_conv'], cfg['transfer_layer']).to(device)
-    elif cfg['model_arch'] == '3D':
-        model = pytorch_arch.GeneralUNet3D(cfg['n_layers'], cfg['in_channels'], cfg['model_cap'],
-                                           cfg['out_channels_final'], cfg['channel_growth'],
-                                           cfg['coord_conv'], cfg['transfer_layer']).to(device)
+        if cfg['dims'] == 2:
+            model = pytorch_arch.GeneralUNet2D(cfg['n_layers'], cfg['in_channels'],
+                                               cfg['model_cap'], cfg['out_channels_final'],
+                                               cfg['channel_growth'], cfg['coord_conv'],
+                                               cfg['transfer_layer']).to(device)
+        elif cfg['dims'] == 3:
+            model = pytorch_arch.GeneralUNet3D(cfg['n_layers'], cfg['in_channels'],
+                                               cfg['model_cap'], cfg['out_channels_final'],
+                                               cfg['channel_growth'], cfg['coord_conv'],
+                                               cfg['transfer_layer']).to(device)
 
     # Set up adaptive loss if selected
     loss = None
