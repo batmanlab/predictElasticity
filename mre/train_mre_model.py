@@ -142,7 +142,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         loss = adaptive.AdaptiveLossFunction(n_dims, np.float32, alpha_init=1.9, scale_lo=0.5)
         loss_params = torch.nn.ParameterList(loss.parameters())
         optimizer = optim.Adam(chain(model.parameters(), loss_params), lr=cfg['lr'])
-    else:
+    elif loss_type == 'l2':
         optimizer = optim.Adam(model.parameters(), lr=cfg['lr'])
 
     # Define optimizer
@@ -256,7 +256,7 @@ def default_cfg():
            'model_arch': 'modular', 'n_layers': 7, 'in_channels': 5, 'out_channels_final': 1,
            'channel_growth': False, 'transfer_layer': False, 'seed': 100,
            'resize': False, 'patient_list': False, 'num_workers': 0, 'lr_scheduler': 'step',
-           'lr': 1e-2, 'lr_max': 1e-2, 'lr_min': 1e-4, 'step_size': 20}
+           'lr': 1e-2, 'lr_max': 1e-2, 'lr_min': 1e-4, 'step_size': 20, 'dims': 2}
     return cfg
 
 

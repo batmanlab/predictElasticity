@@ -37,7 +37,7 @@ class SlurmMaster:
     def generate_slurm_script(self, number, conf, subj, subj_num, date, project):
         '''Make a slurm submission script.'''
         if project == 'MRE':
-            module = 'train_model_full_v2.py'
+            module = 'train_mre_model.py'
             self.gpu = True
         elif project == 'CHAOS':
             module = 'train_seg_model.py'
@@ -59,7 +59,7 @@ class SlurmMaster:
         if self.gpu:
             arg_string += f' --subj {subj} --subj_group={subj_name}'
             arg_string += f' --model_version={date}_n{number}'
-            script.write('#SBATCH -D /pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging')
+            # script.write('#SBATCH -D /pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging')
             script.write('#SBATCH -A ac5616p\n')
             script.write('#SBATCH --partition=GPU-AI\n')
             script.write('#SBATCH --gres=gpu:volta16:2\n')

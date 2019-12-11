@@ -6,16 +6,17 @@ from tensorboardX import SummaryWriter
 from mre.CoordConv import CoordConv
 
 
-def double_conv3d(in_channels, out_channels):
+def double_conv3d(in_channels, out_channels, kernel_size=(3, 5, 5)):
     '''Function for defining a standard double conv operation.'''
 
+    padding = tuple([int((k-1)/2) for k in kernel_size])
     return nn.Sequential(
-        nn.Conv3d(in_channels, out_channels, kernel_size=5,
-                  padding=(2, 2, 2)),
+        nn.Conv3d(in_channels, out_channels, kernel_size=kernel_size,
+                  padding=padding),
         nn.BatchNorm3d(out_channels),
         nn.ReLU(inplace=True),
-        nn.Conv3d(out_channels, out_channels, kernel_size=5,
-                  padding=(2, 2, 2)),
+        nn.Conv3d(out_channels, out_channels, kernel_size=kernel_size,
+                  padding=padding),
         nn.BatchNorm3d(out_channels),
         nn.ReLU(inplace=True)
     )
@@ -56,10 +57,10 @@ def down_layer(in_channels, out_channels, kernel=3):
     )
 
 
-def down_layer3d(in_channels, out_channels):
+def down_layer3d(in_channels, out_channels, kernel_size=(3, 5, 5)):
     '''Simple down layer: maxpool then double conv'''
     return nn.Sequential(
-        nn.MaxPool3d(2, padding=(0, 0, 0)),
+        nn.MaxPool3d((1, 2, 2), padding=(0, 0, 0)),
         double_conv3d(in_channels, out_channels)
     )
 
@@ -89,16 +90,19 @@ class up_layer(nn.Module):
 
 
 class up_layer3d(nn.Module):
-    def __init__(self, in_channels, out_channels, channel_growth=True):
+    def __init__(self, in_channels, out_channels, channel_growth=True, kernel_size=(1, 2, 2)):
         '''Up layers require a class instead of a function in order to define a forward function
         that takes two inputs instead of 1 (for concat)'''
         super().__init__()
 
         # Note: may have to revist upsampling options (ConvTranspose3D might have padding issues?)
+        stride = kernel_size
         if channel_growth:
-            self.upsample = nn.ConvTranspose3d(in_channels, out_channels, kernel_size=2, stride=2,)
+            self.upsample = nn.ConvTranspose3d(in_channels, out_channels, kernel_size=kernel_size,
+                                               stride=stride)
         else:
-            self.upsample = nn.ConvTranspose3d(out_channels, out_channels, kernel_size=2, stride=2)
+            self.upsample = nn.ConvTranspose3d(out_channels, out_channels, kernel_size=kernel_size,
+                                               stride=stride)
 
         self.dconv = double_conv3d(in_channels, out_channels)
 
@@ -226,21 +230,27 @@ class GeneralUNet3D(nn.Module):
 
         self.down_layers = nn.ModuleList()
         self.up_layers = nn.ModuleList()
-        self.in_layer = double_conv3d(in_channels, out_channels_init)
+        self.in_layer = double_conv3d(in_channels, out_channels_init, kernel_size=(1, 1, 1))
         self.out_layer = nn.Conv3d(out_channels_init, out_channels_final, 1)
         self.maxpool = nn.MaxPool3d(2)
 
         if channel_growth:
             for i in range(n_layers):
+                down_kernel = (3, 5, 5)
+                up_kernel = (1, 2, 2)
+                # if i == 0:
+                # up_kernel = (1, 1, 1)
+                if 2 <= i <= 5:
+                    down_kernel = (3, 3, 3)
                 # Double number of channels for each down layer
                 self.down_layers.append(
                     down_layer3d(out_channels_init*(2**i),
-                                 out_channels_init*(2**(i+1)))
+                                 out_channels_init*(2**(i+1)), kernel_size=down_kernel)
                 )
                 # Quarter number of channels for each up layer (due to concats)
                 self.up_layers.append(
                     up_layer3d(out_channels_init*(2**(i+1)),
-                               out_channels_init*(2**i))
+                               out_channels_init*(2**i), kernel_size=up_kernel)
                 )
         else:
             for i in range(n_layers):
