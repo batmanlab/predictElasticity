@@ -598,7 +598,7 @@ class MRETorchDataset(Dataset):
             with np.errstate(divide='ignore', invalid='ignore'):
                 target = np.float32(np.where(target > 0, np.sqrt(target), 0))
             for i in range(4):
-                target[0][i] = gaussian_filter(target[0][i], sigma=2)
+                target[0][i] = gaussian_filter(target[0][i], sigma=5)
             # target = np.float32(target/1000.0)
 
         if self.dims == 2:
@@ -611,9 +611,9 @@ class MRETorchDataset(Dataset):
     def get_data_aug_2d(self, image, target, mask):
         if self.transform:
             if self.aug:
-                rot_angle = np.random.uniform(-4, 4, 1)
-                translations = np.random.uniform(-5, 5, 2)
-                scale = np.random.uniform(0.95, 1.05, 1)
+                rot_angle = np.random.uniform(-8, 8, 1)
+                translations = np.random.uniform(-10, 10, 2)
+                scale = np.random.uniform(0.90, 1.10, 1)
             else:
                 rot_angle = 0
                 translations = (0, 0)
@@ -644,13 +644,13 @@ class MRETorchDataset(Dataset):
     def get_data_aug_3d(self, image, target, mask):
         if self.transform:
             if self.aug:
-                rot_angle_xy = np.random.uniform(-4, 4, 1)[0]
-                translations_xy = np.random.uniform(-5, 5, 2)
+                rot_angle_xy = np.random.uniform(-8, 8, 1)[0]
+                translations_xy = np.random.uniform(-10, 10, 2)
 
                 # rot_angle_xz = np.random.uniform(-1, 1, 1)[0]
                 # rot_angle_yz = np.random.uniform(-1, 1, 1)[0]
 
-                scale = np.random.uniform(0.95, 1.05, 1)[0]
+                scale = np.random.uniform(0.90, 1.10, 1)[0]
             else:
                 # raise NotImplementedError('you must transform 3d images')
                 rot_angle_xy = 0
