@@ -523,7 +523,7 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
     slider = pn.widgets.FloatSlider(start=0, end=1, value=0.7, name='mask transparency')
     if torch:
         cslider = pn.widgets.RangeSlider(start=-2, end=2, value=(-2, 2), name='contrast')
-        cslider2 = pn.widgets.RangeSlider(start=0, end=10, value=(0, 10), name='mre contrast')
+        cslider2 = pn.widgets.RangeSlider(start=0, end=200, value=(0, 100), name='mre contrast')
     else:
         cslider = pn.widgets.RangeSlider(start=0, end=2000, value=(0, 1000), name='contrast')
         cslider2 = pn.widgets.RangeSlider(start=0, end=12000, value=(0, 10000), name='mre contrast')

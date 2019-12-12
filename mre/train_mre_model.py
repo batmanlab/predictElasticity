@@ -20,6 +20,8 @@ from mre.prediction import train_model, add_predictions
 from mre import pytorch_arch
 from robust_loss_pytorch import adaptive
 
+import sls
+
 
 def train_model_full(data_path: str, data_file: str, output_path: str, model_version: str = 'tmp',
                      subj_group: str = 'notebook',
@@ -60,6 +62,9 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         print(ds)
     batch_size = cfg['batch_size']
     loss_type = cfg['loss']
+    use_sls = False
+    if cfg['lr_scheduler'] == 'sls':
+        use_sls = True
 
     # Start filling dataloaders
     if cfg['subj'] is None:
@@ -142,18 +147,23 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         loss = adaptive.AdaptiveLossFunction(n_dims, np.float32, alpha_init=1.9, scale_lo=0.5)
         loss_params = torch.nn.ParameterList(loss.parameters())
         optimizer = optim.Adam(chain(model.parameters(), loss_params), lr=cfg['lr'])
-    elif loss_type == 'l2':
+    elif loss_type == 'l2' and cfg['lr_scheduler'] == 'step':
         optimizer = optim.Adam(model.parameters(), lr=cfg['lr'])
+    elif use_sls:
+        optimizer = sls.Sls(model.parameters(),
+                            n_batches_per_epoch=len(train_set)/float(cfg["batch_size"]))
 
     # Define optimizer
     if cfg['lr_scheduler'] == 'step':
         exp_lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=cfg['step_size'],
                                                      gamma=cfg['gamma'])
-    else:
+    elif cfg['lr_scheduler'] == 'cyclic':
         exp_lr_scheduler = optim.lr_scheduler.CyclicLR(optimizer, base_lr=cfg['lr_min'],
                                                        max_lr=cfg['lr_max'],
                                                        cycle_momentum=False,
                                                        step_size_up=cfg['step_size'])
+    elif use_sls:
+        exp_lr_scheduler = None
 
     if torch.cuda.device_count() > 1 and not cfg['dry_run']:
         print("Let's use", torch.cuda.device_count(), "GPUs!")
@@ -192,7 +202,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         # Train Model
         model, best_loss = train_model(model, optimizer, exp_lr_scheduler, device, dataloaders,
                                        num_epochs=cfg['num_epochs'], tb_writer=writer,
-                                       verbose=verbose, loss_func=loss)
+                                       verbose=verbose, loss_func=loss, sls=use_sls)
 
         # Write outputs and save model
         cfg['best_loss'] = best_loss

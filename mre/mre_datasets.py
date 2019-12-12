@@ -25,6 +25,7 @@ import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
 import torchvision.transforms.functional as TF
+from scipy.ndimage import gaussian_filter
 
 from mre.registration import RegPatient, Register
 from mre.pytorch_arch import GeneralUNet3D
@@ -596,6 +597,8 @@ class MRETorchDataset(Dataset):
             # target = np.float32(np.digitize(target, list(range(0, 20000, 200))+[1e6]))
             with np.errstate(divide='ignore', invalid='ignore'):
                 target = np.float32(np.where(target > 0, np.sqrt(target), 0))
+            for i in range(4):
+                target[0][i] = gaussian_filter(target[0][i], sigma=2)
             # target = np.float32(target/1000.0)
 
         if self.dims == 2:

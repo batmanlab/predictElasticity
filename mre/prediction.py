@@ -87,7 +87,7 @@ def print_metrics(metrics, epoch_samples, phase):
 
 
 def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25, tb_writer=None,
-                verbose=True, loss_func=None):
+                verbose=True, loss_func=None, sls=False):
     best_model_wts = copy.deepcopy(model.state_dict())
     best_loss = 1e16
     for epoch in range(num_epochs):
@@ -102,7 +102,10 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                 if phase == 'train':
                     for param_group in optimizer.param_groups:
                         if verbose:
-                            print("LR", param_group['lr'])
+                            if sls:
+                                print('sls auto LR')
+                            else:
+                                print("LR", param_group['lr'])
 
                     model.train()  # Set model to training mode
                 else:
@@ -121,16 +124,26 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                     # track history if only in train
                     with torch.set_grad_enabled(phase == 'train'):
                         outputs = model(inputs)
-                        loss = calc_loss(outputs, labels, masks, metrics, loss_func)
                         # backward + optimize only if in training phase
                         if phase == 'train':
-                            loss.backward()
-                            optimizer.step()
+                            if not sls:
+                                loss = calc_loss(outputs, labels, masks, metrics, loss_func)
+                                loss.backward()
+                                optimizer.step()
+                            else:
+                                def closure():
+                                    return calc_loss(outputs, labels, masks, metrics, loss_func)
+                                optimizer.step(closure)
+                        else:
+                            loss = calc_loss(outputs, labels, masks, metrics, loss_func)
                     # accrue total number of samples
                     epoch_samples += inputs.size(0)
 
                 if phase == 'train':
-                    scheduler.step()
+                    if sls:
+                        pass
+                    else:
+                        scheduler.step()
                 if verbose:
                     print_metrics(metrics, epoch_samples, phase)
                 epoch_loss = metrics['loss'] / epoch_samples
