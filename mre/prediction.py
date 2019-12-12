@@ -40,19 +40,42 @@ def masked_mse(pred, target, mask):
     return masked_mse
 
 
+def masked_mse_subj(pred, target, mask):
+    pred = pred.contiguous()
+    target = target.contiguous()
+    mask = mask.contiguous()
+    mask_pred = pred*mask
+    mask_target = target*mask
+    subj_mse = ((mask_pred.mean([1, 2, 3, 4])-mask_target.mean([1, 2, 3, 4]))**2).mean()
+
+    # print(pred.shape)
+    # print('ceil sum:', mask.ceil().sum())
+    # print('sum:', mask.sum())
+
+    return subj_mse
+
+
 def calc_loss(pred, target, mask, metrics, loss_func=None):
 
     if loss_func is None:
-        loss = masked_mse(pred, target, mask)
+        pixel_loss = masked_mse(pred, target, mask)*0.001
+        subj_loss = masked_mse_subj(pred, target, mask)
+        loss = pixel_loss + subj_loss
+        # print('pixel_loss', pixel_loss)
+        # print('subj_loss', subj_loss)
+        # print('loss', loss)
     else:
-        resid = masked_resid(pred, target, mask)
-        loss = torch.sum(loss_func.lossfun(resid))/mask.ceil().sum()
+        pass
+        # resid = masked_resid(pred, target, mask)
+        # loss = torch.sum(loss_func.lossfun(resid))/mask.ceil().sum()
 
     # metrics['bce'] += bce.data.cpu().numpy() * target.size(0)
     # metrics['dice'] += dice.data.cpu().numpy() * target.size(0)
+    metrics['pixel_loss'] += pixel_loss.data.cpu().numpy() * target.size(0)
+    metrics['subj_loss'] += subj_loss.data.cpu().numpy() * target.size(0)
     metrics['loss'] += loss.data.cpu().numpy() * target.size(0)
 
-    return loss
+    return pixel_loss + subj_loss
 
 
 def print_metrics(metrics, epoch_samples, phase):
@@ -121,6 +144,10 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
 
                 if tb_writer:
                     tb_writer.add_scalar(f'loss_{phase}', epoch_loss, epoch)
+                    tb_writer.add_scalar(f'pixel_loss_{phase}',
+                                         metrics['pixel_loss']/epoch_samples, epoch)
+                    tb_writer.add_scalar(f'subj_loss_{phase}',
+                                         metrics['subj_loss']/epoch_samples, epoch)
                     if loss_func is not None:
                         alpha = loss_func.alpha()[0, 0].detach().numpy()
                         scale = loss_func.scale()[0, 0].detach().numpy()
