@@ -46,12 +46,16 @@ def masked_mse_subj(pred, target, mask):
     mask = mask.contiguous()
     mask_pred = pred*mask
     mask_target = target*mask
-    subj_mse = ((mask_pred.mean([1, 2, 3, 4])-mask_target.mean([1, 2, 3, 4]))**2).mean()
+    if len(pred.shape) == 5:
+        mask_norm = mask.sum([1, 2, 3, 4])
+        mask_pred_mean = mask_pred.sum([1, 2, 3, 4])/mask_norm
+        mask_target_mean = mask_target.sum([1, 2, 3, 4])/mask_norm
+    else:
+        mask_norm = mask.sum([1, 2, 3])
+        mask_pred_mean = mask_pred.sum([1, 2, 3])/mask_norm
+        mask_target_mean = mask_target.sum([1, 2, 3])/mask_norm
 
-    # print(pred.shape)
-    # print('ceil sum:', mask.ceil().sum())
-    # print('sum:', mask.sum())
-
+    subj_mse = ((mask_pred_mean - mask_target_mean)**2).mean()
     return subj_mse
 
 
@@ -61,18 +65,28 @@ def masked_mse_slice(pred, target, mask):
     mask = mask.contiguous()
     mask_pred = pred*mask
     mask_target = target*mask
-    slice_mse = ((mask_pred.mean([2, 3, 4])-mask_target.mean([2, 3, 4]))**2).mean()
+    if len(pred.shape) == 5:
+        mask_norm = mask.sum([1, 3, 4])
+        mask_pred_mean = mask_pred.sum([1, 3, 4])/mask_norm
+        mask_target_mean = mask_target.sum([1, 3, 4])/mask_norm
+    else:
+        mask_norm = mask.sum([1, 3])
+        mask_pred_mean = mask_pred.sum([1, 3])/mask_norm
+        mask_target_mean = mask_target.sum([1, 3])/mask_norm
 
+    slice_mse = ((mask_pred_mean - mask_target_mean)**2).mean()
     return slice_mse
 
 
-def calc_loss(pred, target, mask, metrics, loss_func=None):
+def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.0):
 
     if loss_func is None:
-        pixel_loss = masked_mse(pred, target, mask)*0.01
-        slice_loss = masked_mse_slice(pred, target, mask)*0.1
+        pixel_loss = masked_mse(pred, target, mask)
+        # slice_loss = masked_mse_slice(pred, target, mask)
         subj_loss = masked_mse_subj(pred, target, mask)
-        loss = pixel_loss + subj_loss + slice_loss
+        # loss = pixel_loss + subj_loss + slice_loss
+        loss = pixel_weight*pixel_loss + (1-pixel_weight)*subj_loss
+        # loss = pixel_loss + subj_loss
         # print('pixel_loss', pixel_loss)
         # print('subj_loss', subj_loss)
         # print('loss', loss)
@@ -85,10 +99,10 @@ def calc_loss(pred, target, mask, metrics, loss_func=None):
     # metrics['dice'] += dice.data.cpu().numpy() * target.size(0)
     metrics['pixel_loss'] += pixel_loss.data.cpu().numpy() * target.size(0)
     metrics['subj_loss'] += subj_loss.data.cpu().numpy() * target.size(0)
-    metrics['slice_loss'] += slice_loss.data.cpu().numpy() * target.size(0)
+    # metrics['slice_loss'] += slice_loss.data.cpu().numpy() * target.size(0)
     metrics['loss'] += loss.data.cpu().numpy() * target.size(0)
 
-    return pixel_loss + subj_loss
+    return loss
 
 
 def print_metrics(metrics, epoch_samples, phase):
@@ -174,8 +188,8 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                                          metrics['pixel_loss']/epoch_samples, epoch)
                     tb_writer.add_scalar(f'subj_loss_{phase}',
                                          metrics['subj_loss']/epoch_samples, epoch)
-                    tb_writer.add_scalar(f'slice_loss_{phase}',
-                                         metrics['slice_loss']/epoch_samples, epoch)
+                    # tb_writer.add_scalar(f'slice_loss_{phase}',
+                    #                      metrics['slice_loss']/epoch_samples, epoch)
                     if loss_func is not None:
                         alpha = loss_func.alpha()[0, 0].detach().numpy()
                         scale = loss_func.scale()[0, 0].detach().numpy()
@@ -208,8 +222,8 @@ def add_predictions(ds, model, model_params, dims=2):
                 subj, z = name.split('_')
                 z = int(z)
                 ds['image_mre'].loc[{'subject': subj, 'z': z,
-                                     'mre_type': 'mre_pred'}] = prediction[i, 0].T**2
+                                     'mre_type': 'mre_pred'}] = (100*prediction[i, 0].T)**2
         elif dims == 3:
             for i, name in enumerate(names):
                 ds['image_mre'].loc[{'subject': name,
-                                     'mre_type': 'mre_pred'}] = prediction[i, 0].T**2
+                                     'mre_type': 'mre_pred'}] = (100*prediction[i, 0].T)**2

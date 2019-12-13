@@ -596,9 +596,9 @@ class MRETorchDataset(Dataset):
             image  = np.where(image >= 2000, 2000, image)
             # target = np.float32(np.digitize(target, list(range(0, 20000, 200))+[1e6]))
             with np.errstate(divide='ignore', invalid='ignore'):
-                target = np.float32(np.where(target > 0, np.sqrt(target), 0))
-            for i in range(4):
-                target[0][i] = gaussian_filter(target[0][i], sigma=5)
+                target = np.float32(np.where(target > 0, np.sqrt(target)/100, 0))
+            # for i in range(4):
+            #     target[0][i] = gaussian_filter(target[0][i], sigma=5)
             # target = np.float32(target/1000.0)
 
         if self.dims == 2:
@@ -626,14 +626,11 @@ class MRETorchDataset(Dataset):
                 img_list.append(self.affine_transform(image[i], rot_angle, translations, scale,
                                                       resample=PIL.Image.BILINEAR))
             image = torch.cat(img_list)
-            print(image.shape)
 
             mask = self.affine_transform(mask[0], rot_angle, translations, scale,
                                          resample=PIL.Image.NEAREST)
-            print(mask.shape)
             target = self.affine_transform(target[0], rot_angle, translations, scale,
                                            resample=PIL.Image.BILINEAR)
-            print(target.shape)
 
         image = torch.FloatTensor(image)
         target = torch.FloatTensor(target)
@@ -746,6 +743,12 @@ class TorchToXr:
         images = images.numpy()
         masks = masks.numpy()
         targets = targets.numpy()
+        if len(images.shape) == 5:
+            self.dims = 3
+        elif len(images.shape) == 4:
+            self.dims = 2
+        else:
+            raise ValueError(f"images are wrong shape: {images.shape}")
 
         # Required params
         if images.shape[0] != masks.shape[0] != targets.shape[0] != len(names):
@@ -759,9 +762,13 @@ class TorchToXr:
             print(f'masks: {masks.shape}')
             print(f'targets: {targets.shape}')
             raise ValueError('Image shapes not equal.')
-        self.nx = images.shape[4]
-        self.ny = images.shape[3]
-        self.nz = images.shape[2]
+        if self.dims == 3:
+            self.nx = images.shape[4]
+            self.ny = images.shape[3]
+            self.nz = images.shape[2]
+        elif self.dims == 2:
+            self.nx = images.shape[3]
+            self.ny = images.shape[2]
         self.nseq = images.shape[1]
         self.nsub = len(names)
         self.names = list(names)
@@ -772,35 +779,67 @@ class TorchToXr:
                                                   't1_pos_70_water', 't1_pos_160_water',
                                                   't1_pos_300_water'])
         self.init_new_ds()
-        self.ds['image_mri'] = (('subject', 'sequence', 'z', 'y', 'x'), images)
-        self.ds['image_mre'] = (('subject', 'mre_type', 'z', 'y', 'x'), targets)
-        self.ds['mask_mri'] = (('subject', 'mask_type', 'z', 'y', 'x'), masks)
-        self.ds['mask_mre'] = (('subject', 'mask_type', 'z', 'y', 'x'), masks)
+        if self.dims == 3:
+            self.ds['image_mri'] = (('subject', 'sequence', 'z', 'y', 'x'), images)
+            self.ds['image_mre'] = (('subject', 'mre_type', 'z', 'y', 'x'), targets)
+            self.ds['mask_mri'] = (('subject', 'mask_type', 'z', 'y', 'x'), masks)
+            self.ds['mask_mre'] = (('subject', 'mask_type', 'z', 'y', 'x'), masks)
+        elif self.dims == 2:
+            self.ds['image_mri'] = (('subject', 'sequence', 'y', 'x'), images)
+            self.ds['image_mre'] = (('subject', 'mre_type', 'y', 'x'), targets)
+            self.ds['mask_mri'] = (('subject', 'mask_type', 'y', 'x'), masks)
+            self.ds['mask_mre'] = (('subject', 'mask_type', 'y', 'x'), masks)
 
     def init_new_ds(self):
         '''Initialize a new xarray dataset based on the size and shape of our inputs.'''
 
-        self.ds = xr.Dataset(
-            {'image_mri': (['subject', 'sequence', 'z', 'y', 'x'],
-                           np.zeros((self.nsub, self.nseq, self.nz, self.ny,
-                                     self.nx), dtype=np.float32)),
-             'image_mre': (['subject', 'mre_type', 'z', 'y', 'x'],
-                           np.zeros((self.nsub, 1, self.nz, self.ny,
-                                     self.nx), dtype=np.float32)),
-             'mask_mre': (['subject', 'mask_type', 'z', 'y', 'x'],
-                          np.zeros((self.nsub, 1, self.nz, self.ny,
-                                    self.nx), dtype=np.float32)),
-             'mask_mri': (['subject', 'mask_type', 'z', 'y', 'x'],
-                          np.zeros((self.nsub, 1, self.nz, self.ny,
-                                    self.nx), dtype=np.float32)),
-             },
+        if self.dims == 3:
+            self.ds = xr.Dataset(
+                {'image_mri': (['subject', 'sequence', 'z', 'y', 'x'],
+                               np.zeros((self.nsub, self.nseq, self.nz, self.ny,
+                                         self.nx), dtype=np.float32)),
+                 'image_mre': (['subject', 'mre_type', 'z', 'y', 'x'],
+                               np.zeros((self.nsub, 1, self.nz, self.ny,
+                                         self.nx), dtype=np.float32)),
+                 'mask_mre': (['subject', 'mask_type', 'z', 'y', 'x'],
+                              np.zeros((self.nsub, 1, self.nz, self.ny,
+                                        self.nx), dtype=np.float32)),
+                 'mask_mri': (['subject', 'mask_type', 'z', 'y', 'x'],
+                              np.zeros((self.nsub, 1, self.nz, self.ny,
+                                        self.nx), dtype=np.float32)),
+                 },
 
-            coords={'subject': self.names,
-                    'sequence': self.sequences,
-                    'mask_type': ['combo'],
-                    'mre_type': ['mre'],
-                    'x': range(self.nx),
-                    'y': range(self.ny)[::-1],
-                    'z': range(self.nz),
-                    }
-        )
+                coords={'subject': self.names,
+                        'sequence': self.sequences,
+                        'mask_type': ['combo'],
+                        'mre_type': ['mre'],
+                        'x': range(self.nx),
+                        'y': range(self.ny)[::-1],
+                        'z': range(self.nz),
+                        }
+            )
+        else:
+
+            self.ds = xr.Dataset(
+                {'image_mri': (['subject', 'sequence', 'y', 'x'],
+                               np.zeros((self.nsub, self.nseq, self.ny,
+                                         self.nx), dtype=np.float32)),
+                 'image_mre': (['subject', 'mre_type', 'y', 'x'],
+                               np.zeros((self.nsub, 1, self.ny,
+                                         self.nx), dtype=np.float32)),
+                 'mask_mre': (['subject', 'mask_type', 'y', 'x'],
+                              np.zeros((self.nsub, 1, self.ny,
+                                        self.nx), dtype=np.float32)),
+                 'mask_mri': (['subject', 'mask_type', 'y', 'x'],
+                              np.zeros((self.nsub, 1, self.ny,
+                                        self.nx), dtype=np.float32)),
+                 },
+
+                coords={'subject': self.names,
+                        'sequence': self.sequences,
+                        'mask_type': ['combo'],
+                        'mre_type': ['mre'],
+                        'x': range(self.nx),
+                        'y': range(self.ny)[::-1],
+                        }
+            )
