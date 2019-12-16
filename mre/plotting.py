@@ -274,6 +274,7 @@ def patient_series_viewer(path, patient, img_type='DICOM', info=''):
             image = reader.Execute()
             print('direction', image.GetDirection())
             print('origin', image.GetOrigin())
+            print('spacing', image.GetSpacing())
             desc = reader.GetMetaData(0, '0008|103e').strip().encode('utf-8', 'ignore').decode()
             pid = reader.GetMetaData(0, '0010|0010').strip()
             desc = ' '.join([img_files.stem, desc, pid])
@@ -285,6 +286,7 @@ def patient_series_viewer(path, patient, img_type='DICOM', info=''):
             image = reader.Execute()
             print('direction', image.GetDirection())
             print('origin', image.GetOrigin())
+            print('spacing', image.GetSpacing())
 
         npimg = sitk.GetArrayFromImage(image)
         print(npimg.shape)

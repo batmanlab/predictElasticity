@@ -23,15 +23,15 @@ class SlurmMaster:
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self.config = Path(config)
         self.parse_config()
-        print('wiping and recreating staging dir')
-        shutil.rmtree('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging')
-        os.mkdir('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging')
-        shutil.copytree('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/mre',
-                        '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/mre')
-        shutil.copytree('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/mre.egg-info',
-                        '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/mre.egg-info')
-        shutil.copy('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/__init__.py',
-                    '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/__init__.py')
+        # print('wiping and recreating staging dir')
+        # shutil.rmtree('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging')
+        # os.mkdir('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging')
+        # shutil.copytree('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/mre',
+        #                 '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/mre')
+        # shutil.copytree('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/mre.egg-info',
+        #                 '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/mre.egg-info')
+        # shutil.copy('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/__init__.py',
+        #             '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/__init__.py')
         os.chdir('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging')
 
     def generate_slurm_script(self, number, conf, subj, subj_num, date, project):
@@ -140,8 +140,8 @@ class SlurmMaster:
                     print(script_name)
                     subprocess.call(f'sbatch {script_name}', shell=True)
         else:
-            for subj in self.subj_list:
-                script_name = self.generate_slurm_script(0, self.config_dict, subj, self.date,
+            for j, subj in enumerate(self.subj_list):
+                script_name = self.generate_slurm_script(0, self.config_dict, subj, j, self.date,
                                                          self.project)
                 print(script_name)
                 subprocess.call(f'sbatch {script_name}', shell=True)

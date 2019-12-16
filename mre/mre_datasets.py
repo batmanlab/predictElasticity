@@ -28,7 +28,7 @@ import torchvision.transforms.functional as TF
 from scipy.ndimage import gaussian_filter
 
 from mre.registration import RegPatient, Register
-from mre.pytorch_arch import GeneralUNet3D
+from mre.pytorch_arch_old import GeneralUNet3D
 
 
 class MREtoXr:
@@ -71,7 +71,8 @@ class MREtoXr:
 
             # Check if any contrast images are specified
             if np.any(['pos' in seq for seq in self.sequences]):
-                out_subdir = 'XR_with_contrast_v2'
+                # out_subdir = 'XR_with_contrast_v2'
+                out_subdir = 'XR_resized'
             else:
                 out_subdir = 'XR'
             self.output_dir = Path(self.data_dir.parents[1], out_subdir)
@@ -271,8 +272,8 @@ class MREtoXr:
         init_spacing = input_image.GetSpacing()
         nx = self.nx
         ny = self.ny
-        x_change = init_size[0]/self.nx
-        y_change = init_size[1]/self.ny
+        # x_change = init_size[0]/self.nx
+        # y_change = init_size[1]/self.ny
 
         # Get variable-dependent params
         if 'mri' in var_name:
@@ -288,8 +289,13 @@ class MREtoXr:
 
         # Resize image
         ref_image = sitk.GetImageFromArray(np.ones((nz, ny, nx), dtype=np.uint16))
-        ref_image.SetSpacing((init_spacing[0]*x_change, init_spacing[1]*y_change,
-                              init_spacing[2]*z_change))
+        # ref_image.SetSpacing((init_spacing[0]*x_change, init_spacing[1]*y_change,
+        #                       init_spacing[2]*z_change))
+        if 'mri' in var_name:
+            # ref_image.SetSpacing((1.875, 1.875, 10.063))
+            ref_image.SetSpacing((1.875, 1.875, init_spacing[2]*z_change))
+        else:
+            ref_image.SetSpacing((1.875, 1.875, init_spacing[2]*z_change))
         ref_image.SetOrigin(input_image.GetOrigin())
         ref_image = sitk.Cast(ref_image, input_image.GetPixelIDValue())
 
