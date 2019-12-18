@@ -78,7 +78,7 @@ def masked_mse_slice(pred, target, mask):
     return slice_mse
 
 
-def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.0):
+def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=1.0):
 
     if loss_func is None:
         pixel_loss = masked_mse(pred, target, mask)

@@ -1,0 +1,1185 @@
+2019-04-30 10:53:09  (rev 0)
+    +ca-certificates-2019.3.9 (conda-forge)
+    +certifi-2019.3.9 (conda-forge)
+    +libffi-3.2.1 (conda-forge)
+    +libgcc-ng-8.2.0
+    +libstdcxx-ng-8.2.0
+    +ncurses-6.1 (conda-forge)
+    +openssl-1.1.1b (conda-forge)
+    +pip-19.1 (conda-forge)
+    +python-3.6.7 (conda-forge)
+    +readline-7.0 (conda-forge)
+    +setuptools-41.0.1 (conda-forge)
+    +sqlite-3.26.0 (conda-forge)
+    +tk-8.6.9 (conda-forge)
+    +wheel-0.33.1 (conda-forge)
+    +xz-5.2.4 (conda-forge)
+    +zlib-1.2.11 (conda-forge)
+
+2019-04-30 11:18:39  (rev 1)
+    +asn1crypto-0.24.0 (conda-forge)
+    +atomicwrites-1.3.0 (conda-forge)
+    +attrs-19.1.0 (conda-forge)
+    +backcall-0.1.0 (conda-forge)
+    +bleach-3.1.0 (conda-forge)
+    +bokeh-1.1.0 (conda-forge)
+    +boost-cpp-1.68.0 (conda-forge)
+    +bzip2-1.0.6 (conda-forge)
+    +cairo-1.16.0 (conda-forge)
+    +cartopy-0.17.0 (conda-forge)
+    +cffi-1.12.3 (conda-forge)
+    +cftime-1.0.3.4 (conda-forge)
+    +chardet-3.0.4 (conda-forge)
+    +click-7.0 (conda-forge)
+    +click-plugins-1.1.1 (conda-forge)
+    +cligj-0.5.0 (conda-forge)
+    +cloudpickle-0.8.1 (conda-forge)
+    +colorcet-2.0.1 (pyviz/label/dev)
+    +cryptography-2.6.1 (conda-forge)
+    +curl-7.64.1 (conda-forge)
+    +cycler-0.10.0 (conda-forge)
+    +cytoolz-0.9.0.1 (conda-forge)
+    +dask-1.2.0 (conda-forge)
+    +dask-core-1.2.0 (conda-forge)
+    +datashader-0.7.0 (pyviz/label/dev)
+    +datashape-0.5.4 (conda-forge)
+    +dbus-1.13.6 (conda-forge)
+    +decorator-4.4.0 (conda-forge)
+    +defusedxml-0.5.0 (conda-forge)
+    +descartes-1.1.0 (conda-forge)
+    +distributed-1.27.1 (conda-forge)
+    +entrypoints-0.3 (conda-forge)
+    +expat-2.2.5 (conda-forge)
+    +fastparquet-0.3.1 (conda-forge)
+    +fiona-1.8.6 (conda-forge)
+    +fontconfig-2.13.1 (conda-forge)
+    +freetype-2.10.0 (conda-forge)
+    +freexl-1.0.5 (conda-forge)
+    +gdal-2.4.1 (conda-forge)
+    +geopandas-0.5.0 (conda-forge)
+    +geos-3.7.1 (conda-forge)
+    +geotiff-1.4.3 (conda-forge)
+    +geoviews-1.6.3a2 (pyviz/label/dev)
+    +geoviews-core-1.6.3a2 (pyviz/label/dev)
+    +gettext-0.19.8.1 (conda-forge)
+    +giflib-5.1.7 (conda-forge)
+    +glib-2.58.3 (conda-forge)
+    +gst-plugins-base-1.14.4 (conda-forge)
+    +gstreamer-1.14.4 (conda-forge)
+    +hdf4-4.2.13 (conda-forge)
+    +hdf5-1.10.4 (conda-forge)
+    +heapdict-1.0.0 (conda-forge)
+    +holoviews-1.12.2a3 (pyviz/label/dev)
+    +hvplot-0.4.0 (pyviz/label/dev)
+    +icu-58.2 (conda-forge)
+    +idna-2.8 (conda-forge)
+    +imageio-2.5.0 (conda-forge)
+    +ipykernel-5.1.0 (conda-forge)
+    +ipython-7.1.1 (conda-forge)
+    +ipython_genutils-0.2.0 (conda-forge)
+    +ipywidgets-7.4.2 (conda-forge)
+    +jedi-0.13.3 (conda-forge)
+    +jinja2-2.10.1 (conda-forge)
+    +jpeg-9c (conda-forge)
+    +json-c-0.13.1 (conda-forge)
+    +jsonschema-3.0.1 (conda-forge)
+    +jupyter-1.0.0 (conda-forge)
+    +jupyter_client-5.2.4 (conda-forge)
+    +jupyter_console-6.0.0 (conda-forge)
+    +jupyter_core-4.4.0 (conda-forge)
+    +kealib-1.4.10 (conda-forge)
+    +kiwisolver-1.1.0 (conda-forge)
+    +krb5-1.16.3 (conda-forge)
+    +libblas-3.8.0 (conda-forge)
+    +libcblas-3.8.0 (conda-forge)
+    +libcurl-7.64.1 (conda-forge)
+    +libdap4-3.19.1 (conda-forge)
+    +libedit-3.1.20170329 (conda-forge)
+    +libgdal-2.4.1 (conda-forge)
+    +libgfortran-ng-7.3.0
+    +libiconv-1.15 (conda-forge)
+    +libkml-1.3.0 (conda-forge)
+    +liblapack-3.8.0 (conda-forge)
+    +libnetcdf-4.6.2 (conda-forge)
+    +libpng-1.6.37 (conda-forge)
+    +libpq-11.2 (conda-forge)
+    +libsodium-1.0.16 (conda-forge)
+    +libspatialindex-1.9.0 (conda-forge)
+    +libspatialite-4.3.0a (conda-forge)
+    +libssh2-1.8.2 (conda-forge)
+    +libtiff-4.0.10 (conda-forge)
+    +libuuid-2.32.1 (conda-forge)
+    +libxcb-1.13 (conda-forge)
+    +libxml2-2.9.9 (conda-forge)
+    +libxslt-1.1.32 (conda-forge)
+    +llvmlite-0.28.0 (conda-forge)
+    +locket-0.2.0 (conda-forge)
+    +lxml-4.3.3 (conda-forge)
+    +mapclassify-2.0.1 (conda-forge)
+    +markdown-2.6.11 (conda-forge)
+    +markupsafe-1.1.1 (conda-forge)
+    +matplotlib-3.0.3 (conda-forge)
+    +matplotlib-base-3.0.3 (conda-forge)
+    +mistune-0.8.4 (conda-forge)
+    +more-itertools-4.3.0 (conda-forge)
+    +msgpack-python-0.6.1 (conda-forge)
+    +multipledispatch-0.6.0 (conda-forge)
+    +munch-2.3.2 (conda-forge)
+    +nbconvert-5.5.0 (conda-forge)
+    +nbformat-4.4.0 (conda-forge)
+    +netcdf4-1.5.0.1 (conda-forge)
+    +networkx-2.3 (conda-forge)
+    +notebook-5.7.8 (conda-forge)
+    +numba-0.43.1 (conda-forge)
+    +numpy-1.15.4 (conda-forge)
+    +olefile-0.46 (conda-forge)
+    +openblas-0.3.5 (conda-forge)
+    +openjpeg-2.3.1 (conda-forge)
+    +owslib-0.17.1 (conda-forge)
+    +packaging-19.0 (conda-forge)
+    +pandas-0.24.2 (conda-forge)
+    +pandoc-2.7.2 (conda-forge)
+    +pandocfilters-1.4.2 (conda-forge)
+    +panel-0.5.1 (pyviz/label/dev)
+    +param-1.9.0 (pyviz/label/dev)
+    +parso-0.4.0 (conda-forge)
+    +partd-0.3.9 (conda-forge)
+    +pcre-8.41 (conda-forge)
+    +pexpect-4.7.0 (conda-forge)
+    +phantomjs-2.1.1 (conda-forge)
+    +pickleshare-0.7.5 (conda-forge)
+    +pillow-6.0.0 (conda-forge)
+    +pixman-0.34.0 (conda-forge)
+    +pluggy-0.9.0 (conda-forge)
+    +poppler-0.67.0 (conda-forge)
+    +poppler-data-0.4.9 (conda-forge)
+    +postgresql-11.2 (conda-forge)
+    +proj4-5.2.0 (conda-forge)
+    +prometheus_client-0.6.0 (conda-forge)
+    +prompt_toolkit-2.0.9 (conda-forge)
+    +psutil-5.6.2 (conda-forge)
+    +pthread-stubs-0.4 (conda-forge)
+    +ptyprocess-0.6.0 (conda-forge)
+    +py-1.8.0 (conda-forge)
+    +pycparser-2.19 (conda-forge)
+    +pyct-0.4.6 (pyviz/label/dev)
+    +pyct-core-0.4.6 (pyviz/label/dev)
+    +pyepsg-0.4.0 (conda-forge)
+    +pygments-2.3.1 (conda-forge)
+    +pykdtree-1.3.1 (conda-forge)
+    +pyopenssl-19.0.0 (conda-forge)
+    +pyparsing-2.4.0 (conda-forge)
+    +pyproj-1.9.6 (conda-forge)
+    +pyqt-5.9.2
+    +pyrsistent-0.15.1 (conda-forge)
+    +pyshp-2.1.0 (conda-forge)
+    +pysocks-1.6.8 (conda-forge)
+    +pytest-4.4.1 (conda-forge)
+    +python-dateutil-2.8.0 (conda-forge)
+    +python-snappy-0.5.4 (conda-forge)
+    +pytz-2019.1 (conda-forge)
+    +pyviz-0.10.0 (pyviz/label/dev)
+    +pyviz_comms-0.7.2 (pyviz/label/dev)
+    +pywavelets-1.0.3 (conda-forge)
+    +pyyaml-5.1 (conda-forge)
+    +pyzmq-18.0.1 (conda-forge)
+    +qt-5.9.7 (conda-forge)
+    +qtconsole-4.4.3 (conda-forge)
+    +requests-2.21.0 (conda-forge)
+    +rise-5.3.0 (pyviz/label/dev)
+    +rtree-0.8.3 (conda-forge)
+    +scikit-image-0.15.0 (conda-forge)
+    +scipy-1.2.1 (conda-forge)
+    +selenium-3.141.0 (conda-forge)
+    +send2trash-1.5.0 (conda-forge)
+    +shapely-1.6.4 (conda-forge)
+    +sip-4.19.8 (conda-forge)
+    +six-1.12.0 (conda-forge)
+    +snappy-1.1.7 (conda-forge)
+    +sortedcontainers-2.1.0 (conda-forge)
+    +streamz-0.5.0 (conda-forge)
+    +tblib-1.3.2 (conda-forge)
+    +terminado-0.8.2 (conda-forge)
+    +testpath-0.3.1 (conda-forge)
+    +thrift-0.11.0 (conda-forge)
+    +toolz-0.9.0 (conda-forge)
+    +tornado-6.0.2 (conda-forge)
+    +traitlets-4.3.2 (conda-forge)
+    +tzcode-2018g (conda-forge)
+    +urllib3-1.24.2 (conda-forge)
+    +wcwidth-0.1.7 (conda-forge)
+    +webencodings-0.5.1 (conda-forge)
+    +widgetsnbextension-3.4.2 (conda-forge)
+    +xarray-0.11.3 (conda-forge)
+    +xerces-c-3.2.2 (conda-forge)
+    +xorg-kbproto-1.0.7 (conda-forge)
+    +xorg-libice-1.0.9 (conda-forge)
+    +xorg-libsm-1.2.3 (conda-forge)
+    +xorg-libx11-1.6.7 (conda-forge)
+    +xorg-libxau-1.0.9 (conda-forge)
+    +xorg-libxdmcp-1.1.3 (conda-forge)
+    +xorg-libxext-1.3.4 (conda-forge)
+    +xorg-libxrender-0.9.10 (conda-forge)
+    +xorg-renderproto-0.11.1 (conda-forge)
+    +xorg-xextproto-7.3.0 (conda-forge)
+    +xorg-xproto-7.0.31 (conda-forge)
+    +yaml-0.1.7 (conda-forge)
+    +zeromq-4.3.1 (conda-forge)
+    +zict-0.1.4 (conda-forge)
+
+2019-04-30 11:21:49  (rev 2)
+    +simpleitk-1.2.0 (simpleitk)
+
+2019-04-30 11:41:51  (rev 3)
+    +cmake-3.14.3 (conda-forge)
+    +libuv-1.28.0 (conda-forge)
+    +rhash-1.3.6 (conda-forge)
+
+2019-04-30 11:44:09  (rev 4)
+    +cloog-0.18.0
+    +gcc-4.8.5
+    +gmp-6.1.2 (conda-forge)
+    +isl-0.12.2
+    +mpc-1.1.0 (conda-forge)
+    +mpfr-3.1.5 (conda-forge)
+
+2019-04-30 11:49:03  (rev 5)
+    +libgcc-7.2.0 (conda-forge)
+
+2019-04-30 11:50:36  (rev 6)
+     libgcc  {7.2.0 (conda-forge) -> 5.2.0 (conda-forge)}
+
+2019-04-30 14:58:47  (rev 7)
+    -cloog-0.18.0
+    -cmake-3.14.3 (conda-forge)
+    -gcc-4.8.5
+    -gmp-6.1.2 (conda-forge)
+    -isl-0.12.2
+    -libgcc-5.2.0 (conda-forge)
+    -libuv-1.28.0 (conda-forge)
+    -mpc-1.1.0 (conda-forge)
+    -mpfr-3.1.5 (conda-forge)
+    -rhash-1.3.6 (conda-forge)
+
+2019-04-30 15:56:57  (rev 8)
+    +jupyter_contrib_core-0.3.3 (conda-forge)
+    +jupyter_contrib_nbextensions-0.5.1 (conda-forge)
+    +jupyter_highlight_selected_word-0.2.0 (conda-forge)
+    +jupyter_latex_envs-1.4.4 (conda-forge)
+    +jupyter_nbextensions_configurator-0.4.1 (conda-forge)
+
+2019-04-30 16:23:55  (rev 9)
+     numba  {0.43.1 (conda-forge) -> 0.43.1}
+     numpy  {1.15.4 (conda-forge) -> 1.16.3 (conda-forge)}
+
+2019-04-30 18:01:32  (rev 10)
+    +flake8-3.7.7 (conda-forge)
+    +mccabe-0.6.1 (conda-forge)
+    +pycodestyle-2.5.0 (conda-forge)
+    +pyflakes-2.1.1 (conda-forge)
+
+2019-05-01 11:10:51  (rev 11)
+    +tqdm-4.31.1 (conda-forge)
+
+2019-05-01 12:36:51  (rev 12)
+    -simpleitk-1.2.0 (simpleitk)
+
+2019-05-01 15:41:27  (rev 13)
+    +cudatoolkit-10.0.130
+    +intel-openmp-2019.3
+    +mkl-2019.3
+    +ninja-1.9.0 (conda-forge)
+    +pytorch-1.1.0 (pytorch)
+    +torchvision-0.2.2 (pytorch)
+
+2019-05-01 15:50:26  (rev 14)
+    +libprotobuf-3.7.1 (conda-forge)
+    +protobuf-3.7.1 (conda-forge)
+    +tensorboardx-1.6 (conda-forge)
+
+2019-05-02 10:24:12  (rev 15)
+    +joypy-0.1.10 (conda-forge)
+
+2019-05-07 10:30:10  (rev 16)
+    +tensorboard-1.13.1 (conda-forge)
+    +werkzeug-0.15.2 (conda-forge)
+
+2019-05-07 10:37:45  (rev 17)
+    +absl-py-0.7.1 (conda-forge)
+    +astor-0.7.1 (conda-forge)
+    +c-ares-1.15.0 (conda-forge)
+    +gast-0.2.2 (conda-forge)
+    +grpcio-1.16.1
+    +h5py-2.9.0 (conda-forge)
+    +keras-applications-1.0.7 (conda-forge)
+    +keras-preprocessing-1.0.9 (conda-forge)
+    +mock-3.0.4 (conda-forge)
+    +tensorflow-1.13.1 (conda-forge)
+    +tensorflow-estimator-1.13.0
+    +termcolor-1.1.0 (conda-forge)
+
+2019-05-15 18:32:27  (rev 18)
+    +patsy-0.5.1 (conda-forge)
+    +seaborn-0.9.0 (conda-forge)
+    +statsmodels-0.9.0 (conda-forge)
+
+2019-05-28 14:03:37  (rev 19)
+    +mpmath-1.1.0 (conda-forge)
+
+2019-06-18 16:45:29  (rev 20)
+     ca-certificates  {2019.3.9 (conda-forge) -> 2019.6.16 (conda-forge)}
+     hvplot  {0.4.0 (pyviz/label/dev) -> 0.4.0 (pyviz)}
+
+2019-08-05 10:58:27  (rev 21)
+     certifi  {2019.3.9 (conda-forge) -> 2019.6.16 (conda-forge)}
+     openssl  {1.1.1b (conda-forge) -> 1.1.1c (conda-forge)}
+     requests  {2.21.0 (conda-forge) -> 2.22.0 (conda-forge)}
+    +_libgcc_mutex-0.1
+    +pandas-profiling-1.4.2 (conda-forge)
+
+2019-08-27 15:15:26  (rev 22)
+     bokeh  {1.1.0 (conda-forge) -> 1.3.4 (conda-forge)}
+     boost-cpp  {1.68.0 (conda-forge) -> 1.70.0 (conda-forge)}
+     bzip2  {1.0.6 (conda-forge) -> 1.0.8 (conda-forge)}
+     c-ares  {1.15.0 (conda-forge) -> 1.15.0 (conda-forge)}
+     cairo  {1.16.0 (conda-forge) -> 1.16.0 (conda-forge)}
+     cftime  {1.0.3.4 (conda-forge) -> 1.0.3.4 (conda-forge)}
+     cloudpickle  {0.8.1 (conda-forge) -> 1.2.1 (conda-forge)}
+     colorcet  {2.0.1 (pyviz/label/dev) -> 2.0.1 (conda-forge)}
+     cryptography  {2.6.1 (conda-forge) -> 2.7 (conda-forge)}
+     curl  {7.64.1 (conda-forge) -> 7.65.3 (conda-forge)}
+     cytoolz  {0.9.0.1 (conda-forge) -> 0.10.0 (conda-forge)}
+     dask  {1.2.0 (conda-forge) -> 2.3.0 (conda-forge)}
+     dask-core  {1.2.0 (conda-forge) -> 2.3.0 (conda-forge)}
+     datashader  {0.7.0 (pyviz/label/dev) -> 0.7.0 (conda-forge)}
+     distributed  {1.27.1 (conda-forge) -> 2.3.2 (conda-forge)}
+     expat  {2.2.5 (conda-forge) -> 2.2.5 (conda-forge)}
+     fastparquet  {0.3.1 (conda-forge) -> 0.3.2 (conda-forge)}
+     fontconfig  {2.13.1 (conda-forge) -> 2.13.1 (conda-forge)}
+     freetype  {2.10.0 (conda-forge) -> 2.10.0 (conda-forge)}
+     geopandas  {0.5.0 (conda-forge) -> 0.5.1 (conda-forge)}
+     geotiff  {1.4.3 (conda-forge) -> 1.4.3 (conda-forge)}
+     geoviews  {1.6.3a2 (pyviz/label/dev) -> 1.6.3 (conda-forge)}
+     geoviews-core  {1.6.3a2 (pyviz/label/dev) -> 1.6.3 (conda-forge)}
+     glib  {2.58.3 (conda-forge) -> 2.58.3 (conda-forge)}
+     grpcio  {1.16.1 -> 1.22.0 (conda-forge)}
+     gst-plugins-base  {1.14.4 (conda-forge) -> 1.14.5 (conda-forge)}
+     gstreamer  {1.14.4 (conda-forge) -> 1.14.5 (conda-forge)}
+     h5py  {2.9.0 (conda-forge) -> 2.9.0 (conda-forge)}
+     holoviews  {1.12.2a3 (pyviz/label/dev) -> 1.12.5 (conda-forge)}
+     icu  {58.2 (conda-forge) -> 64.2 (conda-forge)}
+     intel-openmp  {2019.3 -> 2019.4}
+     ipykernel  {5.1.0 (conda-forge) -> 5.1.2 (conda-forge)}
+     ipywidgets  {7.4.2 (conda-forge) -> 7.5.1 (conda-forge)}
+     jedi  {0.13.3 (conda-forge) -> 0.15.1 (conda-forge)}
+     jsonschema  {3.0.1 (conda-forge) -> 3.0.2 (conda-forge)}
+     jupyter_client  {5.2.4 (conda-forge) -> 5.3.1 (conda-forge)}
+     keras-applications  {1.0.7 (conda-forge) -> 1.0.8 (conda-forge)}
+     keras-preprocessing  {1.0.9 (conda-forge) -> 1.1.0 (conda-forge)}
+     libblas  {3.8.0 (conda-forge) -> 3.8.0 (conda-forge)}
+     libcblas  {3.8.0 (conda-forge) -> 3.8.0 (conda-forge)}
+     libcurl  {7.64.1 (conda-forge) -> 7.65.3 (conda-forge)}
+     libgcc-ng  {8.2.0 -> 9.1.0}
+     libkml  {1.3.0 (conda-forge) -> 1.3.0 (conda-forge)}
+     liblapack  {3.8.0 (conda-forge) -> 3.8.0 (conda-forge)}
+     libpq  {11.2 (conda-forge) -> 11.3 (conda-forge)}
+     libprotobuf  {3.7.1 (conda-forge) -> 3.9.1 (conda-forge)}
+     libsodium  {1.0.16 (conda-forge) -> 1.0.17 (conda-forge)}
+     libspatialindex  {1.9.0 (conda-forge) -> 1.9.0 (conda-forge)}
+     libstdcxx-ng  {8.2.0 -> 9.1.0}
+     libtiff  {4.0.10 (conda-forge) -> 4.0.10 (conda-forge)}
+     libxml2  {2.9.9 (conda-forge) -> 2.9.9 (conda-forge)}
+     libxslt  {1.1.32 (conda-forge) -> 1.1.32 (conda-forge)}
+     llvmlite  {0.28.0 (conda-forge) -> 0.29.0 (conda-forge)}
+     lxml  {4.3.3 (conda-forge) -> 4.4.1 (conda-forge)}
+     markdown  {2.6.11 (conda-forge) -> 3.1.1 (conda-forge)}
+     matplotlib  {3.0.3 (conda-forge) -> 3.1.1 (conda-forge)}
+     matplotlib-base  {3.0.3 (conda-forge) -> 3.1.1 (conda-forge)}
+     mkl  {2019.3 -> 2019.4}
+     mock  {3.0.4 (conda-forge) -> 3.0.5 (conda-forge)}
+     nbconvert  {5.5.0 (conda-forge) -> 5.6.0 (conda-forge)}
+     netcdf4  {1.5.0.1 (conda-forge) -> 1.5.1.2 (conda-forge)}
+     notebook  {5.7.8 (conda-forge) -> 6.0.1 (conda-forge)}
+     numba  {0.43.1 -> 0.45.1 (conda-forge)}
+     owslib  {0.17.1 (conda-forge) -> 0.18.0 (conda-forge)}
+     pandas  {0.24.2 (conda-forge) -> 0.24.2 (conda-forge)}
+     pandoc  {2.7.2 (conda-forge) -> 2.7.3 (conda-forge)}
+     panel  {0.5.1 (pyviz/label/dev) -> 0.6.2 (conda-forge)}
+     param  {1.9.0 (pyviz/label/dev) -> 1.9.1 (conda-forge)}
+     parso  {0.4.0 (conda-forge) -> 0.5.1 (conda-forge)}
+     partd  {0.3.9 (conda-forge) -> 1.0.0 (conda-forge)}
+     pillow  {6.0.0 (conda-forge) -> 6.1.0 (conda-forge)}
+     pip  {19.1 (conda-forge) -> 19.2.3 (conda-forge)}
+     pixman  {0.34.0 (conda-forge) -> 0.38.0 (conda-forge)}
+     poppler  {0.67.0 (conda-forge) -> 0.67.0 (conda-forge)}
+     postgresql  {11.2 (conda-forge) -> 11.3 (conda-forge)}
+     proj4  {5.2.0 (conda-forge) -> 5.2.0 (conda-forge)}
+     prometheus_client  {0.6.0 (conda-forge) -> 0.7.1 (conda-forge)}
+     protobuf  {3.7.1 (conda-forge) -> 3.9.1 (conda-forge)}
+     psutil  {5.6.2 (conda-forge) -> 5.6.3 (conda-forge)}
+     pyct  {0.4.6 (pyviz/label/dev) -> 0.4.6 (conda-forge)}
+     pyct-core  {0.4.6 (pyviz/label/dev) -> 0.4.6 (conda-forge)}
+     pygments  {2.3.1 (conda-forge) -> 2.4.2 (conda-forge)}
+     pyparsing  {2.4.0 (conda-forge) -> 2.4.2 (conda-forge)}
+     pyproj  {1.9.6 (conda-forge) -> 1.9.6 (conda-forge)}
+     pyqt  {5.9.2 -> 5.9.2 (conda-forge)}
+     pyrsistent  {0.15.1 (conda-forge) -> 0.15.4 (conda-forge)}
+     pysocks  {1.6.8 (conda-forge) -> 1.7.0 (conda-forge)}
+     pytz  {2019.1 (conda-forge) -> 2019.2 (conda-forge)}
+     pyviz_comms  {0.7.2 (pyviz/label/dev) -> 0.7.2 (conda-forge)}
+     pyyaml  {5.1 (conda-forge) -> 5.1.2 (conda-forge)}
+     pyzmq  {18.0.1 (conda-forge) -> 18.0.2 (conda-forge)}
+     qtconsole  {4.4.3 (conda-forge) -> 4.5.4 (conda-forge)}
+     rise  {5.3.0 (pyviz/label/dev) -> 5.5.1 (conda-forge)}
+     scikit-image  {0.15.0 (conda-forge) -> 0.15.0 (conda-forge)}
+     scipy  {1.2.1 (conda-forge) -> 1.3.1 (conda-forge)}
+     setuptools  {41.0.1 (conda-forge) -> 41.2.0 (conda-forge)}
+     shapely  {1.6.4 (conda-forge) -> 1.6.4 (conda-forge)}
+     snappy  {1.1.7 (conda-forge) -> 1.1.7 (conda-forge)}
+     sqlite  {3.26.0 (conda-forge) -> 3.28.0 (conda-forge)}
+     statsmodels  {0.9.0 (conda-forge) -> 0.10.1 (conda-forge)}
+     streamz  {0.5.0 (conda-forge) -> 0.5.2 (conda-forge)}
+     tblib  {1.3.2 (conda-forge) -> 1.4.0 (conda-forge)}
+     testpath  {0.3.1 (conda-forge) -> 0.4.2 (conda-forge)}
+     tk  {8.6.9 (conda-forge) -> 8.6.9 (conda-forge)}
+     toolz  {0.9.0 (conda-forge) -> 0.10.0 (conda-forge)}
+     tornado  {6.0.2 (conda-forge) -> 6.0.3 (conda-forge)}
+     tzcode  {2018g (conda-forge) -> 2019a (conda-forge)}
+     urllib3  {1.24.2 (conda-forge) -> 1.25.3 (conda-forge)}
+     werkzeug  {0.15.2 (conda-forge) -> 0.15.5 (conda-forge)}
+     wheel  {0.33.1 (conda-forge) -> 0.33.6 (conda-forge)}
+     widgetsnbextension  {3.4.2 (conda-forge) -> 3.5.1 (conda-forge)}
+     xerces-c  {3.2.2 (conda-forge) -> 3.2.2 (conda-forge)}
+     xorg-libice  {1.0.9 (conda-forge) -> 1.0.10 (conda-forge)}
+     xorg-libx11  {1.6.7 (conda-forge) -> 1.6.8 (conda-forge)}
+     zeromq  {4.3.1 (conda-forge) -> 4.3.2 (conda-forge)}
+     zict  {0.1.4 (conda-forge) -> 1.0.0 (conda-forge)}
+     zlib  {1.2.11 (conda-forge) -> 1.2.11 (conda-forge)}
+    -atomicwrites-1.3.0 (conda-forge)
+    -descartes-1.1.0 (conda-forge)
+    -mapclassify-2.0.1 (conda-forge)
+    -more-itertools-4.3.0 (conda-forge)
+    -openblas-0.3.5 (conda-forge)
+    -pluggy-0.9.0 (conda-forge)
+    -py-1.8.0 (conda-forge)
+    -pytest-4.4.1 (conda-forge)
+    +fsspec-0.4.2 (conda-forge)
+    +libopenblas-0.3.7 (conda-forge)
+    +lz4-c-1.8.3 (conda-forge)
+    +zstd-1.4.0 (conda-forge)
+
+2019-09-02 12:08:49  (rev 23)
+    +blosc-1.17.0 (conda-forge)
+    +lzo-2.10 (conda-forge)
+    +numexpr-2.7.0 (conda-forge)
+    +pytables-3.5.2 (conda-forge)
+
+2019-09-03 10:21:54  (rev 24)
+    +bottleneck-1.2.1 (conda-forge)
+
+2019-09-30 13:25:32  (rev 25)
+     absl-py  {0.7.1 (conda-forge) -> 0.8.0 (conda-forge)}
+     bzip2  {1.0.8 (conda-forge) -> 1.0.8 (conda-forge)}
+     ca-certificates  {2019.6.16 (conda-forge) -> 2019.9.11 (conda-forge)}
+     certifi  {2019.6.16 (conda-forge) -> 2019.9.11 (conda-forge)}
+     cloudpickle  {1.2.1 (conda-forge) -> 1.2.2 (conda-forge)}
+     datashader  {0.7.0 (conda-forge) -> 0.7.0 (conda-forge)}
+     defusedxml  {0.5.0 (conda-forge) -> 0.6.0 (conda-forge)}
+     distributed  {2.3.2 (conda-forge) -> 2.5.1 (conda-forge)}
+     fsspec  {0.4.2 (conda-forge) -> 0.5.1 (conda-forge)}
+     gast  {0.2.2 (conda-forge) -> 0.3.2 (conda-forge)}
+     geopandas  {0.5.1 (conda-forge) -> 0.6.0 (conda-forge)}
+     grpcio  {1.22.0 (conda-forge) -> 1.23.0 (conda-forge)}
+     heapdict  {1.0.0 (conda-forge) -> 1.0.1 (conda-forge)}
+     jupyter_client  {5.3.1 (conda-forge) -> 5.3.3 (conda-forge)}
+     libprotobuf  {3.9.1 (conda-forge) -> 3.9.2 (conda-forge)}
+     libxslt  {1.1.32 (conda-forge) -> 1.1.33 (conda-forge)}
+     msgpack-python  {0.6.1 (conda-forge) -> 0.6.2 (conda-forge)}
+     numpy  {1.16.3 (conda-forge) -> 1.17.2}
+     openjpeg  {2.3.1 (conda-forge) -> 2.3.1 (conda-forge)}
+     packaging  {19.0 (conda-forge) -> 19.2 (conda-forge)}
+     panel  {0.6.2 (conda-forge) -> 0.6.3 (conda-forge)}
+     proj4  {5.2.0 (conda-forge) -> 5.2.0 (conda-forge)}
+     protobuf  {3.9.1 (conda-forge) -> 3.9.2 (conda-forge)}
+     pyqt  {5.9.2 (conda-forge) -> 5.9.2 (conda-forge)}
+     pysocks  {1.7.0 (conda-forge) -> 1.7.1 (conda-forge)}
+     pytorch  {1.1.0 (pytorch) -> 1.2.0}
+     pyzmq  {18.0.2 (conda-forge) -> 18.1.0 (conda-forge)}
+     qtconsole  {4.5.4 (conda-forge) -> 4.5.5 (conda-forge)}
+     scipy  {1.3.1 (conda-forge) -> 1.3.1}
+     tk  {8.6.9 (conda-forge) -> 8.6.9 (conda-forge)}
+     urllib3  {1.25.3 (conda-forge) -> 1.25.6 (conda-forge)}
+     werkzeug  {0.15.5 (conda-forge) -> 0.16.0 (conda-forge)}
+     zlib  {1.2.11 (conda-forge) -> 1.2.11 (conda-forge)}
+    -libblas-3.8.0 (conda-forge)
+    -libcblas-3.8.0 (conda-forge)
+    -liblapack-3.8.0 (conda-forge)
+    -libopenblas-0.3.7 (conda-forge)
+    +_pytorch_select-0.2
+    +blas-1.0
+    +cudnn-7.6.0
+    +mkl-service-2.3.0 (conda-forge)
+    +mkl_fft-1.0.14 (conda-forge)
+    +mkl_random-1.1.0 (conda-forge)
+    +numpy-base-1.17.2
+
+2019-10-02 14:40:44  (rev 26)
+     holoviews  {1.12.5 (conda-forge) -> 1.12.5 (pyviz/label/dev)}
+
+2019-10-02 15:31:51  (rev 27)
+
+2019-10-09 12:01:03  (rev 28)
+    +_libgcc_mutex-0.1
+    +_pytorch_select-0.2
+    +absl-py-0.8.1 (conda-forge)
+    +asn1crypto-1.0.1 (conda-forge)
+    +astor-0.7.1 (conda-forge)
+    +attrs-19.2.0 (conda-forge)
+    +backcall-0.1.0 (conda-forge)
+    +blas-1.0
+    +bleach-3.1.0 (conda-forge)
+    +blosc-1.17.0 (conda-forge)
+    +bokeh-1.3.4 (conda-forge)
+    +boost-cpp-1.70.0 (conda-forge)
+    +bottleneck-1.2.1 (conda-forge)
+    +bzip2-1.0.8 (conda-forge)
+    +c-ares-1.15.0 (conda-forge)
+    +ca-certificates-2019.9.11 (conda-forge)
+    +cairo-1.16.0 (conda-forge)
+    +cartopy-0.17.0 (conda-forge)
+    +certifi-2019.9.11 (conda-forge)
+    +cffi-1.12.3 (conda-forge)
+    +cftime-1.0.3.4 (conda-forge)
+    +chardet-3.0.4 (conda-forge)
+    +click-7.0 (conda-forge)
+    +click-plugins-1.1.1 (conda-forge)
+    +cligj-0.5.0 (conda-forge)
+    +cloudpickle-1.2.2 (conda-forge)
+    +colorcet-2.0.1 (conda-forge)
+    +cryptography-2.7 (conda-forge)
+    +cudatoolkit-10.0.130
+    +cudnn-7.6.0
+    +curl-7.65.3 (conda-forge)
+    +cycler-0.10.0 (conda-forge)
+    +cytoolz-0.10.0 (conda-forge)
+    +dask-2.3.0 (conda-forge)
+    +dask-core-2.3.0 (conda-forge)
+    +datashader-0.8.0 (conda-forge)
+    +datashape-0.5.4 (conda-forge)
+    +dbus-1.13.6 (conda-forge)
+    +decorator-4.4.0 (conda-forge)
+    +defusedxml-0.6.0 (conda-forge)
+    +distributed-2.5.2 (conda-forge)
+    +entrypoints-0.3 (conda-forge)
+    +expat-2.2.5 (conda-forge)
+    +fastparquet-0.3.2 (conda-forge)
+    +fiona-1.8.6 (conda-forge)
+    +flake8-3.7.7 (conda-forge)
+    +fontconfig-2.13.1 (conda-forge)
+    +freetype-2.10.0 (conda-forge)
+    +freexl-1.0.5 (conda-forge)
+    +fsspec-0.5.2 (conda-forge)
+    +gast-0.3.2 (conda-forge)
+    +gdal-2.4.1 (conda-forge)
+    +geopandas-0.6.0 (conda-forge)
+    +geos-3.7.1 (conda-forge)
+    +geotiff-1.4.3 (conda-forge)
+    +geoviews-1.6.3 (conda-forge)
+    +geoviews-core-1.6.3 (conda-forge)
+    +gettext-0.19.8.1 (conda-forge)
+    +giflib-5.1.7 (conda-forge)
+    +glib-2.58.3 (conda-forge)
+    +grpcio-1.23.0 (conda-forge)
+    +gst-plugins-base-1.14.5 (conda-forge)
+    +gstreamer-1.14.5 (conda-forge)
+    +h5py-2.9.0 (conda-forge)
+    +hdf4-4.2.13 (conda-forge)
+    +hdf5-1.10.4 (conda-forge)
+    +heapdict-1.0.1 (conda-forge)
+    +holoviews-1.12.6 (conda-forge)
+    +hvplot-0.4.0 (pyviz)
+    +icu-64.2 (conda-forge)
+    +idna-2.8 (conda-forge)
+    +imageio-2.6.1 (conda-forge)
+    +intel-openmp-2019.4
+    +ipykernel-5.1.2 (conda-forge)
+    +ipython-7.1.1 (conda-forge)
+    +ipython_genutils-0.2.0 (conda-forge)
+    +ipywidgets-7.5.1 (conda-forge)
+    +jedi-0.15.1 (conda-forge)
+    +jinja2-2.10.3 (conda-forge)
+    +joypy-0.1.10 (conda-forge)
+    +jpeg-9c (conda-forge)
+    +json-c-0.13.1 (conda-forge)
+    +jsonschema-3.0.2 (conda-forge)
+    +jupyter-1.0.0 (conda-forge)
+    +jupyter_client-5.3.3 (conda-forge)
+    +jupyter_console-6.0.0 (conda-forge)
+    +jupyter_contrib_core-0.3.3 (conda-forge)
+    +jupyter_contrib_nbextensions-0.5.1 (conda-forge)
+    +jupyter_core-4.5.0 (conda-forge)
+    +jupyter_highlight_selected_word-0.2.0 (conda-forge)
+    +jupyter_latex_envs-1.4.4 (conda-forge)
+    +jupyter_nbextensions_configurator-0.4.1 (conda-forge)
+    +kealib-1.4.10 (conda-forge)
+    +keras-applications-1.0.8 (conda-forge)
+    +keras-preprocessing-1.1.0 (conda-forge)
+    +kiwisolver-1.1.0 (conda-forge)
+    +krb5-1.16.3 (conda-forge)
+    +libcurl-7.65.3 (conda-forge)
+    +libdap4-3.19.1 (conda-forge)
+    +libedit-3.1.20170329 (conda-forge)
+    +libffi-3.2.1 (conda-forge)
+    +libgcc-ng-9.1.0
+    +libgdal-2.4.1 (conda-forge)
+    +libgfortran-ng-7.3.0
+    +libiconv-1.15 (conda-forge)
+    +libkml-1.3.0 (conda-forge)
+    +libnetcdf-4.6.2 (conda-forge)
+    +libpng-1.6.37 (conda-forge)
+    +libpq-11.3 (conda-forge)
+    +libprotobuf-3.10.0 (conda-forge)
+    +libsodium-1.0.17 (conda-forge)
+    +libspatialindex-1.9.0 (conda-forge)
+    +libspatialite-4.3.0a (conda-forge)
+    +libssh2-1.8.2 (conda-forge)
+    +libstdcxx-ng-9.1.0
+    +libtiff-4.0.10 (conda-forge)
+    +libuuid-2.32.1 (conda-forge)
+    +libxcb-1.13 (conda-forge)
+    +libxml2-2.9.9 (conda-forge)
+    +libxslt-1.1.33 (conda-forge)
+    +llvmlite-0.29.0 (conda-forge)
+    +locket-0.2.0 (conda-forge)
+    +lxml-4.4.1 (conda-forge)
+    +lz4-c-1.8.3 (conda-forge)
+    +lzo-2.10 (conda-forge)
+    +markdown-3.1.1 (conda-forge)
+    +markupsafe-1.1.1 (conda-forge)
+    +matplotlib-3.1.1 (conda-forge)
+    +matplotlib-base-3.1.1 (conda-forge)
+    +mccabe-0.6.1 (conda-forge)
+    +mistune-0.8.4 (conda-forge)
+    +mkl-2019.4
+    +mkl-service-2.3.0 (conda-forge)
+    +mkl_fft-1.0.14 (conda-forge)
+    +mkl_random-1.1.0 (conda-forge)
+    +mock-3.0.5 (conda-forge)
+    +mpmath-1.1.0 (conda-forge)
+    +msgpack-python-0.6.2 (conda-forge)
+    +multipledispatch-0.6.0 (conda-forge)
+    +munch-2.3.2 (conda-forge)
+    +nbconvert-5.6.0 (conda-forge)
+    +nbformat-4.4.0 (conda-forge)
+    +ncurses-6.1 (conda-forge)
+    +netcdf4-1.5.1.2 (conda-forge)
+    +networkx-2.3 (conda-forge)
+    +ninja-1.9.0 (conda-forge)
+    +notebook-6.0.1 (conda-forge)
+    +numba-0.45.1 (conda-forge)
+    +numexpr-2.7.0 (conda-forge)
+    +numpy-1.17.2
+    +numpy-base-1.17.2
+    +olefile-0.46 (conda-forge)
+    +openjpeg-2.3.1 (conda-forge)
+    +openssl-1.1.1c (conda-forge)
+    +owslib-0.18.0 (conda-forge)
+    +packaging-19.2 (conda-forge)
+    +pandas-0.24.2 (conda-forge)
+    +pandas-profiling-1.4.2 (conda-forge)
+    +pandoc-2.7.3 (conda-forge)
+    +pandocfilters-1.4.2 (conda-forge)
+    +panel-0.6.4 (conda-forge)
+    +param-1.9.2 (conda-forge)
+    +parso-0.5.1 (conda-forge)
+    +partd-1.0.0 (conda-forge)
+    +patsy-0.5.1 (conda-forge)
+    +pcre-8.41 (conda-forge)
+    +pexpect-4.7.0 (conda-forge)
+    +phantomjs-2.1.1 (conda-forge)
+    +pickleshare-0.7.5 (conda-forge)
+    +pillow-6.2.0 (conda-forge)
+    +pip-19.2.3 (conda-forge)
+    +pixman-0.38.0 (conda-forge)
+    +poppler-0.67.0 (conda-forge)
+    +poppler-data-0.4.9 (conda-forge)
+    +postgresql-11.3 (conda-forge)
+    +proj4-5.2.0 (conda-forge)
+    +prometheus_client-0.7.1 (conda-forge)
+    +prompt_toolkit-2.0.10 (conda-forge)
+    +protobuf-3.10.0 (conda-forge)
+    +psutil-5.6.3 (conda-forge)
+    +pthread-stubs-0.4 (conda-forge)
+    +ptyprocess-0.6.0 (conda-forge)
+    +pycodestyle-2.5.0 (conda-forge)
+    +pycparser-2.19 (conda-forge)
+    +pyct-0.4.6 (conda-forge)
+    +pyct-core-0.4.6 (conda-forge)
+    +pyepsg-0.4.0 (conda-forge)
+    +pyflakes-2.1.1 (conda-forge)
+    +pygments-2.4.2 (conda-forge)
+    +pykdtree-1.3.1 (conda-forge)
+    +pyopenssl-19.0.0 (conda-forge)
+    +pyparsing-2.4.2 (conda-forge)
+    +pyproj-1.9.6 (conda-forge)
+    +pyqt-5.9.2 (conda-forge)
+    +pyrsistent-0.15.4 (conda-forge)
+    +pyshp-2.1.0 (conda-forge)
+    +pysocks-1.7.1 (conda-forge)
+    +pytables-3.5.2 (conda-forge)
+    +python-3.6.7 (conda-forge)
+    +python-dateutil-2.8.0 (conda-forge)
+    +python-snappy-0.5.4 (conda-forge)
+    +pytorch-1.2.0
+    +pytz-2019.3 (conda-forge)
+    +pyviz-0.10.0 (pyviz/label/dev)
+    +pyviz_comms-0.7.2 (conda-forge)
+    +pywavelets-1.0.3 (conda-forge)
+    +pyyaml-5.1.2 (conda-forge)
+    +pyzmq-18.1.0 (conda-forge)
+    +qt-5.9.7 (conda-forge)
+    +qtconsole-4.5.5 (conda-forge)
+    +readline-7.0 (conda-forge)
+    +requests-2.22.0 (conda-forge)
+    +rise-5.5.1 (conda-forge)
+    +rtree-0.8.3 (conda-forge)
+    +scikit-image-0.15.0 (conda-forge)
+    +scipy-1.3.1
+    +seaborn-0.9.0 (conda-forge)
+    +selenium-3.141.0 (conda-forge)
+    +send2trash-1.5.0 (conda-forge)
+    +setuptools-41.4.0 (conda-forge)
+    +shapely-1.6.4 (conda-forge)
+    +sip-4.19.8 (conda-forge)
+    +six-1.12.0 (conda-forge)
+    +snappy-1.1.7 (conda-forge)
+    +sortedcontainers-2.1.0 (conda-forge)
+    +sqlite-3.28.0 (conda-forge)
+    +statsmodels-0.10.1 (conda-forge)
+    +streamz-0.5.2 (conda-forge)
+    +tblib-1.4.0 (conda-forge)
+    +tensorboard-1.13.1 (conda-forge)
+    +tensorboardx-1.6 (conda-forge)
+    +tensorflow-1.13.1 (conda-forge)
+    +tensorflow-estimator-1.13.0
+    +termcolor-1.1.0 (conda-forge)
+    +terminado-0.8.2 (conda-forge)
+    +testpath-0.4.2 (conda-forge)
+    +thrift-0.11.0 (conda-forge)
+    +tk-8.6.9 (conda-forge)
+    +toolz-0.10.0 (conda-forge)
+    +torchvision-0.2.2 (pytorch)
+    +tornado-6.0.3 (conda-forge)
+    +tqdm-4.31.1 (conda-forge)
+    +traitlets-4.3.3 (conda-forge)
+    +tzcode-2019a (conda-forge)
+    +urllib3-1.25.6 (conda-forge)
+    +wcwidth-0.1.7 (conda-forge)
+    +webencodings-0.5.1 (conda-forge)
+    +werkzeug-0.16.0 (conda-forge)
+    +wheel-0.33.6 (conda-forge)
+    +widgetsnbextension-3.5.1 (conda-forge)
+    +xarray-0.11.3 (conda-forge)
+    +xerces-c-3.2.2 (conda-forge)
+    +xorg-kbproto-1.0.7 (conda-forge)
+    +xorg-libice-1.0.10 (conda-forge)
+    +xorg-libsm-1.2.3 (conda-forge)
+    +xorg-libx11-1.6.8 (conda-forge)
+    +xorg-libxau-1.0.9 (conda-forge)
+    +xorg-libxdmcp-1.1.3 (conda-forge)
+    +xorg-libxext-1.3.4 (conda-forge)
+    +xorg-libxrender-0.9.10 (conda-forge)
+    +xorg-renderproto-0.11.1 (conda-forge)
+    +xorg-xextproto-7.3.0 (conda-forge)
+    +xorg-xproto-7.0.31 (conda-forge)
+    +xz-5.2.4 (conda-forge)
+    +yaml-0.1.7 (conda-forge)
+    +zeromq-4.3.2 (conda-forge)
+    +zict-1.0.0 (conda-forge)
+    +zlib-1.2.11 (conda-forge)
+    +zstd-1.4.0 (conda-forge)
+
+2019-10-09 14:55:56  (rev 29)
+     ipython  {7.1.1 (conda-forge) -> 7.8.0 (conda-forge)}
+     pandas  {0.24.2 (conda-forge) -> 0.25.1 (conda-forge)}
+    -asn1crypto-1.0.1 (conda-forge)
+    -boost-cpp-1.70.0 (conda-forge)
+    -cairo-1.16.0 (conda-forge)
+    -cartopy-0.17.0 (conda-forge)
+    -chardet-3.0.4 (conda-forge)
+    -click-plugins-1.1.1 (conda-forge)
+    -cligj-0.5.0 (conda-forge)
+    -colorcet-2.0.1 (conda-forge)
+    -cryptography-2.7 (conda-forge)
+    -datashader-0.8.0 (conda-forge)
+    -datashape-0.5.4 (conda-forge)
+    -fastparquet-0.3.2 (conda-forge)
+    -fiona-1.8.6 (conda-forge)
+    -freexl-1.0.5 (conda-forge)
+    -gdal-2.4.1 (conda-forge)
+    -geopandas-0.6.0 (conda-forge)
+    -geos-3.7.1 (conda-forge)
+    -geotiff-1.4.3 (conda-forge)
+    -geoviews-1.6.3 (conda-forge)
+    -geoviews-core-1.6.3 (conda-forge)
+    -giflib-5.1.7 (conda-forge)
+    -holoviews-1.12.6 (conda-forge)
+    -hvplot-0.4.0 (pyviz)
+    -idna-2.8 (conda-forge)
+    -imageio-2.6.1 (conda-forge)
+    -ipywidgets-7.5.1 (conda-forge)
+    -json-c-0.13.1 (conda-forge)
+    -jupyter-1.0.0 (conda-forge)
+    -jupyter_console-6.0.0 (conda-forge)
+    -kealib-1.4.10 (conda-forge)
+    -libdap4-3.19.1 (conda-forge)
+    -libgdal-2.4.1 (conda-forge)
+    -libkml-1.3.0 (conda-forge)
+    -libpq-11.3 (conda-forge)
+    -libspatialindex-1.9.0 (conda-forge)
+    -libspatialite-4.3.0a (conda-forge)
+    -llvmlite-0.29.0 (conda-forge)
+    -multipledispatch-0.6.0 (conda-forge)
+    -munch-2.3.2 (conda-forge)
+    -networkx-2.3 (conda-forge)
+    -numba-0.45.1 (conda-forge)
+    -openjpeg-2.3.1 (conda-forge)
+    -owslib-0.18.0 (conda-forge)
+    -panel-0.6.4 (conda-forge)
+    -param-1.9.2 (conda-forge)
+    -phantomjs-2.1.1 (conda-forge)
+    -pixman-0.38.0 (conda-forge)
+    -poppler-0.67.0 (conda-forge)
+    -poppler-data-0.4.9 (conda-forge)
+    -postgresql-11.3 (conda-forge)
+    -proj4-5.2.0 (conda-forge)
+    -pyct-0.4.6 (conda-forge)
+    -pyct-core-0.4.6 (conda-forge)
+    -pyepsg-0.4.0 (conda-forge)
+    -pykdtree-1.3.1 (conda-forge)
+    -pyopenssl-19.0.0 (conda-forge)
+    -pyproj-1.9.6 (conda-forge)
+    -pyshp-2.1.0 (conda-forge)
+    -pysocks-1.7.1 (conda-forge)
+    -python-snappy-0.5.4 (conda-forge)
+    -pyviz-0.10.0 (pyviz/label/dev)
+    -pyviz_comms-0.7.2 (conda-forge)
+    -pywavelets-1.0.3 (conda-forge)
+    -qtconsole-4.5.5 (conda-forge)
+    -requests-2.22.0 (conda-forge)
+    -rise-5.5.1 (conda-forge)
+    -rtree-0.8.3 (conda-forge)
+    -scikit-image-0.15.0 (conda-forge)
+    -selenium-3.141.0 (conda-forge)
+    -shapely-1.6.4 (conda-forge)
+    -snappy-1.1.7 (conda-forge)
+    -streamz-0.5.2 (conda-forge)
+    -thrift-0.11.0 (conda-forge)
+    -tzcode-2019a (conda-forge)
+    -urllib3-1.25.6 (conda-forge)
+    -widgetsnbextension-3.5.1 (conda-forge)
+    -xerces-c-3.2.2 (conda-forge)
+    -xorg-kbproto-1.0.7 (conda-forge)
+    -xorg-libice-1.0.10 (conda-forge)
+    -xorg-libsm-1.2.3 (conda-forge)
+    -xorg-libx11-1.6.8 (conda-forge)
+    -xorg-libxext-1.3.4 (conda-forge)
+    -xorg-libxrender-0.9.10 (conda-forge)
+    -xorg-renderproto-0.11.1 (conda-forge)
+    -xorg-xextproto-7.3.0 (conda-forge)
+    -xorg-xproto-7.0.31 (conda-forge)
+
+2019-10-09 18:39:26  (rev 30)
+    +ipywidgets-7.5.1 (conda-forge)
+    +widgetsnbextension-3.5.1 (conda-forge)
+
+2019-10-09 18:51:39  (rev 31)
+     tqdm  {4.31.1 (conda-forge) -> 4.36.1 (conda-forge)}
+
+2019-10-10 12:15:22  (rev 32)
+     ipython  {7.8.0 (conda-forge) -> 7.5.0 (conda-forge)}
+
+2019-11-21 14:57:47  (rev 33)
+     openssl  {1.1.1c (conda-forge) -> 1.1.1d (conda-forge)}
+    -joypy-0.1.10 (conda-forge)
+    +joblib-0.14.0 (conda-forge)
+    +libblas-3.8.0 (conda-forge)
+    +libcblas-3.8.0 (conda-forge)
+    +scikit-learn-0.21.3 (conda-forge)
+
+2019-12-02 11:36:37  (rev 34)
+     _libgcc_mutex  {0.1 -> 0.1 (conda-forge)}
+     attrs  {19.2.0 (conda-forge) -> 19.3.0 (conda-forge)}
+     bokeh  {1.3.4 (conda-forge) -> 1.4.0 (conda-forge)}
+     ca-certificates  {2019.9.11 (conda-forge) -> 2019.11.28 (conda-forge)}
+     certifi  {2019.9.11 (conda-forge) -> 2019.11.28 (conda-forge)}
+     cffi  {1.12.3 (conda-forge) -> 1.13.2 (conda-forge)}
+     cftime  {1.0.3.4 (conda-forge) -> 1.0.4.2 (conda-forge)}
+     cloudpickle  {1.2.2 (conda-forge) -> 1.2.2 (conda-forge)}
+     cudnn  {7.6.0 -> 7.6.4}
+     cycler  {0.10.0 (conda-forge) -> 0.10.0 (conda-forge)}
+     cytoolz  {0.10.0 (conda-forge) -> 0.10.1 (conda-forge)}
+     decorator  {4.4.0 (conda-forge) -> 4.4.1 (conda-forge)}
+     expat  {2.2.5 (conda-forge) -> 2.2.5 (conda-forge)}
+     fsspec  {0.5.2 (conda-forge) -> 0.6.1 (conda-forge)}
+     glib  {2.58.3 (conda-forge) -> 2.58.3 (conda-forge)}
+     hdf4  {4.2.13 (conda-forge) -> 4.2.13 (conda-forge)}
+     ipykernel  {5.1.2 (conda-forge) -> 5.1.3 (conda-forge)}
+     jsonschema  {3.0.2 (conda-forge) -> 3.2.0 (conda-forge)}
+     jupyter_core  {4.5.0 (conda-forge) -> 4.6.1 (conda-forge)}
+     libgcc-ng  {9.1.0 -> 9.2.0 (conda-forge)}
+     libgfortran-ng  {7.3.0 -> 7.3.0 (conda-forge)}
+     libprotobuf  {3.10.0 (conda-forge) -> 3.11.0 (conda-forge)}
+     libstdcxx-ng  {9.1.0 -> 9.2.0 (conda-forge)}
+     libtiff  {4.0.10 (conda-forge) -> 4.1.0 (conda-forge)}
+     libxml2  {2.9.9 (conda-forge) -> 2.9.10 (conda-forge)}
+     lxml  {4.4.1 (conda-forge) -> 4.4.2 (conda-forge)}
+     markupsafe  {1.1.1 (conda-forge) -> 1.1.1 (conda-forge)}
+     matplotlib  {3.1.1 (conda-forge) -> 3.1.2 (conda-forge)}
+     matplotlib-base  {3.1.1 (conda-forge) -> 3.1.2 (conda-forge)}
+     mistune  {0.8.4 (conda-forge) -> 0.8.4 (conda-forge)}
+     mkl_fft  {1.0.14 (conda-forge) -> 1.0.15 (conda-forge)}
+     nbconvert  {5.6.0 (conda-forge) -> 5.6.1 (conda-forge)}
+     ninja  {1.9.0 (conda-forge) -> 1.9.0 (conda-forge)}
+     pandas  {0.25.1 (conda-forge) -> 0.25.3 (conda-forge)}
+     pandoc  {2.7.3 (conda-forge) -> 2.8.0.1 (conda-forge)}
+     pcre  {8.41 (conda-forge) -> 8.43 (conda-forge)}
+     pillow  {6.2.0 (conda-forge) -> 6.2.1 (conda-forge)}
+     pip  {19.2.3 (conda-forge) -> 19.3.1 (conda-forge)}
+     prompt_toolkit  {2.0.10 (conda-forge) -> 3.0.2 (conda-forge)}
+     protobuf  {3.10.0 (conda-forge) -> 3.11.0 (conda-forge)}
+     psutil  {5.6.3 (conda-forge) -> 5.6.7 (conda-forge)}
+     pygments  {2.4.2 (conda-forge) -> 2.5.2 (conda-forge)}
+     pyparsing  {2.4.2 (conda-forge) -> 2.4.5 (conda-forge)}
+     pyrsistent  {0.15.4 (conda-forge) -> 0.15.6 (conda-forge)}
+     python-dateutil  {2.8.0 (conda-forge) -> 2.8.1 (conda-forge)}
+     pyyaml  {5.1.2 (conda-forge) -> 5.1.2 (conda-forge)}
+     pyzmq  {18.1.0 (conda-forge) -> 18.1.1 (conda-forge)}
+     scikit-learn  {0.21.3 (conda-forge) -> 0.21.3}
+     setuptools  {41.4.0 (conda-forge) -> 42.0.2 (conda-forge)}
+     six  {1.12.0 (conda-forge) -> 1.13.0 (conda-forge)}
+     statsmodels  {0.10.1 (conda-forge) -> 0.10.2 (conda-forge)}
+     terminado  {0.8.2 (conda-forge) -> 0.8.3 (conda-forge)}
+     testpath  {0.4.2 (conda-forge) -> 0.4.4 (conda-forge)}
+     tk  {8.6.9 (conda-forge) -> 8.6.10 (conda-forge)}
+     yaml  {0.1.7 (conda-forge) -> 0.2.2 (conda-forge)}
+     zstd  {1.4.0 (conda-forge) -> 1.4.4 (conda-forge)}
+    -libblas-3.8.0 (conda-forge)
+    -libcblas-3.8.0 (conda-forge)
+    +importlib_metadata-1.1.0 (conda-forge)
+    +more-itertools-7.2.0 (conda-forge)
+    +zipp-0.6.0 (conda-forge)
+
+2019-12-12 13:42:40  (rev 35)
+    +cairo-1.16.0 (conda-forge)
+    +ffmpeg-4.1.3 (conda-forge)
+    +giflib-5.1.9 (conda-forge)
+    +gmp-6.1.2 (conda-forge)
+    +gnutls-3.6.5 (conda-forge)
+    +graphite2-1.3.13 (conda-forge)
+    +harfbuzz-2.4.0 (conda-forge)
+    +jasper-1.900.1 (conda-forge)
+    +lame-3.100 (conda-forge)
+    +libblas-3.8.0 (conda-forge)
+    +libcblas-3.8.0 (conda-forge)
+    +liblapack-3.8.0 (conda-forge)
+    +liblapacke-3.8.0 (conda-forge)
+    +libwebp-1.0.2 (conda-forge)
+    +nettle-3.4.1 (conda-forge)
+    +opencv-4.1.0 (conda-forge)
+    +openh264-1.8.0 (conda-forge)
+    +pixman-0.38.0 (conda-forge)
+    +x264-1!152.20180806 (conda-forge)
+    +xorg-kbproto-1.0.7 (conda-forge)
+    +xorg-libice-1.0.10 (conda-forge)
+    +xorg-libsm-1.2.3 (conda-forge)
+    +xorg-libx11-1.6.9 (conda-forge)
+    +xorg-libxext-1.3.4 (conda-forge)
+    +xorg-libxrender-0.9.10 (conda-forge)
+    +xorg-renderproto-0.11.1 (conda-forge)
+    +xorg-xextproto-7.3.0 (conda-forge)
+    +xorg-xproto-7.0.31 (conda-forge)
+
+2019-12-12 14:10:31  (rev 36)
+    -cairo-1.16.0 (conda-forge)
+    -ffmpeg-4.1.3 (conda-forge)
+    -giflib-5.1.9 (conda-forge)
+    -gmp-6.1.2 (conda-forge)
+    -gnutls-3.6.5 (conda-forge)
+    -graphite2-1.3.13 (conda-forge)
+    -harfbuzz-2.4.0 (conda-forge)
+    -jasper-1.900.1 (conda-forge)
+    -lame-3.100 (conda-forge)
+    -libblas-3.8.0 (conda-forge)
+    -libcblas-3.8.0 (conda-forge)
+    -liblapack-3.8.0 (conda-forge)
+    -liblapacke-3.8.0 (conda-forge)
+    -libwebp-1.0.2 (conda-forge)
+    -nettle-3.4.1 (conda-forge)
+    -opencv-4.1.0 (conda-forge)
+    -openh264-1.8.0 (conda-forge)
+    -pixman-0.38.0 (conda-forge)
+    -x264-1!152.20180806 (conda-forge)
+    -xorg-kbproto-1.0.7 (conda-forge)
+    -xorg-libice-1.0.10 (conda-forge)
+    -xorg-libsm-1.2.3 (conda-forge)
+    -xorg-libx11-1.6.9 (conda-forge)
+    -xorg-libxext-1.3.4 (conda-forge)
+    -xorg-libxrender-0.9.10 (conda-forge)
+    -xorg-renderproto-0.11.1 (conda-forge)
+    -xorg-xextproto-7.3.0 (conda-forge)
+    -xorg-xproto-7.0.31 (conda-forge)
+
+2019-12-12 14:15:56  (rev 37)
+     prompt_toolkit  {3.0.2 (conda-forge) -> 2.0.10 (conda-forge)}
+
+2019-12-12 14:19:43  (rev 38)
+    +cairo-1.16.0 (conda-forge)
+    +ffmpeg-4.1.3 (conda-forge)
+    +giflib-5.1.9 (conda-forge)
+    +gmp-6.1.2 (conda-forge)
+    +gnutls-3.6.5 (conda-forge)
+    +graphite2-1.3.13 (conda-forge)
+    +harfbuzz-2.4.0 (conda-forge)
+    +jasper-1.900.1 (conda-forge)
+    +lame-3.100 (conda-forge)
+    +libblas-3.8.0 (conda-forge)
+    +libcblas-3.8.0 (conda-forge)
+    +liblapack-3.8.0 (conda-forge)
+    +liblapacke-3.8.0 (conda-forge)
+    +libwebp-1.0.2 (conda-forge)
+    +nettle-3.4.1 (conda-forge)
+    +opencv-4.1.0 (conda-forge)
+    +openh264-1.8.0 (conda-forge)
+    +pixman-0.38.0 (conda-forge)
+    +x264-1!152.20180806 (conda-forge)
+    +xorg-kbproto-1.0.7 (conda-forge)
+    +xorg-libice-1.0.10 (conda-forge)
+    +xorg-libsm-1.2.3 (conda-forge)
+    +xorg-libx11-1.6.9 (conda-forge)
+    +xorg-libxext-1.3.4 (conda-forge)
+    +xorg-libxrender-0.9.10 (conda-forge)
+    +xorg-renderproto-0.11.1 (conda-forge)
+    +xorg-xextproto-7.3.0 (conda-forge)
+    +xorg-xproto-7.0.31 (conda-forge)
+
+2019-12-12 14:27:28  (rev 39)
+    -cairo-1.16.0 (conda-forge)
+    -ffmpeg-4.1.3 (conda-forge)
+    -giflib-5.1.9 (conda-forge)
+    -gmp-6.1.2 (conda-forge)
+    -gnutls-3.6.5 (conda-forge)
+    -graphite2-1.3.13 (conda-forge)
+    -harfbuzz-2.4.0 (conda-forge)
+    -jasper-1.900.1 (conda-forge)
+    -lame-3.100 (conda-forge)
+    -libblas-3.8.0 (conda-forge)
+    -libcblas-3.8.0 (conda-forge)
+    -liblapack-3.8.0 (conda-forge)
+    -liblapacke-3.8.0 (conda-forge)
+    -libwebp-1.0.2 (conda-forge)
+    -nettle-3.4.1 (conda-forge)
+    -opencv-4.1.0 (conda-forge)
+    -openh264-1.8.0 (conda-forge)
+    -pixman-0.38.0 (conda-forge)
+    -x264-1!152.20180806 (conda-forge)
+    -xorg-kbproto-1.0.7 (conda-forge)
+    -xorg-libice-1.0.10 (conda-forge)
+    -xorg-libsm-1.2.3 (conda-forge)
+    -xorg-libx11-1.6.9 (conda-forge)
+    -xorg-libxext-1.3.4 (conda-forge)
+    -xorg-libxrender-0.9.10 (conda-forge)
+    -xorg-renderproto-0.11.1 (conda-forge)
+    -xorg-xextproto-7.3.0 (conda-forge)
+    -xorg-xproto-7.0.31 (conda-forge)
+
+2019-12-17 12:25:34  (rev 40)
+     blas  {1.0 -> 1.0 (conda-forge)}
+     bottleneck  {1.2.1 (conda-forge) -> 1.3.1 (conda-forge)}
+     bzip2  {1.0.8 (conda-forge) -> 1.0.8 (conda-forge)}
+     dask  {2.3.0 (conda-forge) -> 2.9.0 (conda-forge)}
+     dask-core  {2.3.0 (conda-forge) -> 2.9.0 (conda-forge)}
+     distributed  {2.5.2 (conda-forge) -> 2.9.0 (conda-forge)}
+     flake8  {3.7.7 (conda-forge) -> 3.7.9 (conda-forge)}
+     fsspec  {0.6.1 (conda-forge) -> 0.6.2 (conda-forge)}
+     h5py  {2.9.0 (conda-forge) -> 2.10.0 (conda-forge)}
+     hdf5  {1.10.4 (conda-forge) -> 1.10.5 (conda-forge)}
+     importlib_metadata  {1.1.0 (conda-forge) -> 1.3.0 (conda-forge)}
+     ipython  {7.5.0 (conda-forge) -> 7.10.2 (conda-forge)}
+     joblib  {0.14.0 (conda-forge) -> 0.14.1 (conda-forge)}
+     krb5  {1.16.3 (conda-forge) -> 1.16.4 (conda-forge)}
+     libnetcdf  {4.6.2 (conda-forge) -> 4.7.3 (conda-forge)}
+     libprotobuf  {3.11.0 (conda-forge) -> 3.11.2 (conda-forge)}
+     more-itertools  {7.2.0 (conda-forge) -> 8.0.2 (conda-forge)}
+     netcdf4  {1.5.1.2 (conda-forge) -> 1.5.3 (conda-forge)}
+     numpy  {1.17.2 -> 1.17.3 (conda-forge)}
+     pandas-profiling  {1.4.2 (conda-forge) -> 2.3.0 (conda-forge)}
+     pandoc  {2.8.0.1 (conda-forge) -> 2.9 (conda-forge)}
+     parso  {0.5.1 (conda-forge) -> 0.5.2 (conda-forge)}
+     prompt_toolkit  {2.0.10 (conda-forge) -> 3.0.2 (conda-forge)}
+     protobuf  {3.11.0 (conda-forge) -> 3.11.2 (conda-forge)}
+     pyqt  {5.9.2 (conda-forge) -> 5.12.3 (conda-forge)}
+     pytables  {3.5.2 (conda-forge) -> 3.6.1 (conda-forge)}
+     python  {3.6.7 (conda-forge) -> 3.6.7 (conda-forge)}
+     pytorch  {1.2.0 -> 1.3.1}
+     pyyaml  {5.1.2 (conda-forge) -> 5.2 (conda-forge)}
+     qt  {5.9.7 (conda-forge) -> 5.12.5 (conda-forge)}
+     readline  {7.0 (conda-forge) -> 8.0 (conda-forge)}
+     scikit-learn  {0.21.3 -> 0.22 (conda-forge)}
+     scipy  {1.3.1 -> 1.3.3 (conda-forge)}
+     seaborn  {0.9.0 (conda-forge) -> 0.9.0 (conda-forge)}
+     sqlite  {3.28.0 (conda-forge) -> 3.30.1 (conda-forge)}
+     tblib  {1.4.0 (conda-forge) -> 1.6.0 (conda-forge)}
+     tensorboardx  {1.6 (conda-forge) -> 1.9 (conda-forge)}
+     tensorflow  {1.13.1 (conda-forge) -> 1.13.1 (conda-forge)}
+     torchvision  {0.2.2 (pytorch) -> 0.4.2}
+     tqdm  {4.36.1 (conda-forge) -> 4.40.2 (conda-forge)}
+     xarray  {0.11.3 (conda-forge) -> 0.14.1 (conda-forge)}
+     yaml  {0.2.2 (conda-forge) -> 0.2.2 (conda-forge)}
+    -mkl_fft-1.0.15 (conda-forge)
+    -mkl_random-1.1.0 (conda-forge)
+    -numpy-base-1.17.2
+    -sip-4.19.8 (conda-forge)
+    +astroid-2.3.3 (conda-forge)
+    +astropy-3.2.3 (conda-forge)
+    +chardet-3.0.4 (conda-forge)
+    +confuse-1.0.0 (conda-forge)
+    +cryptography-2.8 (conda-forge)
+    +htmlmin-0.1.12 (conda-forge)
+    +hypothesis-4.55.0 (conda-forge)
+    +idna-2.8 (conda-forge)
+    +isort-4.3.21 (conda-forge)
+    +lazy-object-proxy-1.4.3 (conda-forge)
+    +libblas-3.8.0 (conda-forge)
+    +libcblas-3.8.0 (conda-forge)
+    +libclang-9.0.0 (conda-forge)
+    +liblapack-3.8.0 (conda-forge)
+    +libllvm8-8.0.1 (conda-forge)
+    +libllvm9-9.0.0 (conda-forge)
+    +libxkbcommon-0.9.1 (conda-forge)
+    +llvmlite-0.30.0 (conda-forge)
+    +missingno-0.4.2 (conda-forge)
+    +nspr-4.24 (conda-forge)
+    +nss-3.47 (conda-forge)
+    +numba-0.46.0 (conda-forge)
+    +phik-0.9.8 (conda-forge)
+    +pluggy-0.12.0 (conda-forge)
+    +py-1.8.0 (conda-forge)
+    +pylint-2.4.4 (conda-forge)
+    +pyopenssl-19.1.0 (conda-forge)
+    +pysocks-1.7.1 (conda-forge)
+    +pytest-5.3.2 (conda-forge)
+    +pytest-arraydiff-0.3 (conda-forge)
+    +pytest-astropy-0.7.0 (conda-forge)
+    +pytest-astropy-header-0.1.1 (conda-forge)
+    +pytest-doctestplus-0.4.0 (conda-forge)
+    +pytest-openfiles-0.4.0 (conda-forge)
+    +pytest-pylint-0.14.1 (conda-forge)
+    +pytest-remotedata-0.3.1 (conda-forge)
+    +pytest-runner-5.2 (conda-forge)
+    +requests-2.22.0 (conda-forge)
+    +tensorflow-base-1.13.1 (conda-forge)
+    +typed-ast-1.4.0 (conda-forge)
+    +urllib3-1.25.7 (conda-forge)
+    +wrapt-1.11.2 (conda-forge)
+

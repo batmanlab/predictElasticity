@@ -619,7 +619,8 @@ class MRETorchDataset(Dataset):
             if self.aug:
                 rot_angle = np.random.uniform(-8, 8, 1)
                 translations = np.random.uniform(-10, 10, 2)
-                scale = np.random.uniform(0.90, 1.10, 1)
+                # scale = np.random.uniform(0.90, 1.10, 1)
+                scale = 1
             else:
                 rot_angle = 0
                 translations = (0, 0)
@@ -653,7 +654,8 @@ class MRETorchDataset(Dataset):
                 # rot_angle_xz = np.random.uniform(-1, 1, 1)[0]
                 # rot_angle_yz = np.random.uniform(-1, 1, 1)[0]
 
-                scale = np.random.uniform(0.90, 1.10, 1)[0]
+                # scale = np.random.uniform(0.90, 1.10, 1)[0]
+                scale = 1
             else:
                 # raise NotImplementedError('you must transform 3d images')
                 rot_angle_xy = 0
