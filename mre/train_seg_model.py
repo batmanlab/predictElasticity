@@ -19,7 +19,7 @@ from torch.utils.data.sampler import RandomSampler
 from torchsummary import summary
 from tensorboardX import SummaryWriter
 from mre.segmentation import ChaosDataset
-from mre import pytorch_arch
+from mre import pytorch_arch_old
 from robust_loss_pytorch import adaptive
 
 
@@ -111,13 +111,13 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
     # Define model
     if cfg['model_arch'] == '3D':
         print('3d')
-        model = pytorch_arch.GeneralUNet3D(cfg['n_layers'], cfg['in_channels'], cfg['model_cap'],
-                                           cfg['out_channels_final'], cfg['channel_growth'],
-                                           cfg['coord_conv'], cfg['transfer_layer'])
+        model = pytorch_arch_old.GeneralUNet3D(cfg['n_layers'], cfg['in_channels'], cfg['model_cap'],
+                                               cfg['out_channels_final'], cfg['channel_growth'],
+                                               cfg['coord_conv'], cfg['transfer_layer'])
     elif cfg['model_arch'] == '2D':
-        model = pytorch_arch.GeneralUNet2D(cfg['n_layers'], cfg['in_channels'], cfg['model_cap'],
-                                           cfg['out_channels_final'], cfg['channel_growth'],
-                                           cfg['coord_conv'], cfg['transfer_layer'])
+        model = pytorch_arch_old.GeneralUNet2D(cfg['n_layers'], cfg['in_channels'], cfg['model_cap'],
+                                               cfg['out_channels_final'], cfg['channel_growth'],
+                                               cfg['coord_conv'], cfg['transfer_layer'])
 
     # Set up adaptive loss if selected
     loss = None

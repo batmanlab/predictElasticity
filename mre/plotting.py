@@ -94,7 +94,7 @@ def hv_pred_comp(targets, predictions, masks, names):
 def hv_dl_vis_chaos(inputs, targets, names, seq_names=None, predictions=None):
     opts.defaults(
         opts.GridSpace(shared_xaxis=True, shared_yaxis=True),
-        opts.Image(cmap='viridis', width=350, height=350, tools=['hover'], xaxis=None, yaxis=None),
+        opts.Image(cmap='viridis', width=250, height=250, tools=['hover'], xaxis=None, yaxis=None),
         opts.Labels(text_color='white', text_font_size='8pt', text_align='left',
                     text_baseline='bottom'),
         opts.Path(color='white'),
@@ -370,7 +370,7 @@ def chaos_viewer(path, patient):
 def patient_reg_comparison(fixed, moving_init, moving_final, grid=None):
     '''Comparing 3 images at once for alpha blending.  Expects sitk input format.'''
 
-    imopts = {'tools': ['hover'], 'width': 500, 'height': 500}
+    imopts = {'tools': ['hover'], 'width': 300, 'height': 300}
     hvds_fixed = hv.Dataset(MRIImage(fixed, 'fixed', 'fixed').da)
     hvds_moving_init = hv.Dataset(MRIImage(moving_init, 'moving_init', 'moving_init').da)
     hvds_moving_init = hvds_moving_init.redim(z='z1')

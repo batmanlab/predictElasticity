@@ -50,7 +50,7 @@ class MREtoXr:
                 from_file = [f for f in from_file if Path(f).exists()]
 
             if '*' in from_file or type(from_file) is list:
-                self.ds = xr.open_mfdataset(from_file)
+                self.ds = xr.open_mfdataset(from_file, combine='nested', concat_dim='subject')
             else:
                 self.ds = xr.open_dataset(from_file)
             return None
@@ -602,9 +602,7 @@ class MRETorchDataset(Dataset):
             image  = np.where(image >= 2000, 2000, image)
             # target = np.float32(np.digitize(target, list(range(0, 20000, 200))+[1e6]))
             with np.errstate(divide='ignore', invalid='ignore'):
-                target = np.float32(np.where(target > 0, np.sqrt(target)/100, 0))
-            # for i in range(4):
-            #     target[0][i] = gaussian_filter(target[0][i], sigma=5)
+                target = np.float32(np.where(target > 0, np.sqrt(target), 0))
             # target = np.float32(target/1000.0)
 
         if self.dims == 2:
@@ -619,12 +617,13 @@ class MRETorchDataset(Dataset):
             if self.aug:
                 rot_angle = np.random.uniform(-8, 8, 1)
                 translations = np.random.uniform(-10, 10, 2)
-                # scale = np.random.uniform(0.90, 1.10, 1)
-                scale = 1
+                scale = np.random.uniform(0.90, 1.10, 1)
+                sigma = np.random.uniform(0,3,1)[0]
             else:
                 rot_angle = 0
                 translations = (0, 0)
                 scale = 1
+                sigma = 0
 
             image = self.input_norm(image)
             img_list = []
@@ -636,7 +635,8 @@ class MRETorchDataset(Dataset):
 
             mask = self.affine_transform(mask[0], rot_angle, translations, scale,
                                          resample=PIL.Image.NEAREST)
-            target = self.affine_transform(target[0], rot_angle, translations, scale,
+            target = gaussian_filter(target[0], sigma=sigma)
+            target = self.affine_transform(target, rot_angle, translations, scale,
                                            resample=PIL.Image.BILINEAR)
 
         image = torch.FloatTensor(image)
@@ -654,8 +654,9 @@ class MRETorchDataset(Dataset):
                 # rot_angle_xz = np.random.uniform(-1, 1, 1)[0]
                 # rot_angle_yz = np.random.uniform(-1, 1, 1)[0]
 
-                # scale = np.random.uniform(0.90, 1.10, 1)[0]
-                scale = 1
+                scale = np.random.uniform(0.90, 1.10, 1)[0]
+                # scale = 1
+                sigma = np.random.uniform(0,3,1)[0]
             else:
                 # raise NotImplementedError('you must transform 3d images')
                 rot_angle_xy = 0
@@ -665,6 +666,7 @@ class MRETorchDataset(Dataset):
                 # rot_angle_yz = 0
 
                 scale = 1
+                sigma = 0
 
             image = self.input_norm(image)
             img_list = []
@@ -685,7 +687,8 @@ class MRETorchDataset(Dataset):
             for j in range(mask.shape[1]):
                 mask_list.append(self.affine_transform(mask[0][j], rot_angle_xy, translations_xy,
                                                        scale, resample=PIL.Image.NEAREST))
-                target_list.append(self.affine_transform(target[0][j], rot_angle_xy,
+                target_tmp = gaussian_filter(target[0][j], sigma=sigma)
+                target_list.append(self.affine_transform(target_tmp, rot_angle_xy,
                                                          translations_xy, scale,
                                                          resample=PIL.Image.BILINEAR))
             mask = torch.cat(mask_list)

@@ -78,7 +78,7 @@ def masked_mse_slice(pred, target, mask):
     return slice_mse
 
 
-def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=1.0):
+def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.5):
 
     if loss_func is None:
         pixel_loss = masked_mse(pred, target, mask)
@@ -114,7 +114,7 @@ def print_metrics(metrics, epoch_samples, phase):
 
 
 def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25, tb_writer=None,
-                verbose=True, loss_func=None, sls=False):
+                verbose=True, loss_func=None, sls=False, pixel_weight=1):
     best_model_wts = copy.deepcopy(model.state_dict())
     best_loss = 1e16
     for epoch in range(num_epochs):
@@ -154,15 +154,18 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                         # backward + optimize only if in training phase
                         if phase == 'train':
                             if not sls:
-                                loss = calc_loss(outputs, labels, masks, metrics, loss_func)
+                                loss = calc_loss(outputs, labels, masks, metrics, loss_func,
+                                                 pixel_weight)
                                 loss.backward()
                                 optimizer.step()
                             else:
                                 def closure():
-                                    return calc_loss(outputs, labels, masks, metrics, loss_func)
+                                    return calc_loss(outputs, labels, masks, metrics, loss_func,
+                                                     pixel_weight)
                                 optimizer.step(closure)
                         else:
-                            loss = calc_loss(outputs, labels, masks, metrics, loss_func)
+                            loss = calc_loss(outputs, labels, masks, metrics, loss_func,
+                                             pixel_weight)
                     # accrue total number of samples
                     epoch_samples += inputs.size(0)
 
@@ -178,8 +181,14 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                 # deep copy the model if is it best
                 if phase == 'val' and epoch_loss < best_loss:
                     if verbose:
+                        print("updating best model floor")
                         print("saving best model")
                     best_loss = epoch_loss
+                    best_model_wts = copy.deepcopy(model.state_dict())
+
+                elif phase == 'val' and epoch_loss < best_loss*1.1:
+                    if verbose:
+                        print("saving best model (within 10%) ")
                     best_model_wts = copy.deepcopy(model.state_dict())
 
                 if tb_writer:
@@ -222,8 +231,8 @@ def add_predictions(ds, model, model_params, dims=2):
                 subj, z = name.split('_')
                 z = int(z)
                 ds['image_mre'].loc[{'subject': subj, 'z': z,
-                                     'mre_type': 'mre_pred'}] = (100*prediction[i, 0].T)**2
+                                     'mre_type': 'mre_pred'}] = (prediction[i, 0].T)**2
         elif dims == 3:
             for i, name in enumerate(names):
                 ds['image_mre'].loc[{'subject': name,
-                                     'mre_type': 'mre_pred'}] = (100*prediction[i, 0].T)**2
+                                     'mre_type': 'mre_pred'}] = (prediction[i, 0].T)**2

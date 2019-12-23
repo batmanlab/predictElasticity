@@ -194,6 +194,9 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         writer_dir.mkdir(parents=True, exist_ok=True)
         config_dir.mkdir(parents=True, exist_ok=True)
         xr_dir.mkdir(parents=True, exist_ok=True)
+        Path(xr_dir, 'test').mkdir(parents=True, exist_ok=True)
+        Path(xr_dir, 'train').mkdir(parents=True, exist_ok=True)
+        Path(xr_dir, 'val').mkdir(parents=True, exist_ok=True)
         model_dir.mkdir(parents=True, exist_ok=True)
         writer = SummaryWriter(str(writer_dir)+f'/{model_version}_{subj_group}')
         # Model graph is useless without additional tweaks to name layers appropriately
@@ -202,7 +205,8 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         # Train Model
         model, best_loss = train_model(model, optimizer, exp_lr_scheduler, device, dataloaders,
                                        num_epochs=cfg['num_epochs'], tb_writer=writer,
-                                       verbose=verbose, loss_func=loss, sls=use_sls)
+                                       verbose=verbose, loss_func=loss, sls=use_sls,
+                                       pixel_weight=cfg['pixel_weight'])
 
         # Write outputs and save model
         cfg['best_loss'] = best_loss
@@ -230,10 +234,15 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         writer.close()
         torch.save(model.state_dict(), str(model_dir)+f'/model_{model_version}.pkl')
 
-        ds = ds.sel(subject=test_list)
         add_predictions(ds, model, None, dims=cfg['dims'])
-        ds.to_netcdf(Path(xr_dir, f'xarray_{subj_group}.nc'))
+        ds_test = ds.sel(subject=test_list)
+        ds_train = ds.sel(subject=train_list)
+        ds_val = ds.sel(subject=val_list)
+        ds_test.to_netcdf(Path(xr_dir, 'test', f'xarray_{subj_group}.nc'))
+        ds_train.to_netcdf(Path(xr_dir, 'train', f'xarray_{subj_group}.nc'))
+        ds_val.to_netcdf(Path(xr_dir, 'val', f'xarray_{subj_group}.nc'))
 
+        # consider changing output to just ds?
         return inputs, targets, masks, names, model
 
 
@@ -266,7 +275,8 @@ def default_cfg():
            'model_arch': 'modular', 'n_layers': 7, 'in_channels': 5, 'out_channels_final': 1,
            'channel_growth': False, 'transfer_layer': False, 'seed': 100,
            'resize': False, 'patient_list': False, 'num_workers': 0, 'lr_scheduler': 'step',
-           'lr': 1e-2, 'lr_max': 1e-2, 'lr_min': 1e-4, 'step_size': 20, 'dims': 2}
+           'lr': 1e-2, 'lr_max': 1e-2, 'lr_min': 1e-4, 'step_size': 20, 'dims': 2,
+           'pixel_weight':1}
     return cfg
 
 
