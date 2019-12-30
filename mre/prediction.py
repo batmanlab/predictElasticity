@@ -1,22 +1,26 @@
+import time
+import copy
+from collections import defaultdict
+import warnings
+from datetime import datetime
 import numpy as np
+import pandas as pd
+from tqdm import tqdm_notebook
+from lmfit.models import LinearModel
+
 import torch
 import torch.optim as optim
 from torch.optim import lr_scheduler
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, datasets, models
-from collections import defaultdict
 import torch.nn.functional as F
 import torchvision.transforms.functional as TF
 from torch.utils.data.sampler import RandomSampler
-import time
-import copy
+from tensorboardX import SummaryWriter
+
 # from mre.plotting import hv_dl_vis
 from mre.mre_datasets import MRETorchDataset
 from robust_loss_pytorch import adaptive
-import warnings
-from datetime import datetime
-from tqdm import tqdm_notebook
-from tensorboardX import SummaryWriter
 
 
 def masked_resid(pred, target, mask):
@@ -236,3 +240,50 @@ def add_predictions(ds, model, model_params, dims=2):
             for i, name in enumerate(names):
                 ds['image_mre'].loc[{'subject': name,
                                      'mre_type': 'mre_pred'}] = (prediction[i, 0].T)**2
+
+
+def get_linear_fit(ds, do_cor = False, make_plot=True, verbose=True):
+    '''Generate a linear fit between the average stiffness values for the true and predicted MRE
+    values.  Only consider pixels in the mask region.'''
+
+    true = []
+    pred = []
+    for subj in ds.subject:
+        true_mre_region = (ds.sel(subject=subj, mre_type='mre')['image_mre'].values *
+                           ds.sel(subject=subj, mask_type='combo')['mask_mre'].values)
+        true_mre_region = np.where(true_mre_region > 0, true_mre_region, np.nan)
+        pred_mre_region = (ds.sel(subject=subj, mre_type='mre_pred')['image_mre'].values *
+                           ds.sel(subject=subj, mask_type='combo')['mask_mre'].values)
+        pred_mre_region = np.where(pred_mre_region > 0, pred_mre_region, np.nan)
+        if do_cor:
+            slope = ds.sel(subject=subj)['val_slope'].values
+            intercept = ds.sel(subject=subj)['val_intercept'].values
+            pred_mre_region = (pred_mre_region-intercept)/slope
+        true.append(np.nanmean(true_mre_region))
+        pred.append(np.nanmean(pred_mre_region))
+
+    df_results = pd.DataFrame({'true': true, 'predict': pred})
+    model = LinearModel()
+    params = model.guess(df_results['predict'], x=df_results['true'])
+    result = model.fit(df_results['predict'], params, x=df_results['true'])
+
+    if make_plot:
+        import matplotlib.pyplot as plt
+        result.plot()
+        plt.title('Mre_true vs Mre_pred')
+        plt.ylim(0, 12000)
+        plt.xlim(0, 12000)
+        plt.xlabel('True MRE')
+        plt.ylabel('Predicted MRE')
+        plt.show()
+
+    if verbose:
+        print(result.fit_report())
+        print('R2:', 1 - result.residual.var() / np.var(df_results['predict']))
+    return result.params['slope'].value, result.params['intercept'].value
+
+
+def add_val_linear_cor(ds_val, ds_test):
+    slope, intercept = get_linear_fit(ds_val, False, False)
+    ds_test['val_slope'] = (('subject'), np.asarray([slope]*len(ds_test.subject)))
+    ds_test['val_intercept'] = (('subject'), np.asarray([intercept]*len(ds_test.subject)))

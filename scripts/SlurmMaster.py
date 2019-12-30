@@ -23,15 +23,15 @@ class SlurmMaster:
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self.config = Path(config)
         self.parse_config()
-        # print('wiping and recreating staging dir')
-        # shutil.rmtree('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging')
-        # os.mkdir('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging')
-        # shutil.copytree('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/mre',
-        #                 '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/mre')
-        # shutil.copytree('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/mre.egg-info',
-        #                 '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/mre.egg-info')
-        # shutil.copy('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/__init__.py',
-        #             '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/__init__.py')
+        print('wiping and recreating staging dir')
+        shutil.rmtree('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging')
+        os.mkdir('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging')
+        shutil.copytree('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/mre',
+                        '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/mre')
+        shutil.copytree('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/mre.egg-info',
+                        '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/mre.egg-info')
+        shutil.copy('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/__init__.py',
+                    '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/__init__.py')
         os.chdir('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging')
 
     def generate_slurm_script(self, number, conf, subj, subj_num, date, project):
@@ -83,7 +83,7 @@ class SlurmMaster:
         script.write('set -x\n')
         script.write('echo "$@"\n')
         script.write('source /pghbio/dbmi/batmanlab/bpollack/anaconda3/etc/profile.d/conda.sh\n')
-        script.write('conda activate new_mre\n')
+        script.write('conda activate mre\n')
         script.write('\n')
 
         script.write(f'python /pghbio/dbmi/batmanlab/bpollack/predictElasticity/'
