@@ -60,8 +60,9 @@ def down_layer(in_channels, out_channels, kernel=3):
 def down_layer3d(in_channels, out_channels, kernel_size=(3, 5, 5)):
     '''Simple down layer: maxpool then double conv'''
     return nn.Sequential(
-        nn.MaxPool3d((1, 2, 2), padding=(0, 0, 0)),
-        double_conv3d(in_channels, out_channels)
+        # nn.MaxPool3d((1, 2, 2), padding=(0, 0, 0)), # D2.5
+        nn.MaxPool3d((2, 2, 2), padding=(0, 0, 0)),
+        double_conv3d(in_channels, out_channels, kernel_size)
     )
 
 
@@ -237,7 +238,8 @@ class GeneralUNet3D(nn.Module):
         if channel_growth:
             for i in range(n_layers):
                 down_kernel = (3, 5, 5)
-                up_kernel = (1, 2, 2)
+                # up_kernel = (1, 2, 2) # D2.5
+                up_kernel = (2, 2, 2)
                 # if i == 0:
                 # up_kernel = (1, 1, 1)
                 if 2 <= i <= 5:
