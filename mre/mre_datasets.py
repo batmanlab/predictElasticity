@@ -553,6 +553,7 @@ class MRETorchDataset(Dataset):
         self.clip = kwargs.get(f'{set_type}_clip', True)
         self.transform = kwargs.get(f'{set_type}_transform', True)
         self.aug = kwargs.get(f'{set_type}_aug', False)
+        self.smear = kwargs.get(f'{set_type}_smear', False)
         self.organize_data()
 
     def organize_data(self):
@@ -635,7 +636,8 @@ class MRETorchDataset(Dataset):
 
             mask = self.affine_transform(mask[0], rot_angle, translations, scale,
                                          resample=PIL.Image.NEAREST)
-            target = gaussian_filter(target[0], sigma=sigma)
+            if self.smear:
+                target = gaussian_filter(target[0], sigma=sigma)
             target = self.affine_transform(target, rot_angle, translations, scale,
                                            resample=PIL.Image.BILINEAR)
 
@@ -687,7 +689,10 @@ class MRETorchDataset(Dataset):
             for j in range(mask.shape[1]):
                 mask_list.append(self.affine_transform(mask[0][j], rot_angle_xy, translations_xy,
                                                        scale, resample=PIL.Image.NEAREST))
-                target_tmp = gaussian_filter(target[0][j], sigma=sigma)
+                if self.smear:
+                    target_tmp = gaussian_filter(target[0][j], sigma=sigma)
+                else:
+                    target_tmp = target[0][j]
                 target_list.append(self.affine_transform(target_tmp, rot_angle_xy,
                                                          translations_xy, scale,
                                                          resample=PIL.Image.BILINEAR))

@@ -1,4 +1,5 @@
 # https://github.com/milesial/Pytorch-UNet
+import numpy as np
 import torch
 import torch.nn as nn
 from torchvision import models
@@ -18,6 +19,22 @@ def double_conv3d(in_channels, out_channels, kernel_size=(3, 5, 5)):
         nn.Conv3d(out_channels, out_channels, kernel_size=kernel_size,
                   padding=padding),
         nn.BatchNorm3d(out_channels),
+        nn.ReLU(inplace=True)
+    )
+
+
+def double_conv3d_layer(in_channels, out_channels, kernel_size=(3, 5, 5), layer_size=None):
+    '''Function for defining a standard double conv operation.'''
+
+    padding = tuple([int((k-1)/2) for k in kernel_size])
+    return nn.Sequential(
+        nn.Conv3d(in_channels, out_channels, kernel_size=kernel_size,
+                  padding=padding),
+        nn.LayerNorm([out_channels, layer_size[0], layer_size[1], layer_size[2]]),
+        nn.ReLU(inplace=True),
+        nn.Conv3d(out_channels, out_channels, kernel_size=kernel_size,
+                  padding=padding),
+        nn.LayerNorm([out_channels, layer_size[0], layer_size[1], layer_size[2]]),
         nn.ReLU(inplace=True)
     )
 
@@ -63,6 +80,15 @@ def down_layer3d(in_channels, out_channels, kernel_size=(3, 5, 5)):
         # nn.MaxPool3d((1, 2, 2), padding=(0, 0, 0)), # D2.5
         nn.MaxPool3d((2, 2, 2), padding=(0, 0, 0)),
         double_conv3d(in_channels, out_channels, kernel_size)
+    )
+
+
+def down_layer3d_layer(in_channels, out_channels, kernel_size=(3, 5, 5), layer_size=None):
+    '''Simple down layer: maxpool then double conv'''
+    return nn.Sequential(
+        # nn.MaxPool3d((1, 2, 2), padding=(0, 0, 0)), # D2.5
+        nn.MaxPool3d((2, 2, 2), padding=(0, 0, 0)),
+        double_conv3d(in_channels, out_channels, kernel_size, layer_size)
     )
 
 
@@ -225,13 +251,16 @@ class GeneralUNet3D(nn.Module):
         '''
         super().__init__()
 
+        self.layer_size_init = np.asarray((32, 256, 256))
         self.transfer_layer = transfer_layer
         if self.transfer_layer:
             self.pretrained = PretrainedModel('resnet50')
 
         self.down_layers = nn.ModuleList()
         self.up_layers = nn.ModuleList()
-        self.in_layer = double_conv3d(in_channels, out_channels_init, kernel_size=(1, 1, 1))
+        # self.in_layer = double_conv3d(in_channels, out_channels_init, kernel_size=(1, 1, 1))
+        self.in_layer = double_conv3d_layer(in_channels, out_channels_init, kernel_size=(1, 1, 1),
+                                            layer_size=self.layer_size_init)
         self.out_layer = nn.Conv3d(out_channels_init, out_channels_final, 1)
         self.maxpool = nn.MaxPool3d(2)
 
@@ -245,9 +274,14 @@ class GeneralUNet3D(nn.Module):
                 if 2 <= i <= 5:
                     down_kernel = (3, 3, 3)
                 # Double number of channels for each down layer
+                # self.down_layers.append(
+                #     down_layer3d(out_channels_init*(2**i),
+                #                  out_channels_init*(2**(i+1)), kernel_size=down_kernel)
+                # )
                 self.down_layers.append(
-                    down_layer3d(out_channels_init*(2**i),
-                                 out_channels_init*(2**(i+1)), kernel_size=down_kernel)
+                    down_layer3d_layer(out_channels_init*(2**i),
+                                       out_channels_init*(2**(i+1)), kernel_size=down_kernel,
+                                       layer_size=self.layer_size_init//(2**(i+1)))
                 )
                 # Quarter number of channels for each up layer (due to concats)
                 self.up_layers.append(

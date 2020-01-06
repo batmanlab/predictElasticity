@@ -82,6 +82,51 @@ def masked_mse_slice(pred, target, mask):
     return slice_mse
 
 
+# def ord_loss(pred, target, mask):
+#     """
+#     Ordinal loss is defined as the average of pixelwise ordinal loss F(h, w, X, O)
+#     over the entire image domain:
+#     :param ord_labels: ordinal labels for each position of Image I.
+#     :param target:     the ground_truth discreted using SID strategy.
+#     :return: ordinal loss
+#     """
+#
+#     dig_target = np.float32(np.digitize(target, list(range(0, 20000, 200))+[1e6]))
+#     # assert pred.dim() == target.dim()
+#     # invalid_mask = target < 0
+#     # target[invalid_mask] = 0
+#
+#     N, C, D, H, W = pred.size()
+#     ord_num = C
+#     # print('ord_num = ', ord_num)
+#
+#     loss = 0.0
+#
+#     # faster version
+#     K = torch.zeros((N, C, D, H, W), dtype=torch.int).cuda()
+#     for i in range(ord_num):
+#         K[:, i, :, :, :] = K[:, i, :, :, :] + i * torch.ones((N, D, H, W), dtype=torch.int).cuda()
+#
+#     mask_0 = (K <= target).detach()
+#     mask_1 = (K > target).detach()
+#
+#     one = torch.ones(ord_labels[mask_1].size())
+#     if torch.cuda.is_available():
+#         one = one.cuda()
+#
+#     self.loss += torch.sum(torch.log(torch.clamp(ord_labels[mask_0], min=1e-8, max=1e8))) \
+#                  + torch.sum(torch.log(torch.clamp(one - ord_labels[mask_1], min=1e-8, max=1e8)))
+#
+#     # del K
+#     # del one
+#     # del mask_0
+#     # del mask_1
+#
+#     N = N * H * W
+#     self.loss /= (-N)  # negative
+#     return self.loss
+
+
 def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.5):
 
     if loss_func is None:
@@ -222,12 +267,16 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
     return model, best_loss
 
 
-def add_predictions(ds, model, model_params, dims=2):
+def add_predictions(ds, model, model_params, dims=2, inputs=None):
     '''Given a standard MRE dataset, a model, and the associated params, generate MRE predictions
     and load them into that dataset.'''
+    if inputs is None:
+        inputs = ['t1_pre_water', 't1_pre_in', 't1_pre_out', 't1_pre_fat', 't2', 't1_pos_0_water',
+                  't1_pos_70_water', 't1_pos_160_water', 't1_pos_300_water']
+
     model.eval()
-    eval_set = MRETorchDataset(ds, set_type='eval', dims=dims)
-    dataloader = DataLoader(eval_set, batch_size=16, shuffle=False, num_workers=2)
+    eval_set = MRETorchDataset(ds, set_type='eval', dims=dims, inputs=inputs)
+    dataloader = DataLoader(eval_set, batch_size=4, shuffle=False, num_workers=2)
     for inputs, targets, masks, names in dataloader:
         prediction = model(inputs).data.cpu().numpy()
         if dims == 2:
@@ -242,7 +291,7 @@ def add_predictions(ds, model, model_params, dims=2):
                                      'mre_type': 'mre_pred'}] = (prediction[i, 0].T)**2
 
 
-def get_linear_fit(ds, do_cor = False, make_plot=True, verbose=True):
+def get_linear_fit(ds, do_cor=False, make_plot=True, verbose=True):
     '''Generate a linear fit between the average stiffness values for the true and predicted MRE
     values.  Only consider pixels in the mask region.'''
 
