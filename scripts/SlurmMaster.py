@@ -62,11 +62,12 @@ class SlurmMaster:
             # script.write('#SBATCH -D /pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging')
             script.write('#SBATCH -A ac5616p\n')
             script.write('#SBATCH --partition=GPU-AI\n')
-            script.write('#SBATCH --gres=gpu:volta16:2\n')
+            script.write('#SBATCH --gres=gpu:volta16:4\n')
             # script.write('#SBATCH -A bi561ip\n')
             # script.write('#SBATCH --partition=DBMI-GPU\n')
             # script.write('#SBATCH --gres=gpu:p100:2\n')
             script.write('#SBATCH --nodes=1\n')
+            # script.write('#SBATCH --mem=92800\n')
             script.write('#SBATCH -C EGRESS\n')
         else:
             arg_string += f' --subj={subj}'
