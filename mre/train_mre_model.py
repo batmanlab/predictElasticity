@@ -16,7 +16,7 @@ from torchsummary import summary
 from tensorboardX import SummaryWriter
 
 from mre.mre_datasets import MREtoXr, MRETorchDataset
-from mre.prediction import train_model, add_predictions
+from mre.prediction import train_model, add_predictions, add_val_linear_cor
 from mre import pytorch_arch_2d, pytorch_arch_3d
 from robust_loss_pytorch import adaptive
 
@@ -138,7 +138,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
             model = pytorch_arch_3d.GeneralUNet3D(cfg['n_layers'], cfg['in_channels'],
                                                   cfg['model_cap'], cfg['out_channels_final'],
                                                   cfg['channel_growth'], cfg['coord_conv'],
-                                                  cfg['transfer_layer']).to(device)
+                                                  cfg['transfer_layer'], cfg['depth']).to(device)
 
     # Set up adaptive loss if selected
     loss = None
@@ -238,6 +238,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         ds_test = ds.sel(subject=test_list)
         ds_train = ds.sel(subject=train_list)
         ds_val = ds.sel(subject=val_list)
+        add_val_linear_cor(ds_val, ds_test)
         ds_test.to_netcdf(Path(xr_dir, 'test', f'xarray_{subj_group}.nc'))
         ds_train.to_netcdf(Path(xr_dir, 'train', f'xarray_{subj_group}.nc'))
         ds_val.to_netcdf(Path(xr_dir, 'val', f'xarray_{subj_group}.nc'))
@@ -269,7 +270,7 @@ def default_cfg():
     cfg = {'train_trans': True, 'train_clip': True, 'train_aug': True, 'train_sample': 'shuffle',
            'val_trans': True, 'val_clip': True, 'val_aug': False, 'val_sample': 'shuffle',
            'test_trans': True, 'test_clip': True, 'test_aug': False,
-           'train_smear': True, 'val_smear': False, 'test_smear': False,
+           'train_smear': 'gaussian', 'val_smear': False, 'test_smear': False,
            'batch_size': 64, 'model_cap': 16, 'subj': None,
            'gamma': 0.1, 'num_epochs': 40, 'dry_run': False, 'coord_conv': False, 'loss': 'l2',
            'mask_trimmer': False, 'mask_mixer': 'mixed', 'target_max': None, 'target_bins': 100,
@@ -277,7 +278,7 @@ def default_cfg():
            'channel_growth': False, 'transfer_layer': False, 'seed': 100,
            'resize': False, 'patient_list': False, 'num_workers': 0, 'lr_scheduler': 'step',
            'lr': 1e-2, 'lr_max': 1e-2, 'lr_min': 1e-4, 'step_size': 20, 'dims': 2,
-           'pixel_weight': 1,
+           'pixel_weight': 1, 'depth': False,
            'inputs': ['t1_pre_water', 't1_pre_in', 't1_pre_out', 't1_pre_fat', 't2',
                       't1_pos_0_water', 't1_pos_70_water', 't1_pos_160_water', 't1_pos_300_water']}
     return cfg

@@ -92,12 +92,35 @@ class up_layer3d(nn.Module):
         stride = kernel_size
         if channel_growth:
             self.upsample = nn.ConvTranspose3d(in_channels, out_channels, kernel_size=kernel_size,
-                                               stride=stride, groups=out_channels)
+                                               stride=stride)
         else:
             self.upsample = nn.ConvTranspose3d(out_channels, out_channels, kernel_size=kernel_size,
                                                stride=stride)
 
-        # self.dconv = double_conv3d(in_channels, out_channels)
+        self.dconv = double_conv3d(in_channels, out_channels)
+
+    def forward(self, x1, x2):
+
+        x1 = self.upsample(x1)
+        x = torch.cat([x1, x2], dim=1)
+        return self.dconv(x)
+
+
+class up_layer3d_depth(nn.Module):
+    def __init__(self, in_channels, out_channels, channel_growth=True, kernel_size=(1, 2, 2)):
+        '''Up layers require a class instead of a function in order to define a forward function
+        that takes two inputs instead of 1 (for concat)'''
+        super().__init__()
+
+        # Note: may have to revist upsampling options (ConvTranspose3D might have padding issues?)
+        stride = kernel_size
+        if channel_growth:
+            self.upsample = nn.ConvTranspose3d(in_channels, out_channels, kernel_size=kernel_size,
+                                               stride=stride, groups=out_channels)
+        else:
+            self.upsample = nn.ConvTranspose3d(out_channels, out_channels, kernel_size=kernel_size,
+                                               stride=stride, groups=out_channels)
+
         self.dconv = double_conv3d_depth(in_channels, out_channels)
 
     def forward(self, x1, x2):
@@ -109,7 +132,7 @@ class up_layer3d(nn.Module):
 
 class GeneralUNet3D(nn.Module):
     def __init__(self, n_layers, in_channels, out_channels_init, out_channels_final,
-                 channel_growth, coord_conv, transfer_layer=False):
+                 channel_growth, coord_conv, transfer_layer=False, depth=False):
         '''Generalized UNet class, meant to be highly modular.  Allows for variable number of layers
         and other features, but is less human-readable as a result.
 
@@ -136,9 +159,11 @@ class GeneralUNet3D(nn.Module):
         self.down_layers = nn.ModuleList()
         self.up_layers = nn.ModuleList()
         # self.in_layer = double_conv3d(in_channels, out_channels_init, kernel_size=(1, 1, 1))
-        # self.in_layer = double_conv3d_layer(in_channels, out_channels_init, kernel_size=(1, 1, 1),
-        #                                     layer_size=self.layer_size_init)
-        self.in_layer = double_conv3d_depth(in_channels, out_channels_init, kernel_size=(1, 1, 1))
+        if depth:
+            self.in_layer = double_conv3d_depth(in_channels, out_channels_init,
+                                                kernel_size=(1, 1, 1))
+        else:
+            self.in_layer = double_conv3d(in_channels, out_channels_init, kernel_size=(1, 1, 1))
         self.out_layer = nn.Conv3d(out_channels_init, out_channels_final, 1)
         self.maxpool = nn.MaxPool3d(2)
 
@@ -156,20 +181,30 @@ class GeneralUNet3D(nn.Module):
                 #     down_layer3d(out_channels_init*(2**i),
                 #                  out_channels_init*(2**(i+1)), kernel_size=down_kernel)
                 # )
-                self.down_layers.append(
-                    down_layer3d_depth(out_channels_init*(2**i),
-                                       out_channels_init*(2**(i+1)), kernel_size=down_kernel)
-                )
+                if depth:
+                    self.down_layers.append(
+                        down_layer3d_depth(out_channels_init*(2**i),
+                                           out_channels_init*(2**(i+1)), kernel_size=down_kernel)
+                    )
+                    self.up_layers.append(
+                        up_layer3d_depth(out_channels_init*(2**(i+1)),
+                                         out_channels_init*(2**i), kernel_size=up_kernel)
+                    )
+                else:
+                    self.down_layers.append(
+                        down_layer3d(out_channels_init*(2**i),
+                                     out_channels_init*(2**(i+1)), kernel_size=down_kernel)
+                    )
+                    self.up_layers.append(
+                        up_layer3d(out_channels_init*(2**(i+1)),
+                                   out_channels_init*(2**i), kernel_size=up_kernel)
+                    )
                 # self.down_layers.append(
                 #     down_layer3d_layer(out_channels_init*(2**i),
                 #                        out_channels_init*(2**(i+1)), kernel_size=down_kernel,
                 #                        layer_size=self.layer_size_init//(2**(i+1)))
                 # )
                 # Quarter number of channels for each up layer (due to concats)
-                self.up_layers.append(
-                    up_layer3d(out_channels_init*(2**(i+1)),
-                               out_channels_init*(2**i), kernel_size=up_kernel)
-                )
         else:
             for i in range(n_layers):
                 # Keep number of channels const for down layer

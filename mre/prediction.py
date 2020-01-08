@@ -142,7 +142,7 @@ def masked_mse_slice(pred, target, mask):
 def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.5):
 
     if loss_func is None:
-        pixel_loss = masked_L1(pred, target, mask)
+        pixel_loss = masked_mse(pred, target, mask)
         # slice_loss = masked_mse_slice(pred, target, mask)
         subj_loss = masked_mse_subj(pred, target, mask)
         # loss = pixel_loss + subj_loss + slice_loss

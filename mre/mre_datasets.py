@@ -25,7 +25,7 @@ import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
 import torchvision.transforms.functional as TF
-from scipy.ndimage import gaussian_filter
+from scipy.ndimage import gaussian_filter, median_filter
 
 from mre.registration import RegPatient, Register
 from mre.pytorch_arch_old import GeneralUNet3D
@@ -619,7 +619,12 @@ class MRETorchDataset(Dataset):
                 rot_angle = np.random.uniform(-8, 8, 1)
                 translations = np.random.uniform(-10, 10, 2)
                 scale = np.random.uniform(0.90, 1.10, 1)
-                sigma = np.random.uniform(0, 3, 1)[0]
+                if self.smear == 'gaussian':
+                    sigma = np.random.uniform(0, 3, 1)[0]
+                elif self.smear == 'median':
+                    sigma = np.random.randint(10)
+                else:
+                    sigma = 0
             else:
                 rot_angle = 0
                 translations = (0, 0)
@@ -636,8 +641,10 @@ class MRETorchDataset(Dataset):
 
             mask = self.affine_transform(mask[0], rot_angle, translations, scale,
                                          resample=PIL.Image.NEAREST)
-            if self.smear:
+            if self.smear == 'gaussian':
                 target = gaussian_filter(target[0], sigma=sigma)
+            elif self.smear == 'median':
+                target = median_filter(target[0], sigma=sigma)
             target = self.affine_transform(target, rot_angle, translations, scale,
                                            resample=PIL.Image.BILINEAR)
 
@@ -657,8 +664,13 @@ class MRETorchDataset(Dataset):
                 # rot_angle_yz = np.random.uniform(-1, 1, 1)[0]
 
                 scale = np.random.uniform(0.90, 1.10, 1)[0]
-                # scale = 1
-                sigma = np.random.uniform(0, 3, 1)[0]
+
+                if self.smear == 'gaussian':
+                    sigma = np.random.uniform(0, 3, 1)[0]
+                elif self.smear == 'median':
+                    sigma = np.random.randint(1, 10)
+                else:
+                    sigma = 0
             else:
                 # raise NotImplementedError('you must transform 3d images')
                 rot_angle_xy = 0
@@ -689,8 +701,10 @@ class MRETorchDataset(Dataset):
             for j in range(mask.shape[1]):
                 mask_list.append(self.affine_transform(mask[0][j], rot_angle_xy, translations_xy,
                                                        scale, resample=PIL.Image.NEAREST))
-                if self.smear:
+                if self.smear == 'guassian':
                     target_tmp = gaussian_filter(target[0][j], sigma=sigma)
+                elif self.smear == 'median':
+                    target_tmp = median_filter(target[0][j], size=sigma)
                 else:
                     target_tmp = target[0][j]
                 target_list.append(self.affine_transform(target_tmp, rot_angle_xy,
