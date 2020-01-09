@@ -84,17 +84,22 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         shuffle_list = [subj for subj in ds.subject.values if subj not in test_list]
         shuffle_list = np.asarray(shuffle_list)
         np.random.shuffle(shuffle_list)
-        train_idx = int(0.75*len(shuffle_list))
-        train_list = list(shuffle_list[:train_idx])
-        val_list = list(shuffle_list[train_idx:])
+        if cfg['do_val']:
+            train_idx = int(0.75*len(shuffle_list))
+            train_list = list(shuffle_list[:train_idx])
+            val_list = list(shuffle_list[train_idx:])
+        else:
+            train_list = list(shuffle_list)
 
     train_set = MRETorchDataset(ds.sel(subject=train_list), set_type='train', **cfg)
-    val_set = MRETorchDataset(ds.sel(subject=val_list), set_type='val', **cfg)
+    if cfg['do_val']:
+        val_set = MRETorchDataset(ds.sel(subject=val_list), set_type='val', **cfg)
     test_set = MRETorchDataset(ds.sel(subject=test_list), set_type='test', **cfg)
 
     if verbose:
         print('train: ', len(train_set))
-        print('val: ', len(val_set))
+        if cfg['do_val']:
+            print('val: ', len(val_set))
         print('test: ', len(test_set))
     num_workers = cfg['num_workers']
     if cfg['train_sample'] == 'shuffle':
@@ -106,15 +111,16 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
                                               train_set, replacement=True,
                                               num_samples=cfg['train_num_samples']),
                                           num_workers=num_workers),
-    if cfg['val_sample'] == 'shuffle':
-        dataloaders['val'] = DataLoader(val_set, batch_size=batch_size, shuffle=True,
-                                        num_workers=num_workers)
-    elif cfg['val_sample'] == 'resample':
-        dataloaders['val'] = DataLoader(val_set, batch_size=batch_size, shuffle=False,
-                                        sampler=RandomSampler(
-                                            val_set, replacement=True,
-                                            num_samples=cfg['val_num_samples']),
-                                        num_workers=num_workers),
+    if cfg['do_val']:
+        if cfg['val_sample'] == 'shuffle':
+            dataloaders['val'] = DataLoader(val_set, batch_size=batch_size, shuffle=True,
+                                            num_workers=num_workers)
+        elif cfg['val_sample'] == 'resample':
+            dataloaders['val'] = DataLoader(val_set, batch_size=batch_size, shuffle=False,
+                                            sampler=RandomSampler(
+                                                val_set, replacement=True,
+                                                num_samples=cfg['val_num_samples']),
+                                            num_workers=num_workers),
     dataloaders['test'] = DataLoader(test_set, batch_size=batch_size, shuffle=False,
                                      num_workers=num_workers)
 
@@ -196,7 +202,8 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         xr_dir.mkdir(parents=True, exist_ok=True)
         Path(xr_dir, 'test').mkdir(parents=True, exist_ok=True)
         Path(xr_dir, 'train').mkdir(parents=True, exist_ok=True)
-        Path(xr_dir, 'val').mkdir(parents=True, exist_ok=True)
+        if cfg['do_val']:
+            Path(xr_dir, 'val').mkdir(parents=True, exist_ok=True)
         model_dir.mkdir(parents=True, exist_ok=True)
         writer = SummaryWriter(str(writer_dir)+f'/{model_version}_{subj_group}')
         # Model graph is useless without additional tweaks to name layers appropriately
@@ -206,7 +213,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         model, best_loss = train_model(model, optimizer, exp_lr_scheduler, device, dataloaders,
                                        num_epochs=cfg['num_epochs'], tb_writer=writer,
                                        verbose=verbose, loss_func=loss, sls=use_sls,
-                                       pixel_weight=cfg['pixel_weight'])
+                                       pixel_weight=cfg['pixel_weight'], do_val=cfg['do_val'])
 
         # Write outputs and save model
         cfg['best_loss'] = best_loss
@@ -237,11 +244,12 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         add_predictions(ds, model, None, dims=cfg['dims'], inputs=cfg['inputs'])
         ds_test = ds.sel(subject=test_list)
         ds_train = ds.sel(subject=train_list)
-        ds_val = ds.sel(subject=val_list)
-        add_val_linear_cor(ds_val, ds_test)
+        if cfg['do_val']:
+            ds_val = ds.sel(subject=val_list)
+            add_val_linear_cor(ds_val, ds_test)
+            ds_val.to_netcdf(Path(xr_dir, 'val', f'xarray_{subj_group}.nc'))
         ds_test.to_netcdf(Path(xr_dir, 'test', f'xarray_{subj_group}.nc'))
         ds_train.to_netcdf(Path(xr_dir, 'train', f'xarray_{subj_group}.nc'))
-        ds_val.to_netcdf(Path(xr_dir, 'val', f'xarray_{subj_group}.nc'))
 
         # consider changing output to just ds?
         return inputs, targets, masks, names, model
@@ -279,6 +287,7 @@ def default_cfg():
            'resize': False, 'patient_list': False, 'num_workers': 0, 'lr_scheduler': 'step',
            'lr': 1e-2, 'lr_max': 1e-2, 'lr_min': 1e-4, 'step_size': 20, 'dims': 2,
            'pixel_weight': 1, 'depth': False,
+           'do_val': True,
            'inputs': ['t1_pre_water', 't1_pre_in', 't1_pre_out', 't1_pre_fat', 't2',
                       't1_pos_0_water', 't1_pos_70_water', 't1_pos_160_water', 't1_pos_300_water']}
     return cfg

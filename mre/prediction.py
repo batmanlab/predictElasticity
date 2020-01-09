@@ -175,9 +175,13 @@ def print_metrics(metrics, epoch_samples, phase):
 
 
 def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25, tb_writer=None,
-                verbose=True, loss_func=None, sls=False, pixel_weight=1):
+                verbose=True, loss_func=None, sls=False, pixel_weight=1, do_val=True):
     best_model_wts = copy.deepcopy(model.state_dict())
     best_loss = 1e16
+    if do_val:
+        phases = ['train', 'val', 'test']
+    else:
+        phases = ['train', 'test']
     for epoch in range(num_epochs):
         try:
             if verbose:
@@ -186,7 +190,7 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                 since = time.time()
 
             # Each epoch has a training and validation phase
-            for phase in ['train', 'val']:
+            for phase in phases:
                 if phase == 'train':
                     for param_group in optimizer.param_groups:
                         if verbose:
@@ -231,26 +235,32 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                     epoch_samples += inputs.size(0)
 
                 if phase == 'train':
-                    if sls:
-                        pass
-                    else:
+                    if not sls:
                         scheduler.step()
+
                 if verbose:
                     print_metrics(metrics, epoch_samples, phase)
                 epoch_loss = metrics['loss'] / epoch_samples
 
                 # deep copy the model if is it best
-                if phase == 'val' and epoch_loss < best_loss:
-                    if verbose:
-                        print("updating best model floor")
-                        print("saving best model")
-                    best_loss = epoch_loss
-                    best_model_wts = copy.deepcopy(model.state_dict())
+                if do_val:
+                    if phase == 'val' and epoch_loss < best_loss:
+                        if verbose:
+                            print("updating best model floor")
+                            print("saving best model")
+                        best_loss = epoch_loss
+                        best_model_wts = copy.deepcopy(model.state_dict())
 
-                elif phase == 'val' and epoch_loss < best_loss*1.1:
-                    if verbose:
-                        print("saving best model (within 10%) ")
-                    best_model_wts = copy.deepcopy(model.state_dict())
+                    elif phase == 'val' and epoch_loss < best_loss*1.1:
+                        if verbose:
+                            print("saving best model (within 10%) ")
+                        best_model_wts = copy.deepcopy(model.state_dict())
+                else:
+                    if phase == 'train' and epoch_loss < best_loss:
+                        if verbose:
+                            print("saving best model (training)")
+                        best_loss = epoch_loss
+                        best_model_wts = copy.deepcopy(model.state_dict())
 
                 if tb_writer:
                     tb_writer.add_scalar(f'loss_{phase}', epoch_loss, epoch)
@@ -272,7 +282,10 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
             print('Breaking out of training early.')
             break
     if verbose:
-        print('Best val loss: {:4f}'.format(best_loss))
+        if do_val:
+            print('Best val loss: {:4f}'.format(best_loss))
+        else:
+            print('Best training loss: {:4f}'.format(best_loss))
 
     # load best model weights
     model.load_state_dict(best_model_wts)
