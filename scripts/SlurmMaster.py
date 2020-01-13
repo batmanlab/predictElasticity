@@ -87,7 +87,7 @@ class SlurmMaster:
         script.write('conda activate mre\n')
         script.write('\n')
 
-        script.write(f'python /pghbio/dbmi/batmanlab/bpollack/predictElasticity/'
+        script.write(f'python /pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/'
                      f'mre/{module} {arg_string}\n')
 
         script.close()

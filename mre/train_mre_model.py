@@ -19,6 +19,7 @@ from mre.mre_datasets import MREtoXr, MRETorchDataset
 from mre.prediction import train_model, add_predictions, add_val_linear_cor
 from mre import pytorch_arch_2d, pytorch_arch_3d
 from robust_loss_pytorch import adaptive
+from mre.pytorch_deeplabv3plus_3D.network.deeplabv3_3d import DeepLabV3_3D
 
 import sls
 
@@ -104,7 +105,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
     num_workers = cfg['num_workers']
     if cfg['train_sample'] == 'shuffle':
         dataloaders['train'] = DataLoader(train_set, batch_size=batch_size, shuffle=True,
-                                          num_workers=num_workers)
+                                          num_workers=num_workers, drop_last=True)
     elif cfg['train_sample'] == 'resample':
         dataloaders['train'] = DataLoader(train_set, batch_size=batch_size, shuffle=False,
                                           sampler=RandomSampler(
@@ -114,7 +115,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
     if cfg['do_val']:
         if cfg['val_sample'] == 'shuffle':
             dataloaders['val'] = DataLoader(val_set, batch_size=batch_size, shuffle=True,
-                                            num_workers=num_workers)
+                                            num_workers=num_workers, drop_last=True)
         elif cfg['val_sample'] == 'resample':
             dataloaders['val'] = DataLoader(val_set, batch_size=batch_size, shuffle=False,
                                             sampler=RandomSampler(
@@ -122,7 +123,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
                                                 num_samples=cfg['val_num_samples']),
                                             num_workers=num_workers),
     dataloaders['test'] = DataLoader(test_set, batch_size=batch_size, shuffle=False,
-                                     num_workers=num_workers)
+                                     num_workers=num_workers, drop_last=True)
 
     # Set device for computation
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -141,10 +142,13 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
                                                   cfg['channel_growth'], cfg['coord_conv'],
                                                   cfg['transfer_layer']).to(device)
         elif cfg['dims'] == 3:
-            model = pytorch_arch_3d.GeneralUNet3D(cfg['n_layers'], cfg['in_channels'],
-                                                  cfg['model_cap'], cfg['out_channels_final'],
-                                                  cfg['channel_growth'], cfg['coord_conv'],
-                                                  cfg['transfer_layer'], cfg['depth']).to(device)
+            # model = pytorch_arch_3d.GeneralUNet3D(cfg['n_layers'], cfg['in_channels'],
+            #                                       cfg['model_cap'], cfg['out_channels_final'],
+            #                                       cfg['channel_growth'], cfg['coord_conv'],
+            #                                       cfg['transfer_layer'], cfg['depth']).to(device)
+            model = DeepLabV3_3D(num_classes=cfg['out_channels_final'],
+                                 input_channels=cfg['in_channels'], resnet='resnet34_os8',
+                                 last_activation=None)
 
     # Set up adaptive loss if selected
     loss = None
@@ -154,7 +158,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         loss_params = torch.nn.ParameterList(loss.parameters())
         optimizer = optim.Adam(chain(model.parameters(), loss_params), lr=cfg['lr'])
     elif loss_type == 'l2' and cfg['lr_scheduler'] == 'step':
-        optimizer = optim.Adam(model.parameters(), lr=cfg['lr'])
+        optimizer = optim.Adam(model.parameters(), lr=cfg['lr'], weight_decay=0.1)
     elif use_sls:
         optimizer = sls.Sls(model.parameters(),
                             n_batches_per_epoch=len(train_set)/float(cfg["batch_size"]))
@@ -186,8 +190,8 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         print('names', names)
 
         print('Model Summary:')
-        # summary(model, input_size=(3, 224, 224))
-        summary(model, input_size=(inputs.shape[1:]))
+        summary(model, input_size=(9, 32, 256, 256))
+        # summary(model, input_size=(inputs.shape[1:]))
         return inputs, targets, masks, names, None
 
     else:
@@ -240,6 +244,11 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
 
         writer.close()
         torch.save(model.state_dict(), str(model_dir)+f'/model_{model_version}.pkl')
+        # del model_pred
+        # del masks
+        # del targets
+        # del inputs
+        # torch.cuda.empty_cache()
 
         add_predictions(ds, model, None, dims=cfg['dims'], inputs=cfg['inputs'])
         ds_test = ds.sel(subject=test_list)
