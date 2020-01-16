@@ -20,7 +20,7 @@ from mre.prediction import train_model, add_predictions, add_val_linear_cor
 from mre import pytorch_arch_2d, pytorch_arch_3d
 from robust_loss_pytorch import adaptive
 from mre.pytorch_deeplabv3plus_3D.network.deeplabv3_3d import DeepLabV3_3D
-from mre.pytorch_arch_deeplab import AlignedXception
+from mre.pytorch_arch_deeplab import AlignedXception, DeepLab
 
 import sls
 
@@ -150,7 +150,8 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
             # model = DeepLabV3_3D(num_classes=cfg['out_channels_final'],
             #                      input_channels=cfg['in_channels'], resnet='resnet34_os8',
             #                      last_activation=None)
-            model = AlignedXception(in_channels=cfg['in_channels'], output_stride=8)
+            model = DeepLab(in_channels=cfg['in_channels'], out_channels=cfg['out_channels_final'],
+                            output_stride=8)
 
     # Set up adaptive loss if selected
     loss = None
