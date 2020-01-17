@@ -22,14 +22,14 @@ class SeparableConv3d(nn.Module):
 
         self.conv1 = nn.Conv3d(in_channels, in_channels, kernel_size, stride, padding, dilation,
                                groups=in_channels, bias=bias)
-        self.bn = nn.BatchNorm3d(in_channels)
         self.pointwise = nn.Conv3d(in_channels, out_channels, 1, 1, 0, 1, 1, bias=bias)
+        self.bn = nn.BatchNorm3d(out_channels)
 
     def forward(self, x):
         # x = fixed_padding(x, self.conv1.kernel_size[0], dilation=self.conv1.dilation[0])
         x = self.conv1(x)
-        x = self.bn(x)
         x = self.pointwise(x)
+        x = self.bn(x)
         return x
 
 
@@ -68,18 +68,18 @@ class Block(nn.Module):
         if grow_first:
             rep.append(self.relu)
             rep.append(SeparableConv3d(in_channels, out_channels, 3, 1, padding, dilation=dilation))
-            rep.append(nn.BatchNorm3d(out_channels))
+            # rep.append(nn.BatchNorm3d(out_channels))
             filters = out_channels
 
         for i in range(reps - 1):
             rep.append(self.relu)
             rep.append(SeparableConv3d(filters, filters, 3, 1, padding, dilation=dilation))
-            rep.append(nn.BatchNorm3d(filters))
+            # rep.append(nn.BatchNorm3d(filters))
 
         if not grow_first:
             rep.append(self.relu)
             rep.append(SeparableConv3d(in_channels, out_channels, 3, 1, padding, dilation=dilation))
-            rep.append(nn.BatchNorm3d(out_channels))
+            # rep.append(nn.BatchNorm3d(out_channels))
 
         # if stride == 2:
         #     rep.append(self.relu)
@@ -93,12 +93,12 @@ class Block(nn.Module):
                 stride_3d = (1, 2, 2)
             rep.append(self.relu)
             rep.append(SeparableConv3d(out_channels, out_channels, 3, stride_3d, 1))
-            rep.append(nn.BatchNorm3d(out_channels))
+            # rep.append(nn.BatchNorm3d(out_channels))
 
         if stride == 1 and is_last:
             rep.append(self.relu)
             rep.append(SeparableConv3d(out_channels, out_channels, 3, 1, 1))
-            rep.append(nn.BatchNorm3d(out_channels))
+            # rep.append(nn.BatchNorm3d(out_channels))
 
         if not start_with_relu:
             rep = rep[1:]
@@ -198,17 +198,17 @@ class AlignedXception(nn.Module):
         self.block20 = Block(256, 512, reps=2, stride=1, dilation=exit_block_dilations[0],
                              start_with_relu=True, grow_first=False, is_last=True)
 
-        self.conv3 = SeparableConv3d(512, 512, 3, stride=1, dilation=exit_block_dilations[0],
+        self.conv3 = SeparableConv3d(512, 768, 3, stride=1, dilation=exit_block_dilations[0],
                                      padding=1)
-        self.bn3 = nn.BatchNorm3d(512)
+        # self.bn3 = nn.BatchNorm3d(768)
 
-        self.conv4 = SeparableConv3d(512, 512, 3, stride=1, dilation=exit_block_dilations[0],
+        self.conv4 = SeparableConv3d(768, 1024, 3, stride=1, dilation=exit_block_dilations[0],
                                      padding=1)
-        self.bn4 = nn.BatchNorm3d(512)
+        # self.bn4 = nn.BatchNorm3d(1024)
 
-        self.conv5 = SeparableConv3d(512, 512, 3, stride=1, dilation=exit_block_dilations[0],
+        self.conv5 = SeparableConv3d(1024, 1280, 3, stride=1, dilation=exit_block_dilations[0],
                                      padding=1)
-        self.bn5 = nn.BatchNorm3d(512)
+        # self.bn5 = nn.BatchNorm3d(1280)
 
         # Init weights
         self._init_weight()
@@ -252,15 +252,15 @@ class AlignedXception(nn.Module):
         x = self.block20(x)
         x = self.relu(x)
         x = self.conv3(x)
-        x = self.bn3(x)
+        # x = self.bn3(x)
         x = self.relu(x)
 
         x = self.conv4(x)
-        x = self.bn4(x)
+        # x = self.bn4(x)
         x = self.relu(x)
 
         x = self.conv5(x)
-        x = self.bn5(x)
+        # x = self.bn5(x)
         x = self.relu(x)
 
         return x, low_level_feat
@@ -307,11 +307,13 @@ class _ASPPModule(nn.Module):
 class ASPP(nn.Module):
     def __init__(self, output_stride):
         super(ASPP, self).__init__()
-        in_channels = 512
+        in_channels = 1280
         if output_stride == 16:
-            dilations = [1, 6, 12, 18]
+            # dilations = [1, 6, 12, 18]
+            dilations = [1, 2, 4, 6]
         elif output_stride == 8:
-            dilations = [1, 12, 24, 36]
+            # dilations = [1, 12, 24, 36]
+            dilations = [1, 2, 4, 6]
         else:
             raise NotImplementedError
 
@@ -327,7 +329,7 @@ class ASPP(nn.Module):
         self.conv1 = nn.Conv3d(1280, 256, 1, bias=False)
         self.bn1 = nn.BatchNorm3d(256)
         self.relu = nn.ReLU()
-        self.dropout = nn.Dropout(0.5)
+        # self.dropout = nn.Dropout(0.5)
         self._init_weight()
 
     def forward(self, x):
@@ -343,7 +345,8 @@ class ASPP(nn.Module):
         x = self.bn1(x)
         x = self.relu(x)
 
-        return self.dropout(x)
+        # return self.dropout(x)
+        return x
 
     def _init_weight(self):
         for m in self.modules():
@@ -368,12 +371,12 @@ class Decoder(nn.Module):
                                                  padding=1, bias=False),
                                        nn.BatchNorm3d(128),
                                        nn.ReLU(),
-                                       nn.Dropout(0.5),
+                                       # nn.Dropout(0.5),
                                        nn.Conv3d(128, 128, kernel_size=3, stride=1,
                                                  padding=1, bias=False),
                                        nn.BatchNorm3d(128),
                                        nn.ReLU(),
-                                       nn.Dropout(0.1),
+                                       # nn.Dropout(0.1),
                                        nn.Conv3d(128, out_channels, kernel_size=1, stride=1))
         self._init_weight()
 
