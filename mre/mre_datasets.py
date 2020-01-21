@@ -622,7 +622,8 @@ class MRETorchDataset(Dataset):
                 if self.smear == 'gaussian':
                     sigma = np.random.uniform(0, 3, 1)[0]
                 elif self.smear == 'median':
-                    sigma = np.random.randint(10)
+                    # sigma = np.random.randint(10)
+                    sigma = 6
                 else:
                     sigma = 0
             else:

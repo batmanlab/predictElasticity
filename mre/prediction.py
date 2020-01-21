@@ -139,7 +139,7 @@ def masked_mse_slice(pred, target, mask):
 #     return self.loss
 
 
-def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.5):
+def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.05):
 
     if loss_func is None:
         pixel_loss = masked_mse(pred, target, mask)
@@ -175,7 +175,7 @@ def print_metrics(metrics, epoch_samples, phase):
 
 
 def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25, tb_writer=None,
-                verbose=True, loss_func=None, sls=False, pixel_weight=1, do_val=True):
+                verbose=True, loss_func=None, sls=False, pixel_weight=1, do_val=True, ds=None):
     best_model_wts = copy.deepcopy(model.state_dict())
     best_loss = 1e16
     if do_val:
@@ -225,8 +225,9 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                                 optimizer.step()
                             else:
                                 def closure():
-                                    return calc_loss(outputs, labels, masks, metrics, loss_func,
-                                                     pixel_weight)
+                                    pass
+                                    # return calc_loss(outputs, labels, masks, metrics, loss_func,
+                                    #                  pixel_weight)
                                 optimizer.step(closure)
                         else:
                             loss = calc_loss(outputs, labels, masks, metrics, loss_func,
@@ -289,6 +290,23 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
 
     # load best model weights
     model.load_state_dict(best_model_wts)
+    model.eval()   # Set model to evaluate mode
+    # iterate through batches of data for each epoch
+    if ds:
+        for phase in phases:
+            for data in dataloaders[phase]:
+                inputs = data[0].to(device)
+                names = data[3]
+                # print(names)
+                prediction = model(inputs).data.cpu().numpy()
+                # print(prediction.shape)
+                for i, name in enumerate(names):
+                    # print(name)
+                    # print(prediction[i])
+                    # print(prediction[i][0])
+                    # print(prediction[i, 0])
+                    ds['image_mre'].loc[{'subject': name,
+                                         'mre_type': 'mre_pred'}] = (prediction[i, 0].T)**2
     del inputs
     del labels
     del masks
@@ -340,7 +358,7 @@ def get_linear_fit(ds, do_cor=False, make_plot=True, verbose=True):
             intercept = ds.sel(subject=subj)['val_intercept'].values
             pred_mre_region = (pred_mre_region-intercept)/slope
         true.append(np.nanmean(true_mre_region))
-        pred.append(np.nanmean(pred_mre_region))
+        pred.append(np.nan_to_num(np.nanmean(pred_mre_region)))
 
     df_results = pd.DataFrame({'true': true, 'predict': pred})
     model = LinearModel()

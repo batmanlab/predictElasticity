@@ -21,6 +21,7 @@ from mre import pytorch_arch_2d, pytorch_arch_3d
 from robust_loss_pytorch import adaptive
 from mre.pytorch_deeplabv3plus_3D.network.deeplabv3_3d import DeepLabV3_3D
 from mre.pytorch_arch_deeplab import AlignedXception, DeepLab
+from mre.pytorch_arch_debug import Debug
 
 import sls
 
@@ -143,15 +144,18 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
                                                   cfg['channel_growth'], cfg['coord_conv'],
                                                   cfg['transfer_layer']).to(device)
         elif cfg['dims'] == 3:
-            # model = pytorch_arch_3d.GeneralUNet3D(cfg['n_layers'], cfg['in_channels'],
-            #                                       cfg['model_cap'], cfg['out_channels_final'],
-            #                                       cfg['channel_growth'], cfg['coord_conv'],
-            #                                       cfg['transfer_layer'], cfg['depth']).to(device)
-            # model = DeepLabV3_3D(num_classes=cfg['out_channels_final'],
-            #                      input_channels=cfg['in_channels'], resnet='resnet34_os8',
-            #                      last_activation=None)
-            model = DeepLab(in_channels=cfg['in_channels'], out_channels=cfg['out_channels_final'],
-                            output_stride=8)
+            model = pytorch_arch_3d.GeneralUNet3D(cfg['n_layers'], cfg['in_channels'],
+                                                  cfg['model_cap'], cfg['out_channels_final'],
+                                                  cfg['channel_growth'], cfg['coord_conv'],
+                                                  cfg['transfer_layer'], cfg['depth']).to(device)
+    elif cfg['model_arch'] == 'deeplab':
+        # model = DeepLabV3_3D(num_classes=cfg['out_channels_final'],
+        #                      input_channels=cfg['in_channels'], resnet='resnet34_os8',
+        #                      last_activation=None)
+        model = DeepLab(in_channels=cfg['in_channels'], out_channels=cfg['out_channels_final'],
+                        output_stride=8)
+    elif cfg['model_arch'] == 'debug':
+        model = Debug(in_channels=cfg['in_channels'], out_channels=cfg['out_channels_final'])
 
     # Set up adaptive loss if selected
     loss = None
@@ -220,7 +224,8 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         model, best_loss = train_model(model, optimizer, exp_lr_scheduler, device, dataloaders,
                                        num_epochs=cfg['num_epochs'], tb_writer=writer,
                                        verbose=verbose, loss_func=loss, sls=use_sls,
-                                       pixel_weight=cfg['pixel_weight'], do_val=cfg['do_val'])
+                                       pixel_weight=cfg['pixel_weight'], do_val=cfg['do_val'],
+                                       ds=ds)
 
         # Write outputs and save model
         cfg['best_loss'] = best_loss
@@ -253,15 +258,18 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         # del inputs
         # torch.cuda.empty_cache()
 
-        add_predictions(ds, model, None, dims=cfg['dims'], inputs=cfg['inputs'])
+        # add_predictions(ds, model, None, dims=cfg['dims'], inputs=cfg['inputs'])
         ds_test = ds.sel(subject=test_list)
         ds_train = ds.sel(subject=train_list)
         if cfg['do_val']:
             ds_val = ds.sel(subject=val_list)
             add_val_linear_cor(ds_val, ds_test)
-            ds_val.to_netcdf(Path(xr_dir, 'val', f'xarray_{subj_group}.nc'))
-        ds_test.to_netcdf(Path(xr_dir, 'test', f'xarray_{subj_group}.nc'))
-        ds_train.to_netcdf(Path(xr_dir, 'train', f'xarray_{subj_group}.nc'))
+            ds_val_stub = ds_val.sel(mre_type='mre_pred')['image_mre']
+            ds_val_stub.to_netcdf(Path(xr_dir, 'val', f'xarray_pred_{subj_group}.nc'))
+        ds_test_stub = ds_test.sel(mre_type='mre_pred')[['image_mre', 'val_slope', 'val_intercept']]
+        ds_test_stub.to_netcdf(Path(xr_dir, 'test', f'xarray_pred_{subj_group}.nc'))
+        ds_train_stub = ds_train.sel(mre_type='mre_pred')['image_mre']
+        ds_train_stub.to_netcdf(Path(xr_dir, 'train', f'xarray_pred_{subj_group}.nc'))
 
         # consider changing output to just ds?
         return inputs, targets, masks, names, model
