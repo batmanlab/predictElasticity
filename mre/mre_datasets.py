@@ -36,6 +36,18 @@ class MREtoXr:
     as a 0'd vector.  Includes two coordinate systems (one for MRI data, one for MRE data).
     Includes indicators for data quality. Processes single patient at a time.
     '''
+    def load_files(self, file_names):
+        if type(file_names) is not list:
+            file_names = str(file_names)
+        else:
+            file_names = [f for f in file_names if Path(f).exists()]
+
+        if '*' in file_names or type(file_names) is list:
+            ds = xr.open_mfdataset(file_names, combine='nested', concat_dim='subject')
+        else:
+            ds = xr.open_dataset(file_names)
+        return ds
+
     def __init__(self, data_dir=None, sequences=None, patient=None, from_file=None, **kwargs):
 
         self.is_ipython = self._check_ipython()
@@ -44,15 +56,22 @@ class MREtoXr:
                 '(data_dir and sequences) or (from_file) must be specified to initialize')
 
         if from_file:
-            if type(from_file) is not list:
-                from_file = str(from_file)
-            else:
-                from_file = [f for f in from_file if Path(f).exists()]
+            self.ds = self.load_files(from_file)
+            self.ds = self.ds.load()
+            from_file_pred = kwargs.get('from_file_pred', None)
+            if from_file_pred:
+                ds_pred = self.load_files(from_file_pred)
+                ds_pred = ds_pred.load()
+                self.ds['image_mre'].loc[
+                    dict(mre_type='mre_pred', subject=ds_pred.subject)] = ds_pred['image_mre']
 
-            if '*' in from_file or type(from_file) is list:
-                self.ds = xr.open_mfdataset(from_file, combine='nested', concat_dim='subject')
-            else:
-                self.ds = xr.open_dataset(from_file)
+                self.ds['val_slope'] = (('subject', np.zeros(len(self.ds.subject))))
+                self.ds['val_slope'].loc[
+                    dict(subject=ds_pred.subject)] = ds_pred['val_slope']
+                self.ds['val_intercept'] = (('subject', np.zeros(len(self.ds.subject))))
+                self.ds['val_intercept'].loc[
+                    dict(subject=ds_pred.subject)] = ds_pred['val_intercept']
+
             return None
 
         elif data_dir:
