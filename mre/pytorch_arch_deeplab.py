@@ -1,6 +1,8 @@
 # Attempt at making DeepLabv3+ 3D
 # https://github.com/Cadene/pretrained-models.pytorch/blob/master/pretrainedmodels/models/xception.py
 # https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/backbone/xception.py
+# Ordinal:
+# https://github.com/dontLoveBugs/DORN_pytorch/blob/master/network/DORN_nyu.py
 import math
 import numpy as np
 import torch
@@ -400,19 +402,62 @@ class Decoder(nn.Module):
                 m.bias.data.zero_()
 
 
+# https://github.com/dontLoveBugs/DORN_pytorch/blob/master/network/DORN_nyu.py
+class OrdinalRegressionLayer(nn.Module):
+    def __init__(self):
+        super(OrdinalRegressionLayer, self).__init__()
+
+    def forward(self, x):
+        """
+        :param x: N X D X H X W X C, N is batch_size, C is channels of features
+        :return: ord_labels is ordinal outputs for each spatial locations,
+                 size is N x H X W X C (C = 2K, K is interval of SID)
+                 decode_label is the ordinal labels for each position of Image I
+        """
+        N, C, D, H, W = x.size()
+        ord_num = C // 2
+
+        """
+        replace iter with matrix operation
+        fast speed methods
+        """
+        A = x[:, ::2, :, :, :].clone()
+        B = x[:, 1::2, :, :, :].clone()
+
+        A = A.view(N, 1, ord_num * D * H * W)
+        B = B.view(N, 1, ord_num * D * H * W)
+
+        C = torch.cat((A, B), dim=1)
+        C = torch.clamp(C, min=1e-8, max=1e8)  # prevent nans
+
+        ord_c = nn.functional.softmax(C, dim=1)
+
+        ord_c1 = ord_c[:, 1, :].clone()
+        ord_c1 = ord_c1.view(-1, ord_num, D, H, W)
+        print('ord > 0.5 size:', (ord_c1 > 0.5).size())
+        decode_c = torch.sum((ord_c1 > 0.5), dim=1).view(-1, 1, D, H, W)
+        # decode_c = torch.sum(ord_c1, dim=1).view(-1, 1, H, W)
+        return decode_c, ord_c1
+
+
 class DeepLab(nn.Module):
-    def __init__(self, in_channels, out_channels, output_stride=8):
+    def __init__(self, in_channels, out_channels, output_stride=8, do_ord=False):
         super(DeepLab, self).__init__()
 
         self.backbone = AlignedXception(in_channels, output_stride)
         self.aspp = ASPP(output_stride)
         self.decoder = Decoder(out_channels)
+        self.do_ordl = do_ord
+        if self.do_ord:
+            self.ord_layer = OrdinalRegressionLayer()
 
     def forward(self, input):
         x, low_level_feat = self.backbone(input)
         x = self.aspp(x)
         x = self.decoder(x, low_level_feat)
         x = F.interpolate(x, size=input.size()[2:], mode='trilinear', align_corners=True)
+        if self.do_ord:
+            x = self.ord_layer(x)
 
         return x
 

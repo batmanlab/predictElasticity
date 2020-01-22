@@ -378,7 +378,8 @@ def get_linear_fit(ds, do_cor=False, make_plot=True, verbose=True):
     if verbose:
         print(result.fit_report())
         print('R2:', 1 - result.residual.var() / np.var(df_results['predict']))
-    return result.params['slope'].value, result.params['intercept'].value
+    return df_results
+    # return result.params['slope'].value, result.params['intercept'].value
 
 
 def add_val_linear_cor(ds_val, ds_test):
