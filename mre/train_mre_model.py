@@ -152,8 +152,13 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         # model = DeepLabV3_3D(num_classes=cfg['out_channels_final'],
         #                      input_channels=cfg['in_channels'], resnet='resnet34_os8',
         #                      last_activation=None)
+        if cfg['loss'] == 'ordinal':
+            do_ord = True
+        else:
+            do_ord = False
+
         model = DeepLab(in_channels=cfg['in_channels'], out_channels=cfg['out_channels_final'],
-                        output_stride=8)
+                        output_stride=8, do_ord=do_ord)
     elif cfg['model_arch'] == 'debug':
         model = Debug(in_channels=cfg['in_channels'], out_channels=cfg['out_channels_final'])
 
@@ -164,7 +169,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         loss = adaptive.AdaptiveLossFunction(n_dims, np.float32, alpha_init=1.9, scale_lo=0.5)
         loss_params = torch.nn.ParameterList(loss.parameters())
         optimizer = optim.Adam(chain(model.parameters(), loss_params), lr=cfg['lr'])
-    elif loss_type == 'l2' and cfg['lr_scheduler'] == 'step':
+    elif loss_type in ['l2', 'ordinal'] and cfg['lr_scheduler'] == 'step':
         optimizer = optim.Adam(model.parameters(), lr=cfg['lr'], weight_decay=0.1)
     elif use_sls:
         optimizer = sls.Sls(model.parameters(),

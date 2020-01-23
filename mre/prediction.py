@@ -94,6 +94,61 @@ def masked_mse_slice(pred, target, mask):
     return slice_mse
 
 
+def get_labels_sid(args, depth):
+    if args.dataset == 'kitti':
+        alpha = 0.001
+        beta = 80.0
+        K = 71.0
+    elif args.dataset == 'nyu':
+        alpha = 0.02
+        beta = 10.0
+        K = 68.0
+    else:
+        print('No Dataset named as ', args.dataset)
+
+    alpha = torch.tensor(alpha)
+    beta = torch.tensor(beta)
+    K = torch.tensor(K)
+
+    if torch.cuda.is_available():
+        alpha = alpha.cuda()
+        beta = beta.cuda()
+        K = K.cuda()
+
+    labels = K * torch.log(depth / alpha) / torch.log(beta / alpha)
+    if torch.cuda.is_available():
+        labels = labels.cuda()
+    return labels.int()
+
+
+def get_depth_sid(args, labels):
+    if args.dataset == 'kitti':
+        min = 0.001
+        max = 80.0
+        K = 71.0
+    elif args.dataset == 'nyu':
+        min = 0.02
+        max = 80.0
+        K = 68.0
+    else:
+        print('No Dataset named as ', args.dataset)
+
+    if torch.cuda.is_available():
+        alpha_ = torch.tensor(min).cuda()
+        beta_ = torch.tensor(max).cuda()
+        K_ = torch.tensor(K).cuda()
+    else:
+        alpha_ = torch.tensor(min)
+        beta_ = torch.tensor(max)
+        K_ = torch.tensor(K)
+
+    # print('label size:', labels.size())
+    # depth = torch.exp(torch.log(alpha_) + torch.log(beta_ / alpha_) * labels / K_)
+    depth = alpha_ * (beta_ / alpha_) ** (labels / K_)
+    # print(depth.size())
+    return depth.float()
+
+
 # def ord_loss(pred, target, mask):
 #     """
 #     Ordinal loss is defined as the average of pixelwise ordinal loss F(h, w, X, O)
