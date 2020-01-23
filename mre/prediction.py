@@ -172,36 +172,37 @@ class OrdLoss(nn.Module):
         # assert pred.dim() == target.dim()
         # invalid_mask = target < 0
         # target[invalid_mask] = 0
+        return torch.sum(pred)
 
-        N, C, D, H, W = pred.size()
-        ord_num = C
-        # print('ord_num = ', ord_num)
+        # N, C, D, H, W = pred.size()
+        # ord_num = C
+        # # print('ord_num = ', ord_num)
 
-        # faster version
-        K = torch.zeros((N, C, D, H, W), dtype=torch.int).cuda()
-        for i in range(ord_num):
-            K[:, i, :, :, :] = K[:, i, :, :, :] + i * torch.ones((N, D, H, W),
-                                                                 dtype=torch.int).cuda()
+        # # faster version
+        # K = torch.zeros((N, C, D, H, W), dtype=torch.int).cuda()
+        # for i in range(ord_num):
+        #     K[:, i, :, :, :] = K[:, i, :, :, :] + i * torch.ones((N, D, H, W),
+        #                                                          dtype=torch.int).cuda()
 
-        # mask_0 = (K <= target).detach()
-        # mask_1 = (K > target).detach()
-        mask_0 = (K <= target)
-        mask_1 = (K > target)
+        # # mask_0 = (K <= target).detach()
+        # # mask_1 = (K > target).detach()
+        # mask_0 = (K <= target)
+        # mask_1 = (K > target)
 
-        one = torch.ones(pred[mask_1].size())
-        if torch.cuda.is_available():
-            one = one.cuda()
+        # one = torch.ones(pred[mask_1].size())
+        # if torch.cuda.is_available():
+        #     one = one.cuda()
 
-        self.loss = torch.sum(torch.log(torch.clamp(pred[mask_0], min=1e-8, max=1e8))) \
-            + torch.sum(torch.log(torch.clamp(one - pred[mask_1], min=1e-8, max=1e8)))
+        # self.loss = torch.sum(torch.log(torch.clamp(pred[mask_0], min=1e-8, max=1e8))) \
+        #     + torch.sum(torch.log(torch.clamp(one - pred[mask_1], min=1e-8, max=1e8)))
 
-        # del K
-        # del one
-        # del mask_0
-        # del mask_1
+        # # del K
+        # # del one
+        # # del mask_0
+        # # del mask_1
 
-        N = N * H * W * D
-        self.loss /= (-N)  # negative
+        # N = N * H * W * D
+        # self.loss /= (-N)  # negative
         return self.loss
 
 
@@ -220,9 +221,11 @@ def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.05):
         metrics['pixel_loss'] += pixel_loss.data.cpu().numpy() * target.size(0)
         metrics['subj_loss'] += subj_loss.data.cpu().numpy() * target.size(0)
     elif loss_func == 'ordinal':
-        # ord_loss = OrdLoss()
-        # loss = ord_loss(pred[0], target, mask)
-        loss = masked_mse(pred[1], target, mask)
+        ord_loss = OrdLoss()
+        # print('requires_grad', pred[0].requires_grad)
+        # print('requires_grad', pred[1].requires_grad)
+        loss = ord_loss(pred[1], target, mask)
+        # loss = masked_mse(pred[1], target, mask)
 
     else:
         pass

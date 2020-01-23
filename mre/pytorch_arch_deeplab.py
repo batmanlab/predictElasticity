@@ -395,9 +395,9 @@ class Decoder(nn.Module):
 
     def _init_weight(self):
         for m in self.modules():
-            if isinstance(m, nn.Conv2d):
+            if isinstance(m, nn.Conv3d):
                 torch.nn.init.kaiming_normal_(m.weight)
-            elif isinstance(m, nn.BatchNorm2d):
+            elif isinstance(m, nn.BatchNorm3d):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
 
@@ -431,13 +431,16 @@ class OrdinalRegressionLayer(nn.Module):
         C = torch.clamp(C, min=1e-8, max=1e8)  # prevent nans
 
         ord_c = nn.functional.softmax(C, dim=1)
+        # print(ord_c.requires_grad)
 
         ord_c1 = ord_c[:, 1, :].clone()
         ord_c1 = ord_c1.view(-1, ord_num, D, H, W)
+        # print(ord_c1.requires_grad)
         # print('ord > 0.5 size:', (ord_c1 > 0.5).size())
         decode_c = torch.sum((ord_c1 > 0.5), dim=1).view(-1, 1, D, H, W)
+        # print(decode_c.requires_grad)
         # decode_c = torch.sum(ord_c1, dim=1).view(-1, 1, H, W)
-        return decode_c.float(), ord_c1.float()
+        return decode_c, ord_c1.float()
 
 
 class DeepLab(nn.Module):
@@ -457,7 +460,7 @@ class DeepLab(nn.Module):
         x = self.decoder(x, low_level_feat)
         if self.do_ord:
             depth_labels, ord_labels = self.ord_layer(x)
-            depth_labels = F.interpolate(depth_labels, size=input.size()[2:],
+            depth_labels = F.interpolate(depth_labels.float(), size=input.size()[2:],
                                          mode='trilinear', align_corners=True)
             ord_labels = F.interpolate(ord_labels, size=input.size()[2:],
                                        mode='trilinear', align_corners=True)
