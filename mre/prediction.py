@@ -9,6 +9,7 @@ from tqdm import tqdm_notebook
 from lmfit.models import LinearModel
 
 import torch
+import torch.nn as nn
 import torch.optim as optim
 from torch.optim import lr_scheduler
 from torch.utils.data import Dataset, DataLoader
@@ -149,49 +150,59 @@ def get_depth_sid(args, labels):
     return depth.float()
 
 
-# def ord_loss(pred, target, mask):
-#     """
-#     Ordinal loss is defined as the average of pixelwise ordinal loss F(h, w, X, O)
-#     over the entire image domain:
-#     :param ord_labels: ordinal labels for each position of Image I.
-#     :param target:     the ground_truth discreted using SID strategy.
-#     :return: ordinal loss
-#     """
-#
-#     dig_target = np.float32(np.digitize(target, list(range(0, 20000, 200))+[1e6]))
-#     # assert pred.dim() == target.dim()
-#     # invalid_mask = target < 0
-#     # target[invalid_mask] = 0
-#
-#     N, C, D, H, W = pred.size()
-#     ord_num = C
-#     # print('ord_num = ', ord_num)
-#
-#     loss = 0.0
-#
-#     # faster version
-#     K = torch.zeros((N, C, D, H, W), dtype=torch.int).cuda()
-#     for i in range(ord_num):
-#         K[:, i, :, :, :] = K[:, i, :, :, :] + i * torch.ones((N, D, H, W), dtype=torch.int).cuda()
-#
-#     mask_0 = (K <= target).detach()
-#     mask_1 = (K > target).detach()
-#
-#     one = torch.ones(ord_labels[mask_1].size())
-#     if torch.cuda.is_available():
-#         one = one.cuda()
-#
-#     self.loss += torch.sum(torch.log(torch.clamp(ord_labels[mask_0], min=1e-8, max=1e8))) \
-#                  + torch.sum(torch.log(torch.clamp(one - ord_labels[mask_1], min=1e-8, max=1e8)))
-#
-#     # del K
-#     # del one
-#     # del mask_0
-#     # del mask_1
-#
-#     N = N * H * W
-#     self.loss /= (-N)  # negative
-#     return self.loss
+class OrdLoss(nn.Module):
+    """
+    Ordinal loss is defined as the average of pixelwise ordinal loss F(h, w, X, O)
+    over the entire image domain:
+    """
+
+    def __init__(self):
+        super(OrdLoss, self).__init__()
+        self.loss = torch.tensor([0.0], requires_grad=True)
+
+    def forward(self, pred, target, mask):
+        """
+        Ordinal loss is defined as the average of pixelwise ordinal loss F(h, w, X, O)
+        over the entire image domain:
+        :param ord_labels: ordinal labels for each position of Image I.
+        :param target:     the ground_truth discreted using SID strategy.
+        :return: ordinal loss
+        """
+
+        # assert pred.dim() == target.dim()
+        # invalid_mask = target < 0
+        # target[invalid_mask] = 0
+
+        N, C, D, H, W = pred.size()
+        ord_num = C
+        # print('ord_num = ', ord_num)
+
+        # faster version
+        K = torch.zeros((N, C, D, H, W), dtype=torch.int).cuda()
+        for i in range(ord_num):
+            K[:, i, :, :, :] = K[:, i, :, :, :] + i * torch.ones((N, D, H, W),
+                                                                 dtype=torch.int).cuda()
+
+        # mask_0 = (K <= target).detach()
+        # mask_1 = (K > target).detach()
+        mask_0 = (K <= target)
+        mask_1 = (K > target)
+
+        one = torch.ones(pred[mask_1].size())
+        if torch.cuda.is_available():
+            one = one.cuda()
+
+        self.loss = torch.sum(torch.log(torch.clamp(pred[mask_0], min=1e-8, max=1e8))) \
+            + torch.sum(torch.log(torch.clamp(one - pred[mask_1], min=1e-8, max=1e8)))
+
+        # del K
+        # del one
+        # del mask_0
+        # del mask_1
+
+        N = N * H * W * D
+        self.loss /= (-N)  # negative
+        return self.loss
 
 
 def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.05):
@@ -206,6 +217,13 @@ def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.05):
         # print('pixel_loss', pixel_loss)
         # print('subj_loss', subj_loss)
         # print('loss', loss)
+        metrics['pixel_loss'] += pixel_loss.data.cpu().numpy() * target.size(0)
+        metrics['subj_loss'] += subj_loss.data.cpu().numpy() * target.size(0)
+    elif loss_func == 'ordinal':
+        # ord_loss = OrdLoss()
+        # loss = ord_loss(pred[0], target, mask)
+        loss = masked_mse(pred[1], target, mask)
+
     else:
         pass
         # resid = masked_resid(pred, target, mask)
@@ -213,8 +231,8 @@ def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.05):
 
     # metrics['bce'] += bce.data.cpu().numpy() * target.size(0)
     # metrics['dice'] += dice.data.cpu().numpy() * target.size(0)
-    metrics['pixel_loss'] += pixel_loss.data.cpu().numpy() * target.size(0)
-    metrics['subj_loss'] += subj_loss.data.cpu().numpy() * target.size(0)
+    # metrics['pixel_loss'] += pixel_loss.data.cpu().numpy() * target.size(0)
+    # metrics['subj_loss'] += subj_loss.data.cpu().numpy() * target.size(0)
     # metrics['slice_loss'] += slice_loss.data.cpu().numpy() * target.size(0)
     metrics['loss'] += loss.data.cpu().numpy() * target.size(0)
 
@@ -274,10 +292,11 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                         # backward + optimize only if in training phase
                         if phase == 'train':
                             if not sls:
-                                loss = calc_loss(outputs, labels, masks, metrics, loss_func,
-                                                 pixel_weight)
-                                loss.backward()
-                                optimizer.step()
+                                with torch.autograd.detect_anomaly():
+                                    loss = calc_loss(outputs, labels, masks, metrics, loss_func,
+                                                     pixel_weight)
+                                    loss.backward()
+                                    optimizer.step()
                             else:
                                 def closure():
                                     pass
@@ -320,17 +339,18 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
 
                 if tb_writer:
                     tb_writer.add_scalar(f'loss_{phase}', epoch_loss, epoch)
-                    tb_writer.add_scalar(f'pixel_loss_{phase}',
-                                         metrics['pixel_loss']/epoch_samples, epoch)
-                    tb_writer.add_scalar(f'subj_loss_{phase}',
-                                         metrics['subj_loss']/epoch_samples, epoch)
+                    if loss_func != 'ordinal':
+                        tb_writer.add_scalar(f'pixel_loss_{phase}',
+                                             metrics['pixel_loss']/epoch_samples, epoch)
+                        tb_writer.add_scalar(f'subj_loss_{phase}',
+                                             metrics['subj_loss']/epoch_samples, epoch)
                     # tb_writer.add_scalar(f'slice_loss_{phase}',
                     #                      metrics['slice_loss']/epoch_samples, epoch)
-                    if loss_func is not None:
-                        alpha = loss_func.alpha()[0, 0].detach().numpy()
-                        scale = loss_func.scale()[0, 0].detach().numpy()
-                        tb_writer.add_scalar(f'alpha', alpha, epoch)
-                        tb_writer.add_scalar(f'scale', scale, epoch)
+                    # if loss_func is not None:
+                    #     alpha = loss_func.alpha()[0, 0].detach().numpy()
+                    #     scale = loss_func.scale()[0, 0].detach().numpy()
+                    #     tb_writer.add_scalar(f'alpha', alpha, epoch)
+                    #     tb_writer.add_scalar(f'scale', scale, epoch)
             if verbose:
                 time_elapsed = time.time() - since
                 print('{:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
@@ -353,15 +373,20 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                 inputs = data[0].to(device)
                 names = data[3]
                 # print(names)
-                prediction = model(inputs).data.cpu().numpy()
+                if loss_func == 'ordinal':
+                    prediction = model(inputs)[0].data.cpu().numpy()
+                else:
+                    prediction = model(inputs).data.cpu().numpy()
                 # print(prediction.shape)
                 for i, name in enumerate(names):
                     # print(name)
                     # print(prediction[i])
                     # print(prediction[i][0])
                     # print(prediction[i, 0])
+                    # ds['image_mre'].loc[{'subject': name,
+                    #                      'mre_type': 'mre_pred'}] = (prediction[i, 0].T)**2
                     ds['image_mre'].loc[{'subject': name,
-                                         'mre_type': 'mre_pred'}] = (prediction[i, 0].T)**2
+                                         'mre_type': 'mre_pred'}] = (prediction[i, 0].T)*400
     del inputs
     del labels
     del masks
@@ -391,8 +416,10 @@ def add_predictions(ds, model, model_params, dims=2, inputs=None):
                                      'mre_type': 'mre_pred'}] = (prediction[i, 0].T)**2
         elif dims == 3:
             for i, name in enumerate(names):
+                # ds['image_mre'].loc[{'subject': name,
+                #                      'mre_type': 'mre_pred'}] = (prediction[i, 0].T)**2
                 ds['image_mre'].loc[{'subject': name,
-                                     'mre_type': 'mre_pred'}] = (prediction[i, 0].T)**2
+                                     'mre_type': 'mre_pred'}] = (prediction[i, 0].T)*200
 
 
 def get_linear_fit(ds, do_cor=False, make_plot=True, verbose=True):

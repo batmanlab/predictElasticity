@@ -163,17 +163,19 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         model = Debug(in_channels=cfg['in_channels'], out_channels=cfg['out_channels_final'])
 
     # Set up adaptive loss if selected
-    loss = None
+    loss_func = None
     if loss_type == 'robust':
         n_dims = train_set.target_images.shape[-1]*train_set.target_images.shape[-2]
-        loss = adaptive.AdaptiveLossFunction(n_dims, np.float32, alpha_init=1.9, scale_lo=0.5)
-        loss_params = torch.nn.ParameterList(loss.parameters())
+        loss_func = adaptive.AdaptiveLossFunction(n_dims, np.float32, alpha_init=1.9, scale_lo=0.5)
+        loss_params = torch.nn.ParameterList(loss_func.parameters())
         optimizer = optim.Adam(chain(model.parameters(), loss_params), lr=cfg['lr'])
     elif loss_type in ['l2', 'ordinal'] and cfg['lr_scheduler'] == 'step':
         optimizer = optim.Adam(model.parameters(), lr=cfg['lr'], weight_decay=0.1)
     elif use_sls:
         optimizer = sls.Sls(model.parameters(),
                             n_batches_per_epoch=len(train_set)/float(cfg["batch_size"]))
+    if loss_type == 'ordinal':
+        loss_func = 'ordinal'
 
     # Define optimizer
     if cfg['lr_scheduler'] == 'step':
@@ -228,7 +230,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         # Train Model
         model, best_loss = train_model(model, optimizer, exp_lr_scheduler, device, dataloaders,
                                        num_epochs=cfg['num_epochs'], tb_writer=writer,
-                                       verbose=verbose, loss_func=loss, sls=use_sls,
+                                       verbose=verbose, loss_func=loss_func, sls=use_sls,
                                        pixel_weight=cfg['pixel_weight'], do_val=cfg['do_val'],
                                        ds=ds)
 
@@ -240,7 +242,10 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         masks.to('cpu')
         model.eval()
         # model.to('cpu')
-        model_pred = model(inputs)
+        if cfg['loss'] == 'ordinal':
+            model_pred = model(inputs)[0]
+        else:
+            model_pred = model(inputs)
         model_pred.to('cpu')
         masked_target = targets.detach().numpy()*masks.numpy()
         masked_pred = model_pred.detach().cpu().numpy()*masks.numpy()

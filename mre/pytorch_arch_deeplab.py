@@ -238,12 +238,12 @@ class AlignedXception(nn.Module):
         x = self.block6(x)
         x = self.block7(x)
         x = self.block8(x)
-        x = self.block9(x)
-        x = self.block10(x)
-        x = self.block11(x)
-        x = self.block12(x)
-        x = self.block13(x)
-        x = self.block14(x)
+        # x = self.block9(x)
+        # x = self.block10(x)
+        # x = self.block11(x)
+        # x = self.block12(x)
+        # x = self.block13(x)
+        # x = self.block14(x)
         x = self.block15(x)
         x = self.block16(x)
         x = self.block17(x)
@@ -434,10 +434,10 @@ class OrdinalRegressionLayer(nn.Module):
 
         ord_c1 = ord_c[:, 1, :].clone()
         ord_c1 = ord_c1.view(-1, ord_num, D, H, W)
-        print('ord > 0.5 size:', (ord_c1 > 0.5).size())
+        # print('ord > 0.5 size:', (ord_c1 > 0.5).size())
         decode_c = torch.sum((ord_c1 > 0.5), dim=1).view(-1, 1, D, H, W)
         # decode_c = torch.sum(ord_c1, dim=1).view(-1, 1, H, W)
-        return decode_c, ord_c1
+        return decode_c.float(), ord_c1.float()
 
 
 class DeepLab(nn.Module):
@@ -447,7 +447,7 @@ class DeepLab(nn.Module):
         self.backbone = AlignedXception(in_channels, output_stride)
         self.aspp = ASPP(output_stride)
         self.decoder = Decoder(out_channels)
-        self.do_ordl = do_ord
+        self.do_ord = do_ord
         if self.do_ord:
             self.ord_layer = OrdinalRegressionLayer()
 
@@ -455,11 +455,18 @@ class DeepLab(nn.Module):
         x, low_level_feat = self.backbone(input)
         x = self.aspp(x)
         x = self.decoder(x, low_level_feat)
-        x = F.interpolate(x, size=input.size()[2:], mode='trilinear', align_corners=True)
         if self.do_ord:
-            x = self.ord_layer(x)
+            depth_labels, ord_labels = self.ord_layer(x)
+            depth_labels = F.interpolate(depth_labels, size=input.size()[2:],
+                                         mode='trilinear', align_corners=True)
+            ord_labels = F.interpolate(ord_labels, size=input.size()[2:],
+                                       mode='trilinear', align_corners=True)
 
-        return x
+            return depth_labels, ord_labels
+        else:
+            x = F.interpolate(x, size=input.size()[2:], mode='trilinear', align_corners=True)
+
+            return x
 
 
 if __name__ == "__main__":
