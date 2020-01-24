@@ -66,13 +66,13 @@ class MREtoXr:
                 self.ds['image_mre'].loc[
                     dict(mre_type='mre_pred', subject=ds_pred.subject)] = ds_pred['image_mre']
 
-                if 'val_slope' in ds_pred and 'val_intercept' in ds_pred:
-                    self.ds['val_slope'] = (('subject', np.zeros(len(self.ds.subject))))
-                    self.ds['val_slope'].loc[
-                        dict(subject=ds_pred.subject)] = ds_pred['val_slope']
-                    self.ds['val_intercept'] = (('subject', np.zeros(len(self.ds.subject))))
-                    self.ds['val_intercept'].loc[
-                        dict(subject=ds_pred.subject)] = ds_pred['val_intercept']
+                # if 'val_slope' in ds_pred and 'val_intercept' in ds_pred:
+                #     self.ds['val_slope'] = (('subject', np.zeros(len(self.ds.subject))))
+                #     self.ds['val_slope'].loc[
+                #         dict(subject=ds_pred.subject)] = ds_pred['val_slope']
+                #     self.ds['val_intercept'] = (('subject', np.zeros(len(self.ds.subject))))
+                #     self.ds['val_intercept'].loc[
+                #         dict(subject=ds_pred.subject)] = ds_pred['val_intercept']
 
             return None
 
@@ -738,7 +738,8 @@ class MRETorchDataset(Dataset):
             target = torch.cat(target_list)
 
         image = torch.FloatTensor(image)
-        target = torch.FloatTensor(target)
+        # target = torch.FloatTensor(target)
+        target = torch.IntTensor(target.type(torch.IntTensor))
         target = target.unsqueeze(0)
         mask = torch.FloatTensor(mask)
         mask = mask.unsqueeze(0)
