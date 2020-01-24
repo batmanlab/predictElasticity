@@ -158,7 +158,7 @@ class OrdLoss(nn.Module):
 
     def __init__(self):
         super(OrdLoss, self).__init__()
-        self.loss = torch.tensor([0.0], requires_grad=True)
+        self.loss = 0.0
 
     def forward(self, pred, target, mask):
         """
@@ -172,37 +172,61 @@ class OrdLoss(nn.Module):
         # assert pred.dim() == target.dim()
         # invalid_mask = target < 0
         # target[invalid_mask] = 0
-        return torch.sum(pred)
+        # return torch.sum(pred)
 
-        # N, C, D, H, W = pred.size()
-        # ord_num = C
-        # # print('ord_num = ', ord_num)
+        N, C, D, H, W = pred.size()
+        ord_num = C
+        self.loss = 0.0
+        # First mask the target and prediction based on the MRE Combo Mask
+        pred = pred.transpose(0, 1)[:, (mask.transpose(0, 1)[0, :]) > 0]
+        target = target.transpose(0, 1)[:, (mask.transpose(0, 1)[0, :]) > 0]
+        S = target.size()[1]
+        # for k in range(ord_num):
+        #     #     '''
+        #     #     p^k_(w, h) = e^y(w, h, 2k+1) / [e^(w, h, 2k) + e^(w, h, 2k+1)]
+        #     #     '''
+        #     #
+        #     #     '''
+        #     #     对每个像素而言，
+        #     #     如果k小于l(w, h), log(p_k)
+        #     #     如果k大于l(w, h), log(1-p_k)
+        #     #     希望分类正确的p_k越大越好
+        #     #     '''
+        #     print(k)
+        #     p_k = pred[:, k, :, :, :]
+        #     p_k = p_k.view(N, 1, D, H, W)
+        #     mask_0 = (target >= k).detach()   # 分类正确
+        #     mask_1 = (target < k).detach()  # 分类错误
 
-        # # faster version
-        # K = torch.zeros((N, C, D, H, W), dtype=torch.int).cuda()
-        # for i in range(ord_num):
-        #     K[:, i, :, :, :] = K[:, i, :, :, :] + i * torch.ones((N, D, H, W),
-        #                                                          dtype=torch.int).cuda()
+        #     self.loss += torch.sum(torch.log(torch.clamp(p_k[mask_0], min=1e-7, max=1e7))) \
+        #         + torch.sum(torch.log(torch.clamp(1 - p_k[mask_1], min=1e-7, max=1e7)))
 
-        # # mask_0 = (K <= target).detach()
-        # # mask_1 = (K > target).detach()
-        # mask_0 = (K <= target)
-        # mask_1 = (K > target)
+        # print('ord_num = ', ord_num)
 
-        # one = torch.ones(pred[mask_1].size())
-        # if torch.cuda.is_available():
-        #     one = one.cuda()
+        # faster version
+        # K = torch.zeros((N, C, D, H, W), dtype=torch.int, requires_grad=False).cuda()
+        K = torch.zeros((C, S), dtype=torch.int, requires_grad=False).cuda()
+        for i in range(ord_num):
+            # K[:, i, :, :, :] = K[:, i, :, :, :] + i * torch.ones((N, D, H, W),
+            #                                                      dtype=torch.int,
+            #                                                      requires_grad=False).cuda()
+            K[i, :] = K[i, :] + i * torch.ones(S, dtype=torch.int, requires_grad=False).cuda()
 
-        # self.loss = torch.sum(torch.log(torch.clamp(pred[mask_0], min=1e-8, max=1e8))) \
-        #     + torch.sum(torch.log(torch.clamp(one - pred[mask_1], min=1e-8, max=1e8)))
+        mask_0 = (K <= target).detach()
+        mask_1 = (K > target).detach()
 
-        # # del K
-        # # del one
-        # # del mask_0
-        # # del mask_1
+        # one = torch.ones(pred[mask_1].size(), dtype=torch.int, requires_grad=False).cuda()
+
+        self.loss = torch.sum(torch.log(torch.clamp(pred[mask_0], min=1e-8, max=1e8))) \
+            + torch.sum(torch.log(torch.clamp(1 - pred[mask_1], min=1e-8, max=1e8)))
+
+        # del K
+        # del one
+        # del mask_0
+        # del mask_1
 
         # N = N * H * W * D
-        # self.loss /= (-N)  # negative
+        self.loss /= (-S)  # negative
         return self.loss
 
 
