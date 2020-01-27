@@ -575,6 +575,7 @@ class MRETorchDataset(Dataset):
         self.transform = kwargs.get(f'{set_type}_transform', True)
         self.aug = kwargs.get(f'{set_type}_aug', False)
         self.smear = kwargs.get(f'{set_type}_smear', False)
+        self.loss = kwargs.get(f'loss', 'l2')
         self.organize_data()
 
     def organize_data(self):
@@ -622,11 +623,13 @@ class MRETorchDataset(Dataset):
         target = self.target_images[idx]
         if self.clip:
             image  = np.where(image >= 2000, 2000, image)
-            bins = list(range(0, 20000, 400))
-            bins[-1] = 1e6
-            target = np.float32(np.digitize(target, bins))
-            # with np.errstate(divide='ignore', invalid='ignore'):
-            #     target = np.float32(np.where(target > 0, np.sqrt(target), 0))
+            if self.loss == 'l2':
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    target = np.float32(np.where(target > 0, np.sqrt(target), 0))
+            elif self.loss == 'ordinal':
+                bins = list(range(0, 20000, 400))
+                bins[-1] = 1e6
+                target = np.float32(np.digitize(target, bins))
             # target = np.float32(target/1000.0)
 
         if self.dims == 2:

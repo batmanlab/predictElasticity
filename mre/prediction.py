@@ -232,7 +232,7 @@ class OrdLoss(nn.Module):
 
 def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.05):
 
-    if loss_func is None:
+    if loss_func is None or loss_func == 'l2':
         pixel_loss = masked_mse(pred, target, mask)
         # slice_loss = masked_mse_slice(pred, target, mask)
         subj_loss = masked_mse_subj(pred, target, mask)
@@ -276,6 +276,8 @@ def print_metrics(metrics, epoch_samples, phase):
 
 def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25, tb_writer=None,
                 verbose=True, loss_func=None, sls=False, pixel_weight=1, do_val=True, ds=None):
+    if loss_func is None:
+        loss_func = 'l2'
     best_model_wts = copy.deepcopy(model.state_dict())
     best_loss = 1e16
     if do_val:
@@ -412,8 +414,15 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                     # print(prediction[i, 0])
                     # ds['image_mre'].loc[{'subject': name,
                     #                      'mre_type': 'mre_pred'}] = (prediction[i, 0].T)**2
-                    ds['image_mre'].loc[{'subject': name,
-                                         'mre_type': 'mre_pred'}] = (prediction[i, 0].T)*400
+                    if loss_func == 'l2':
+                        ds['image_mre'].loc[{'subject': name,
+                                             'mre_type': 'mre_pred'}] = (prediction[i, 0].T)**2
+                    elif loss_func == 'ordinal':
+                        ds['image_mre'].loc[{'subject': name,
+                                             'mre_type': 'mre_pred'}] = (prediction[i, 0].T)*400
+                    else:
+                        raise ValueError('Cannot save predictions due to unknown loss function'
+                                         f' {loss_func}')
     del inputs
     del labels
     del masks
