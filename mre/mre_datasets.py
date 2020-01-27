@@ -56,23 +56,29 @@ class MREtoXr:
                 '(data_dir and sequences) or (from_file) must be specified to initialize')
 
         if from_file:
-            self.ds = self.load_files(from_file)
             from_file_pred = kwargs.get('from_file_pred', None)
             if from_file_pred:
                 ds_pred = self.load_files(from_file_pred)
-                # ds_pred = ds_pred.load()
-                self.ds = self.ds.sel(subject=ds_pred.subject.values)
-                self.ds = self.ds.load()
-                self.ds['image_mre'].loc[
-                    dict(mre_type='mre_pred', subject=ds_pred.subject)] = ds_pred['image_mre']
 
-                # if 'val_slope' in ds_pred and 'val_intercept' in ds_pred:
-                #     self.ds['val_slope'] = (('subject', np.zeros(len(self.ds.subject))))
-                #     self.ds['val_slope'].loc[
-                #         dict(subject=ds_pred.subject)] = ds_pred['val_slope']
-                #     self.ds['val_intercept'] = (('subject', np.zeros(len(self.ds.subject))))
-                #     self.ds['val_intercept'].loc[
-                #         dict(subject=ds_pred.subject)] = ds_pred['val_intercept']
+                # Detect if using old-style predictions (not separated from input)
+                if 'image_mri' in ds_pred:
+                    self.ds = ds_pred
+                    self.ds = self.ds.load()
+                # Otherwise stitch pred together with input images
+                else:
+                    self.ds = self.load_files(from_file)
+                    self.ds = self.ds.sel(subject=ds_pred.subject.values)
+                    self.ds = self.ds.load()
+                    self.ds['image_mre'].loc[
+                        dict(mre_type='mre_pred', subject=ds_pred.subject)] = ds_pred['image_mre']
+
+                    if 'val_slope' in ds_pred and 'val_intercept' in ds_pred:
+                        self.ds['val_slope'] = (('subject', np.zeros(len(self.ds.subject))))
+                        self.ds['val_slope'].loc[
+                            dict(subject=ds_pred.subject)] = ds_pred['val_slope']
+                        self.ds['val_intercept'] = (('subject', np.zeros(len(self.ds.subject))))
+                        self.ds['val_intercept'].loc[
+                            dict(subject=ds_pred.subject)] = ds_pred['val_intercept']
 
             return None
 
