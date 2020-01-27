@@ -117,7 +117,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
     if cfg['do_val']:
         if cfg['val_sample'] == 'shuffle':
             dataloaders['val'] = DataLoader(val_set, batch_size=batch_size, shuffle=True,
-                                            num_workers=num_workers, drop_last=True)
+                                            num_workers=num_workers, drop_last=False)
         elif cfg['val_sample'] == 'resample':
             dataloaders['val'] = DataLoader(val_set, batch_size=batch_size, shuffle=False,
                                             sampler=RandomSampler(
@@ -125,7 +125,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
                                                 num_samples=cfg['val_num_samples']),
                                             num_workers=num_workers),
     dataloaders['test'] = DataLoader(test_set, batch_size=batch_size, shuffle=False,
-                                     num_workers=num_workers, drop_last=True)
+                                     num_workers=num_workers, drop_last=False)
 
     # Set device for computation
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
