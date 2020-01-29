@@ -56,10 +56,13 @@ def masked_mse(pred, target, mask):
     # First mask the target and prediction based on the MRE Combo Mask
     pred = pred.transpose(0, 1)[:, (mask.transpose(0, 1)[0, :]) > 0]
     target = target.transpose(0, 1)[:, (mask.transpose(0, 1)[0, :]) > 0]
+    var = target.clone()
+    var[var == 0] = 1
+    # norm = var.sum()
     S = target.size()[1]
     # print(pred.shape)
     # masked_mse = (((pred - target)**2/target)*mask).sum()*norm/mask.ceil().sum()
-    masked_mse = ((pred - target)**2).sum()/S
+    masked_mse = ((pred - target)**2/var).sum()/S
     # print('ceil sum:', mask.ceil().sum())
     # print('sum:', mask.sum())
 
