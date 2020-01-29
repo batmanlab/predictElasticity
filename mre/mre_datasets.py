@@ -57,7 +57,11 @@ class MREtoXr:
 
         if from_file:
             from_file_pred = kwargs.get('from_file_pred', None)
-            if from_file_pred:
+            if not from_file_pred:
+                self.ds = self.load_files(from_file)
+                self.ds = self.ds.load()
+                return None
+            else:
                 ds_pred = self.load_files(from_file_pred)
 
                 # Detect if using old-style predictions (not separated from input)

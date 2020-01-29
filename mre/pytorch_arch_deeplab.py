@@ -19,13 +19,15 @@ class SeparableConv3d(nn.Module):
     DeepLabv3+.'''
 
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, padding=0, dilation=1,
-                 bias=True):
+                 bias=True, groups=None):
         super(SeparableConv3d, self).__init__()
 
         self.conv1 = nn.Conv3d(in_channels, in_channels, kernel_size, stride, padding, dilation,
                                groups=in_channels, bias=bias)
         self.pointwise = nn.Conv3d(in_channels, out_channels, 1, 1, 0, 1, 1, bias=bias)
-        self.bn = nn.BatchNorm3d(out_channels)
+        if groups is None:
+            groups = int(max(out_channels/8, 32))
+        self.bn = nn.GroupNorm(num_groups=groups, num_channels=out_channels)
 
     def forward(self, x):
         # x = fixed_padding(x, self.conv1.kernel_size[0], dilation=self.conv1.dilation[0])
@@ -47,7 +49,7 @@ def fixed_padding(inputs, kernel_size, dilation):
 
 class Block(nn.Module):
     def __init__(self, in_channels, out_channels, reps, stride=1, dilation=1,
-                 start_with_relu=True, grow_first=True, is_last=False, shrink_z=True):
+                 start_with_relu=True, grow_first=True, is_last=False, shrink_z=True, groups=None):
         super(Block, self).__init__()
 
         stride_3d = stride
@@ -58,7 +60,9 @@ class Block(nn.Module):
                 else:
                     stride_3d = (1, 2, 2)
             self.skip = nn.Conv3d(in_channels, out_channels, 1, stride=stride_3d, bias=False)
-            self.skipbn = nn.BatchNorm3d(out_channels)
+            if groups is None:
+                groups = int(max(out_channels/8, 32))
+            self.skipbn = nn.GroupNorm(num_groups=groups, num_channels=out_channels)
         else:
             self.skip = None
 
@@ -70,23 +74,20 @@ class Block(nn.Module):
         if grow_first:
             rep.append(self.relu)
             rep.append(SeparableConv3d(in_channels, out_channels, 3, 1, padding, dilation=dilation))
-            # rep.append(nn.BatchNorm3d(out_channels))
             filters = out_channels
 
         for i in range(reps - 1):
             rep.append(self.relu)
             rep.append(SeparableConv3d(filters, filters, 3, 1, padding, dilation=dilation))
-            # rep.append(nn.BatchNorm3d(filters))
 
         if not grow_first:
             rep.append(self.relu)
             rep.append(SeparableConv3d(in_channels, out_channels, 3, 1, padding, dilation=dilation))
-            # rep.append(nn.BatchNorm3d(out_channels))
 
         # if stride == 2:
         #     rep.append(self.relu)
         #     rep.append(SeparableConv3d(out_channels, out_channels, 4, 2))
-        #     rep.append(nn.BatchNorm3d(out_channels))
+        #     rep.append(nn.GroupNorm(out_channels))
 
         if stride != 1:
             if shrink_z:
@@ -95,12 +96,10 @@ class Block(nn.Module):
                 stride_3d = (1, 2, 2)
             rep.append(self.relu)
             rep.append(SeparableConv3d(out_channels, out_channels, 3, stride_3d, 1))
-            # rep.append(nn.BatchNorm3d(out_channels))
 
         if stride == 1 and is_last:
             rep.append(self.relu)
             rep.append(SeparableConv3d(out_channels, out_channels, 3, 1, 1))
-            # rep.append(nn.BatchNorm3d(out_channels))
 
         if not start_with_relu:
             rep = rep[1:]
@@ -147,11 +146,11 @@ class AlignedXception(nn.Module):
 
         # Entry flow
         self.conv1 = nn.Conv3d(in_channels, 18, 3, stride=2, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm3d(18)
+        self.bn1 = nn.GroupNorm(2, 18)
         self.relu = nn.ReLU(inplace=True)
 
         self.conv2 = nn.Conv3d(18, 32, 3, stride=1, padding=1, bias=False)
-        self.bn2 = nn.BatchNorm3d(32)
+        self.bn2 = nn.GroupNorm(4, 32)
 
         self.block1 = Block(32, 64, reps=2, stride=2, start_with_relu=False, shrink_z=False)
         self.block2 = Block(64, 128, reps=2, stride=2, start_with_relu=False,
@@ -202,15 +201,12 @@ class AlignedXception(nn.Module):
 
         self.conv3 = SeparableConv3d(512, 768, 3, stride=1, dilation=exit_block_dilations[0],
                                      padding=1)
-        # self.bn3 = nn.BatchNorm3d(768)
 
         self.conv4 = SeparableConv3d(768, 1024, 3, stride=1, dilation=exit_block_dilations[0],
                                      padding=1)
-        # self.bn4 = nn.BatchNorm3d(1024)
 
         self.conv5 = SeparableConv3d(1024, 1280, 3, stride=1, dilation=exit_block_dilations[0],
                                      padding=1)
-        # self.bn5 = nn.BatchNorm3d(1280)
 
         # Init weights
         self._init_weight()
@@ -272,20 +268,22 @@ class AlignedXception(nn.Module):
             if isinstance(m, nn.Conv3d):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
                 m.weight.data.normal_(0, math.sqrt(2. / n))
-            elif isinstance(m, nn.BatchNorm3d):
+            elif isinstance(m, nn.GroupNorm):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
 
 
 class _ASPPModule(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, padding, dilation):
+    def __init__(self, in_channels, out_channels, kernel_size, padding, dilation, groups=None):
         super(_ASPPModule, self).__init__()
         self.atrous_conv = nn.Conv3d(in_channels, in_channels, kernel_size=kernel_size,
                                      stride=1, padding=padding, dilation=dilation, bias=False,
                                      groups=in_channels)
         self.pointwise = nn.Conv3d(in_channels, out_channels, kernel_size=1, stride=1, padding=0,
                                    dilation=1, bias=False)
-        self.bn = nn.BatchNorm3d(out_channels)
+        if groups is None:
+            groups = int(max(out_channels/8, 32))
+        self.bn = nn.GroupNorm(num_groups=groups, num_channels=out_channels)
         self.relu = nn.ReLU()
 
         self._init_weight()
@@ -301,7 +299,7 @@ class _ASPPModule(nn.Module):
         for m in self.modules():
             if isinstance(m, nn.Conv3d):
                 torch.nn.init.kaiming_normal_(m.weight)
-            elif isinstance(m, nn.BatchNorm3d):
+            elif isinstance(m, nn.GroupNorm):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
 
@@ -326,10 +324,10 @@ class ASPP(nn.Module):
 
         self.global_avg_pool = nn.Sequential(nn.AdaptiveAvgPool3d((1, 1, 1)),
                                              nn.Conv3d(in_channels, 256, 1, stride=1, bias=False),
-                                             nn.BatchNorm3d(256),
+                                             nn.GroupNorm(32, 256),
                                              nn.ReLU())
         self.conv1 = nn.Conv3d(1280, 256, 1, bias=False)
-        self.bn1 = nn.BatchNorm3d(256)
+        self.bn1 = nn.GroupNorm(32, 256)
         self.relu = nn.ReLU()
         # self.dropout = nn.Dropout(0.5)
         self._init_weight()
@@ -356,7 +354,7 @@ class ASPP(nn.Module):
                 # n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
                 # m.weight.data.normal_(0, math.sqrt(2. / n))
                 torch.nn.init.kaiming_normal_(m.weight)
-            elif isinstance(m, nn.BatchNorm3d):
+            elif isinstance(m, nn.GroupNorm):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
 
@@ -367,16 +365,16 @@ class Decoder(nn.Module):
         low_level_inplanes = 64
 
         self.conv1 = nn.Conv3d(low_level_inplanes, 32, 1, bias=False)
-        self.bn1 = nn.BatchNorm3d(32)
+        self.bn1 = nn.GroupNorm(4, 32)
         self.relu = nn.ReLU()
         self.last_conv = nn.Sequential(nn.Conv3d(256+32, 128, kernel_size=3, stride=1,
                                                  padding=1, bias=False),
-                                       nn.BatchNorm3d(128),
+                                       nn.GroupNorm(16, 128),
                                        nn.ReLU(),
                                        # nn.Dropout(0.5),
                                        nn.Conv3d(128, 128, kernel_size=3, stride=1,
                                                  padding=1, bias=False),
-                                       nn.BatchNorm3d(128),
+                                       nn.GroupNorm(16, 128),
                                        nn.ReLU(),
                                        # nn.Dropout(0.1),
                                        nn.Conv3d(128, out_channels, kernel_size=1, stride=1))
@@ -397,7 +395,7 @@ class Decoder(nn.Module):
         for m in self.modules():
             if isinstance(m, nn.Conv3d):
                 torch.nn.init.kaiming_normal_(m.weight)
-            elif isinstance(m, nn.BatchNorm3d):
+            elif isinstance(m, nn.GroupNorm):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
 
