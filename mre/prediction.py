@@ -470,7 +470,7 @@ def add_predictions(ds, model, model_params, dims=2, inputs=None):
                                      'mre_type': 'mre_pred'}] = (prediction[i, 0].T)*200
 
 
-def get_linear_fit(ds, do_cor=False, make_plot=True, verbose=True):
+def get_linear_fit(ds, do_cor=False, make_plot=True, verbose=True, return_df=False):
     '''Generate a linear fit between the average stiffness values for the true and predicted MRE
     values.  Only consider pixels in the mask region.'''
 
@@ -490,7 +490,9 @@ def get_linear_fit(ds, do_cor=False, make_plot=True, verbose=True):
         true.append(np.nanmean(true_mre_region))
         pred.append(np.nan_to_num(np.nanmean(pred_mre_region)))
 
-    df_results = pd.DataFrame({'true': true, 'predict': pred})
+    df_results = pd.DataFrame({'true': true, 'predict': pred, 'subject': ds.subject.values})
+    df_results['fibrosis'] = np.where(df_results.true > 4000,
+                                      'Severe Fibrosis', 'Mild Fibrosis')
     model = LinearModel()
     params = model.guess(df_results['predict'], x=df_results['true'])
     result = model.fit(df_results['predict'], params, x=df_results['true'])
@@ -508,8 +510,10 @@ def get_linear_fit(ds, do_cor=False, make_plot=True, verbose=True):
     if verbose:
         print(result.fit_report())
         print('R2:', 1 - result.residual.var() / np.var(df_results['predict']))
-    # return df_results
-    return result.params['slope'].value, result.params['intercept'].value
+    if return_df:
+        return df_results
+    else:
+        return result.params['slope'].value, result.params['intercept'].value
 
 
 def add_val_linear_cor(ds_val, ds_test):
