@@ -257,6 +257,9 @@ def patient_series_viewer(path, patient, img_type='DICOM', info=''):
                        Path(full_path, 'T1DUAL/DICOM_anon/OutPhase'),
                        Path(full_path, 'T2SPIR/DICOM_anon')]
         reader = sitk.ImageSeriesReader()
+    elif img_type == 'DICOM_CHAOS_CT':
+        img_folders = [Path(full_path, 'DICOM_anon')]
+        reader = sitk.ImageSeriesReader()
 
     else:
         raise KeyError(f'img_type must be one of ["DICOM", "NIFTI"], got {img_type}')
@@ -363,8 +366,19 @@ def chaos_viewer(path, patient):
 
         hv_images.append(hv_img * hv_mask)
 
-    return pn.Column(*sliders, hv.Layout(hv_images).opts(shared_axes=False, normalize=False,
-                                                         title=' '.join(patient)).cols(2))
+    layout = hv.Layout(hv_images).opts(shared_axes=False, normalize=False,
+                                       title=' '.join(patient)).cols(2)
+    pn_layout = pn.pane.HoloViews(layout)
+    wb = pn_layout.widget_box
+    for s in sliders:
+        wb.append(s)
+    # wb.append(*sliders)
+    # wb.append(cslider)
+    # wb.append(cslider2)
+    return pn.Row(wb, pn_layout)
+
+    # return pn.Column(*sliders, hv.Layout(hv_images).opts(shared_axes=False, normalize=False,
+    #                                                      title=' '.join(patient)).cols(2))
 
 
 def patient_reg_comparison(fixed, moving_init, moving_final, grid=None):
