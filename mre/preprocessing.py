@@ -483,6 +483,96 @@ def make_nifti_atlas_v2(data_path=None, subdirs=None):
             sitk.WriteImage(seg_img, str(seg_path))
 
 
+def make_nifti_atlas_v3(do_MR=True, do_CT=True, subdirs=None):
+    if do_MR:
+        data_path_MR = Path(
+            '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/CHAOS/Train_Sets/MR')
+    if do_CT:
+        data_path_CT = Path(
+            '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/CHAOS/Train_Sets/CT')
+    if not do_MR and not do_CT:
+        print('You did nothing, great job.')
+        return None
+
+    outpath = Path('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/CHAOS/Train_Sets/NIFTI')
+
+    full_ct_subdirs = [1, 10, 14, 16, 18, 19, 2, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 5, 6, 8]
+    full_mr_subdirs = [1, 10, 13, 15, 19, 2, 20, 21, 22, 3, 31, 32, 33, 34, 36, 37, 38, 39, 5, 8]
+    if subdirs is None:
+        if do_MR and do_CT:
+            subdirs = list(set(full_ct_subdirs+full_mr_subdirs))
+        elif do_MR:
+            subdirs = full_mr_subdirs
+        elif do_CT:
+            subdirs = full_ct_subdirs
+
+    for subdir in tqdm_notebook(subdirs, desc='Patients'):
+        subdir = str(subdir)
+        if do_MR:
+            for seq in ['t1_pre_in', 't1_pre_out', 't2']:
+                if seq == 't1_pre_in':
+                    img_path = Path(data_path_MR, subdir, 'T1DUAL/DICOM_anon/InPhase')
+                    seg_path = Path(data_path_MR, subdir, 'T1DUAL/Ground')
+                elif seq == 't1_pre_out':
+                    img_path = Path(data_path_MR, subdir, 'T1DUAL/DICOM_anon/OutPhase')
+                    seg_path = Path(data_path_MR, subdir, 'T1DUAL/Ground')
+                elif seq == 't2':
+                    img_path = Path(data_path_MR, subdir, 'T2SPIR/DICOM_anon')
+                    seg_path = Path(data_path_MR, subdir, 'T2SPIR/Ground')
+
+                save_name = '_'.join([subdir.zfill(2), seq, 'MR'])
+
+                process_chaos_dicoms(img_path, seg_path, subdir, save_name, outpath)
+
+        if do_CT:
+            img_path = Path(data_path_CT, subdir, 'DICOM_anon')
+            seg_path = Path(data_path_CT, subdir, 'Ground')
+
+            save_name = '_'.join([subdir.zfill(2), 'CT'])
+            process_chaos_dicoms(img_path, seg_path, subdir, save_name, outpath)
+
+
+def process_chaos_dicoms(img_path, seg_path, subdir, save_name, outpath):
+    if not img_path.exists():
+        print(img_path, 'does not exist.')
+        print('Cannot make', save_name)
+        return None
+
+    reader = sitk.ImageSeriesReader()
+    dicom_names = reader.GetGDCMSeriesFileNames(str(img_path))
+    reader.SetFileNames(dicom_names)
+    reader.MetaDataDictionaryArrayUpdateOn()  # Get DICOM Info
+    reader.LoadPrivateTagsOn()  # Get DICOM Info
+    image = reader.Execute()
+
+    if 'MR' in save_name:
+        png_list = sorted(list(seg_path.glob('*.png')))
+    else:
+        png_list = sorted(list(seg_path.glob('liver*.png')), reverse=True)
+    for i, png in enumerate(png_list):
+        seg_img_slice = sitk.GetArrayFromImage(sitk.ReadImage(str(png)))
+        if i == 0:
+            seg_img_array = np.zeros((len(png_list), seg_img_slice.shape[0],
+                                      seg_img_slice.shape[1]), dtype=np.uint16)
+        seg_img_array[i, :, :] = seg_img_slice
+
+    # mask out all organs besides the liver (val = 63)
+    if 'MR' in save_name:
+        seg_img_array = np.where((seg_img_array >= 55) & (seg_img_array <= 70), 63, 0)
+    else:
+        seg_img_array = np.where((seg_img_array != 0), 63, 0)
+    seg_img = sitk.GetImageFromArray(seg_img_array)
+    seg_img.CopyInformation(image)
+
+    patient_path = Path(outpath, subdir.zfill(2))
+    patient_path.mkdir(exist_ok=True)
+
+    img_path = Path(patient_path, save_name+'_img.nii')
+    seg_path = Path(patient_path, save_name+'_mask.nii')
+    sitk.WriteImage(image, str(img_path))
+    sitk.WriteImage(seg_img, str(seg_path))
+
+
 def dicom_to_pandas(data_path, subdirs):
 
     def process_index(k):

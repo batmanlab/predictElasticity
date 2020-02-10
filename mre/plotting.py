@@ -320,7 +320,7 @@ def chaos_viewer(path, patient):
     imopts = {'tools': ['hover'], 'width': 500, 'height': 500, 'cmap': 'viridis'}
     full_path = Path(path, patient)
 
-    img_files = sorted(list(full_path.glob('*MR*.nii')))
+    img_files = sorted(list(full_path.glob('*img*.nii')))
     mask_files = sorted(list(full_path.glob('*mask*.nii')))
 
     hv_images = []
