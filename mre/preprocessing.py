@@ -520,7 +520,7 @@ def make_nifti_atlas_v3(do_MR=True, do_CT=True, subdirs=None):
                     img_path = Path(data_path_MR, subdir, 'T2SPIR/DICOM_anon')
                     seg_path = Path(data_path_MR, subdir, 'T2SPIR/Ground')
 
-                save_name = '_'.join([subdir.zfill(2), seq, 'MR'])
+                save_name = '_'.join([subdir.zfill(3), seq, 'MR'])
 
                 process_chaos_dicoms(img_path, seg_path, subdir, save_name, outpath)
 
@@ -528,7 +528,7 @@ def make_nifti_atlas_v3(do_MR=True, do_CT=True, subdirs=None):
             img_path = Path(data_path_CT, subdir, 'DICOM_anon')
             seg_path = Path(data_path_CT, subdir, 'Ground')
 
-            save_name = '_'.join([subdir.zfill(2), 'CT'])
+            save_name = '_'.join(['1'+subdir.zfill(2), 'CT'])
             process_chaos_dicoms(img_path, seg_path, subdir, save_name, outpath)
 
 
@@ -564,7 +564,10 @@ def process_chaos_dicoms(img_path, seg_path, subdir, save_name, outpath):
     seg_img = sitk.GetImageFromArray(seg_img_array)
     seg_img.CopyInformation(image)
 
-    patient_path = Path(outpath, subdir.zfill(2))
+    if 'MR' in save_name:
+        patient_path = Path(outpath, subdir.zfill(3))
+    else:
+        patient_path = Path(outpath, '1'+subdir.zfill(2))
     patient_path.mkdir(exist_ok=True)
 
     img_path = Path(patient_path, save_name+'_img.nii')
@@ -1048,43 +1051,54 @@ def make_xr_dataset_for_chaos(patients, nx, ny, nz, output_name):
     '''Given a list of patient IDs, make an xarray object from the niftis.
     Only minimal checks are done here, assumptions are:
         1. Patients exist
-        2. All 3 default-view niftis exist
-        3. All 3 default-view masks exist
-        4. All nifti data is stored in the expected location
+        2. All 3 default-view niftis exist for MR
+        3. All 3 default-view masks exist for MR
+        4. Nifti and mask exist for CT
+        5. All nifti data is stored in the expected location
     All images must be resized before used.
     '''
 
     data_dir = Path(
-        '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/CHAOS/Train_Sets/MR/NIFTI')
+        '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/CHAOS/Train_Sets/NIFTI')
 
     # Initialize empty ds
-    n_seq = 3
+    n_seq = 4
     ds = init_new_ds(patients, n_seq, nx, ny, nz)
 
     for i, pat in enumerate(tqdm_notebook(patients, desc='Patients')):
         full_path = Path(data_dir, pat)
         img_files = list(full_path.iterdir())
 
-        t1_in = get_image_match(img_files, 't1_pre_in_MR', pat, nx, ny, nz)
-        t1_out = get_image_match(img_files, 't1_pre_out_MR', pat, nx, ny, nz)
-        t2 = get_image_match(img_files, 't2_MR', pat, nx, ny, nz)
-        t1_in_mask = get_image_match(img_files, 't1_pre_in_mask', pat, nx, ny, nz)
-        t1_out_mask = get_image_match(img_files, 't1_pre_out_mask', pat, nx, ny, nz)
-        t2_mask = get_image_match(img_files, 't2_mask', pat, nx, ny, nz)
+        if pat[0] == '0':
+            t1_in = get_image_match(img_files, 't1_pre_in_MR_img', pat, nx, ny, nz)
+            t1_out = get_image_match(img_files, 't1_pre_out_MR_img', pat, nx, ny, nz)
+            t2 = get_image_match(img_files, 't2_MR_img', pat, nx, ny, nz)
+            t1_in_mask = get_image_match(img_files, 't1_pre_in_MR_mask', pat, nx, ny, nz)
+            t1_out_mask = get_image_match(img_files, 't1_pre_out_MR_mask', pat, nx, ny, nz)
+            t2_mask = get_image_match(img_files, 't2_MR_mask', pat, nx, ny, nz)
 
-        ds['image'].loc[{'subject': pat, 'sequence': 't1_in'}] = (
-            sitk.GetArrayFromImage(t1_in).T)
-        ds['image'].loc[{'subject': pat, 'sequence': 't1_out'}] = (
-            sitk.GetArrayFromImage(t1_out).T)
-        ds['image'].loc[{'subject': pat, 'sequence': 't2'}] = (
-            sitk.GetArrayFromImage(t2).T)
+            ds['image'].loc[{'subject': pat, 'sequence': 't1_in'}] = (
+                sitk.GetArrayFromImage(t1_in).T)
+            ds['image'].loc[{'subject': pat, 'sequence': 't1_out'}] = (
+                sitk.GetArrayFromImage(t1_out).T)
+            ds['image'].loc[{'subject': pat, 'sequence': 't2'}] = (
+                sitk.GetArrayFromImage(t2).T)
 
-        ds['mask'].loc[{'subject': pat, 'sequence': 't1_in'}] = (
-            sitk.GetArrayFromImage(t1_in_mask).T)
-        ds['mask'].loc[{'subject': pat, 'sequence': 't1_out'}] = (
-            sitk.GetArrayFromImage(t1_out_mask).T)
-        ds['mask'].loc[{'subject': pat, 'sequence': 't2'}] = (
-            sitk.GetArrayFromImage(t2_mask).T)
+            ds['mask'].loc[{'subject': pat, 'sequence': 't1_in'}] = (
+                sitk.GetArrayFromImage(t1_in_mask).T)
+            ds['mask'].loc[{'subject': pat, 'sequence': 't1_out'}] = (
+                sitk.GetArrayFromImage(t1_out_mask).T)
+            ds['mask'].loc[{'subject': pat, 'sequence': 't2'}] = (
+                sitk.GetArrayFromImage(t2_mask).T)
+
+        elif pat[0] == '1':
+            ct = get_image_match(img_files, 'CT_img', pat, nx, ny, nz)
+            ct_mask = get_image_match(img_files, 'CT_mask', pat, nx, ny, nz)
+
+            ds['image'].loc[{'subject': pat, 'sequence': 'ct'}] = (
+                sitk.GetArrayFromImage(ct).T)
+            ds['mask'].loc[{'subject': pat, 'sequence': 'ct'}] = (
+                sitk.GetArrayFromImage(ct_mask).T)
 
     # return ds
     if ds is not None:
@@ -1105,7 +1119,7 @@ def init_new_ds(subj_list, n_seq, nx, ny, nz):
                      },
 
                     coords={'subject': subj_list,
-                            'sequence': ['t1_in', 't1_out', 't2'],
+                            'sequence': ['t1_in', 't1_out', 't2', 'ct'],
                             'x': range(nx),
                             'y': range(ny)[::-1],
                             'z': range(nz)
@@ -1121,13 +1135,13 @@ def get_image_match(img_file_list, name, pat, nx, ny, nz, resample=True):
             reader.SetImageIO("NiftiImageIO")
             reader.SetFileName(str(img_file))
             img = reader.Execute()
-            img = sitk.Cast(img, sitk.sitkUInt16)
+            img = sitk.Cast(img, sitk.sitkInt16)
             if resample:
                 init_size = img.GetSize()
                 init_spacing = img.GetSpacing()
                 xy_change = init_size[0]/nx
                 z_change = init_size[-1]/nz
-                ref_img = sitk.GetImageFromArray(np.ones((nz, ny, nx), dtype=np.uint16))
+                ref_img = sitk.GetImageFromArray(np.ones((nz, ny, nx), dtype=np.int16))
                 ref_img.SetSpacing((init_spacing[0]*xy_change, init_spacing[1]*xy_change,
                                    init_spacing[2]*z_change))
                 ref_img.SetOrigin(img.GetOrigin())
