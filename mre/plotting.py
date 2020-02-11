@@ -325,6 +325,7 @@ def chaos_viewer(path, patient):
 
     hv_images = []
     sliders = []
+    csliders = []
     for f_img, f_mask in zip(img_files, mask_files):
         img_reader = sitk.ImageFileReader()
         img_reader.SetImageIO("NiftiImageIO")
@@ -349,7 +350,14 @@ def chaos_viewer(path, patient):
              np_mask), [f'x{desc}', f'y{desc}', f'z{desc}'],
             f'mask{desc}')
         slider = pn.widgets.FloatSlider(start=0, end=1, value=0.5, name=f'{desc}')
+        if 'MR' in desc:
+            cslider = pn.widgets.RangeSlider(start=0, end=2000, value=(0, 1000),
+                                             name=f'contrast {desc}')
+        else:
+            cslider = pn.widgets.RangeSlider(start=-1000, end=2000, value=(-1000, 1000),
+                                             name=f'contrast {desc}')
         sliders.append(slider)
+        csliders.append(cslider)
 
         hv_img = ds_img.to(hv.Image, [f'x{desc}', f'y{desc}'],
                            groupby=[f'z{desc}'],
@@ -361,6 +369,7 @@ def chaos_viewer(path, patient):
                                                             clipping_colors=clipping)
 
         hv_mask = hv_mask.apply.opts(alpha=slider.param.value)
+        hv_img = hv_img.apply.opts(clim=cslider.param.value)
         vrange = {f'mask{desc}': (0, 10)}
         hv_mask = hv_mask.redim.range(**vrange)
 
@@ -372,6 +381,8 @@ def chaos_viewer(path, patient):
     wb = pn_layout.widget_box
     for s in sliders:
         wb.append(s)
+    for c in csliders:
+        wb.append(c)
     # wb.append(*sliders)
     # wb.append(cslider)
     # wb.append(cslider2)
