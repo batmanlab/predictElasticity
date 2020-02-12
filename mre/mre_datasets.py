@@ -227,7 +227,7 @@ class MREtoXr:
         self.ds['mri_to_mre_idx'].loc[dict()] = self.mri_to_mre_idx
 
         # Get the liver mask via the deep liver segmenter
-        liver_input = self.ds['image_mri'].loc[{'subject': self.patient, 'sequence': 't1_pre_out'}]
+        liver_input = self.ds['image_mri'].loc[{'subject': self.patient, 'sequence': 't1_pre_in'}]
         liver_input = liver_input.transpose('z_mri', 'y', 'x').values
         liver_mask = self.gen_liver_mask(liver_input)
         self.ds['mask_mri'].loc[{'mask_type': 'liver'}] = liver_mask
