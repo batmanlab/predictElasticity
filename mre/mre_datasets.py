@@ -29,6 +29,7 @@ from scipy.ndimage import gaussian_filter, median_filter
 
 from mre.registration import RegPatient, Register
 from mre.pytorch_arch_old import GeneralUNet3D
+from mre.pytorch_arch_deeplab import DeepLab
 
 
 class MREtoXr:
@@ -103,7 +104,8 @@ class MREtoXr:
             # Check if any contrast images are specified
             if np.any(['pos' in seq for seq in self.sequences]):
                 # out_subdir = 'XR_with_contrast_v2'
-                out_subdir = 'XR_resized'
+                # out_subdir = 'XR_resized'
+                out_subdir = 'XR_v3'
             else:
                 out_subdir = 'XR'
             self.output_dir = Path(self.data_dir.parents[1], out_subdir)
@@ -128,11 +130,22 @@ class MREtoXr:
         self.write_file = kwargs.get('write_file', True)
 
         # Load the liver mask model (hard-coded for now)
+
+        # OLD VERSION
+        # model_path = Path('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/CHAOS/',
+        #                   'trained_models', '01', 'model_2019-11-06_18-27-49.pkl')
+        # with torch.no_grad():
+        #     self.model = GeneralUNet3D(5, 1, 24, 1, True, False, False)
+        #     model_dict = torch.load(model_path, map_location='cpu')
+        #     model_dict = OrderedDict([(key[7:], val) for key, val in model_dict.items()])
+        #     self.model.load_state_dict(model_dict, strict=True)
+        #     self.model.eval()
+
+        # NEW VERSION
         model_path = Path('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/CHAOS/',
-                          'trained_models', '01', 'model_2019-11-06_18-27-49.pkl')
-        # 'trained_models', '01', 'model_2019-10-15_11-41-56.pkl')
+                          'trained_models', '001', 'model_2020-02-12_14-14-16.pkl')
         with torch.no_grad():
-            self.model = GeneralUNet3D(5, 1, 24, 1, True, False, False)
+            self.model = DeepLab(1, 1, output_stride=8, do_ord=False)
             model_dict = torch.load(model_path, map_location='cpu')
             model_dict = OrderedDict([(key[7:], val) for key, val in model_dict.items()])
             self.model.load_state_dict(model_dict, strict=True)
@@ -400,7 +413,7 @@ class MREtoXr:
             # print('where')
             # model_pred = torch.where(model_pred > 1e-1, ones, zeros)
         output_image_np = np.transpose(model_pred.cpu().numpy()[0, 0, :], (2, 1, 0))
-        output_image_np = np.where(output_image_np > 0.4, 1, 0)
+        output_image_np = np.where(output_image_np > 0.5, 1, 0)
         return output_image_np
 
     def gen_elast_mask(self, subj):

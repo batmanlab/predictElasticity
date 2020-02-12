@@ -24,7 +24,7 @@ import PIL
 
 class ChaosDataset(Dataset):
     def __init__(self, xr_ds, set_type='train', transform=None, clip=False, seed=100,
-                 test_subj='01', aug=True, sequence_mode='all', resize=False,
+                 test_subj='001', aug=True, sequence_mode='all', resize=False,
                  val_split=0.2, model_arch='3D', verbose=False):
 
         self.verbose = verbose
@@ -39,17 +39,14 @@ class ChaosDataset(Dataset):
 
         # default method of training/val split is random shuffling of the main list
         np.random.seed(seed)
-        shuffle_list = np.asarray(xr_ds.subject)
-        np.random.shuffle(shuffle_list)
 
         if set_type == 'test':
-            input_set = self.test_subj
+            input_set = ['001']
         elif set_type == 'val':
-            # input_set = xr_ds.subject_2d[2:20]
-            input_set = list(shuffle_list[0:3])
+            input_set = [i for i in xr_ds.subject.values if i in ['002', '003', '101', '102']]
         elif set_type == 'train':
-            # input_set = xr_ds.subject_2d[:2]
-            input_set = list(shuffle_list[3:])
+            input_set = [i for i in xr_ds.subject.values if i not in
+                         ['001', '002', '003', '101', '102']]
         else:
             raise AttributeError('Must choose one of ["train", "val", "test"] for `set_type`.')
         self.my_subjects = input_set
@@ -58,58 +55,68 @@ class ChaosDataset(Dataset):
         if set_type == 'test':
             xr_ds = xr_ds_test
         else:
-            xr_ds = xr_ds.sel(subject=input_set)
+            print('wtf')
+            print(self.my_subjects)
+            xr_ds = xr_ds.sel(subject=self.my_subjects)
+            print(xr_ds.subject)
 
         # assign input and target elements, based on 2d or 3d arch
-        if self.model_arch == '2D':
-            xr_ds = xr_ds.stack(subject_2d=('subject', 'z')).reset_index('subject_2d')
-            subj_2d_coords = [f'{i.subject.values}_{i.z.values}' for i in xr_ds.subject_2d]
-            xr_ds = xr_ds.assign_coords(subject_2d=subj_2d_coords)
-            bad_slices = []
-            for i in subj_2d_coords:
-                if xr_ds.sel(subject_2d=i).mask.sum() < 10:
-                    bad_slices.append(i)
-            xr_ds = xr_ds.drop(bad_slices, dim='subject_2d')
-
-            self.names = xr_ds.subject_2d.values
-            self.input_images = xr_ds.sel(sequence=self.my_sequence)['image'].transpose(
-                'subject_2d', 'sequence', 'y', 'x').values
-            self.input_images = self.input_images.astype(np.float32)
-            self.target_images = xr_ds.sel(sequence=self.my_sequence)['mask'].transpose(
-                'subject_2d', 'sequence', 'y', 'x').values
-            self.target_images = self.target_images.astype(np.int32)
-
-        else:
-            input_images = xr_ds['image'].transpose(
-                'subject', 'sequence', 'z', 'y', 'x')
-            target_images = xr_ds['mask'].transpose(
-                'subject', 'sequence', 'z', 'y', 'x')
-
+        if self.model_arch == '3D':
             if self.my_sequence != 'all':
-                self.input_images = input_images.sel(sequence=self.my_sequence).values
-                self.target_images = target_images.sel(sequence=self.my_sequence).values
+                if self.my_sequence == 'ct':
+                    xr_ds = xr_ds.where(xr_ds.mr_ct_id == 2, drop=True)
+                else:
+                    xr_ds = xr_ds.where(xr_ds.mr_ct_id == 1, drop=True)
+
+                xr_ds = xr_ds.sel(sequence=self.my_sequence)
+                self.input_images = xr_ds['image'].transpose(
+                    'subject', 'sequence', 'z', 'y', 'x').values
+                self.target_images = xr_ds['mask'].transpose(
+                    'subject', 'sequence', 'z', 'y', 'x').values
             else:
                 # Stack all the sequences together for appropriate random sampling
                 if self.verbose:
-                    print('stacking sequences input xarray')
-                n_subj = len(input_images.subject)
-                n_seq = len(input_images.sequence)
-                z = len(input_images.z)
-                y = len(input_images.y)
-                x = len(input_images.x)
-                self.input_images = input_images.values.reshape(n_subj*n_seq, 1, z, y, x)
-                if self.verbose:
-                    print('stacking sequences target xarray')
-                n_subj = len(target_images.subject)
-                n_seq = len(target_images.sequence)
-                z = len(target_images.z)
-                y = len(target_images.y)
-                x = len(target_images.x)
-                self.target_images = target_images.values.reshape(n_subj*n_seq, 1, z, y, x)
+                    print('stacking sequences xarray')
+
+                mr_xr_ds = xr_ds.where(xr_ds.mr_ct_id == 1, drop=True)
+                mr_xr_ds = mr_xr_ds.sel(sequence=['t1_in', 't1_out', 't2'])
+                print(mr_xr_ds)
+                n_subj = len(mr_xr_ds.subject)
+                n_seq = 3
+                z = len(mr_xr_ds.z)
+                y = len(mr_xr_ds.y)
+                x = len(mr_xr_ds.x)
+
+                self.input_images = mr_xr_ds['image'].transpose(
+                    'subject', 'sequence', 'z', 'y', 'x').values.reshape(n_subj*n_seq, 1, z, y, x)
+                self.target_images = mr_xr_ds['mask'].transpose(
+                    'subject', 'sequence', 'z', 'y', 'x').values.reshape(n_subj*n_seq, 1, z, y, x)
+                self.names = ['_'.join((subj, seq)) for subj in mr_xr_ds.subject.values for seq in
+                              mr_xr_ds.sequence.values]
+
+                if set_type != 'test':
+                    ct_xr_ds = xr_ds.where(xr_ds.mr_ct_id == 2, drop=True)
+                    ct_xr_ds = ct_xr_ds.sel(sequence=['ct'])
+                    print(ct_xr_ds)
+                    n_subj = len(ct_xr_ds.subject)
+                    n_seq = 1
+                    z = len(ct_xr_ds.z)
+                    y = len(ct_xr_ds.y)
+                    x = len(ct_xr_ds.x)
+
+                    ct_input_images = ct_xr_ds['image'].transpose(
+                        'subject', 'sequence', 'z', 'y', 'x').values.reshape(
+                            n_subj*n_seq, 1, z, y, x)
+                    ct_target_images = ct_xr_ds['mask'].transpose(
+                        'subject', 'sequence', 'z', 'y', 'x').values.reshape(
+                            n_subj*n_seq, 1, z, y, x)
+                    self.input_images = np.concatenate((self.input_images, ct_input_images))
+                    self.target_images = np.concatenate((self.target_images, ct_target_images))
+                    self.names += ['_'.join((subj, seq)) for subj in ct_xr_ds.subject.values for seq
+                                   in ct_xr_ds.sequence.values]
 
             self.input_images = self.input_images.astype(np.float32)
             self.target_images = self.target_images.astype(np.int32)
-            self.names = np.concatenate([xr_ds.subject.values for seq in self.all_sequences])
 
         # Additional flags
         self.transform = transform

@@ -20,6 +20,7 @@ from torchsummary import summary
 from tensorboardX import SummaryWriter
 from mre.segmentation import ChaosDataset
 from mre import pytorch_arch_old
+from mre.pytorch_arch_deeplab import DeepLab
 from robust_loss_pytorch import adaptive
 
 
@@ -63,16 +64,19 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
 
     # Start filling dataloaders
     dataloaders = {}
+    print('train')
     train_set = ChaosDataset(ds, set_type='train', transform=cfg['train_trans'],
                              clip=cfg['train_clip'], aug=cfg['train_aug'],
                              sequence_mode=cfg['train_seq_mode'],
                              resize=cfg['resize'], model_arch=cfg['model_arch'],
                              test_subj=subj, seed=cfg['seed'], verbose=cfg['dry_run'])
+    print('val')
     val_set = ChaosDataset(ds, set_type='val', transform=cfg['val_trans'],
                            clip=cfg['val_clip'], aug=cfg['val_aug'],
                            sequence_mode=cfg['val_seq_mode'],
                            resize=cfg['resize'], model_arch=cfg['model_arch'],
                            test_subj=subj, seed=cfg['seed'], verbose=cfg['dry_run'])
+    print('test')
     test_set = ChaosDataset(ds, set_type='test', transform=cfg['test_trans'],
                             clip=cfg['test_clip'], aug=cfg['test_aug'],
                             sequence_mode=cfg['test_seq_mode'],
@@ -111,11 +115,15 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
     # Define model
     if cfg['model_arch'] == '3D':
         print('3d')
-        model = pytorch_arch_old.GeneralUNet3D(cfg['n_layers'], cfg['in_channels'], cfg['model_cap'],
-                                               cfg['out_channels_final'], cfg['channel_growth'],
-                                               cfg['coord_conv'], cfg['transfer_layer'])
+        # model = pytorch_arch_old.GeneralUNet3D(cfg['n_layers'], cfg['in_channels'],
+        #                                        cfg['model_cap'],
+        #                                        cfg['out_channels_final'], cfg['channel_growth'],
+        #                                        cfg['coord_conv'], cfg['transfer_layer'])
+        model = DeepLab(in_channels=cfg['in_channels'], out_channels=cfg['out_channels_final'],
+                        output_stride=8, do_ord=False)
     elif cfg['model_arch'] == '2D':
-        model = pytorch_arch_old.GeneralUNet2D(cfg['n_layers'], cfg['in_channels'], cfg['model_cap'],
+        model = pytorch_arch_old.GeneralUNet2D(cfg['n_layers'], cfg['in_channels'],
+                                               cfg['model_cap'],
                                                cfg['out_channels_final'], cfg['channel_growth'],
                                                cfg['coord_conv'], cfg['transfer_layer'])
 

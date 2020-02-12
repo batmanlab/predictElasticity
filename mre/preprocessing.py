@@ -1056,6 +1056,11 @@ def make_xr_dataset_for_chaos(patients, nx, ny, nz, output_name):
         4. Nifti and mask exist for CT
         5. All nifti data is stored in the expected location
     All images must be resized before used.
+
+    patients = ['001',  '003',  '008',  '013',  '019',  '021',  '031',  '033',  '036',  '038',
+    '101', '105',  '108',  '114',  '118',  '121',  '123',  '125', '127',  '129', '002',  '005',
+    '010',  '015',  '020',  '022',  '032',  '034',  '037',  '039',  '102',  '106',  '110', '116',
+    '119',  '122',  '124',  '126', '128',  '130']
     '''
 
     data_dir = Path(
@@ -1091,6 +1096,8 @@ def make_xr_dataset_for_chaos(patients, nx, ny, nz, output_name):
             ds['mask'].loc[{'subject': pat, 'sequence': 't2'}] = (
                 sitk.GetArrayFromImage(t2_mask).T)
 
+            ds['mr_ct_id'].loc[{'subject': pat}] = 1
+
         elif pat[0] == '1':
             ct = get_image_match(img_files, 'CT_img', pat, nx, ny, nz)
             ct_mask = get_image_match(img_files, 'CT_mask', pat, nx, ny, nz)
@@ -1099,6 +1106,7 @@ def make_xr_dataset_for_chaos(patients, nx, ny, nz, output_name):
                 sitk.GetArrayFromImage(ct).T)
             ds['mask'].loc[{'subject': pat, 'sequence': 'ct'}] = (
                 sitk.GetArrayFromImage(ct_mask).T)
+            ds['mr_ct_id'].loc[{'subject': pat}] = 2
 
     # return ds
     if ds is not None:
@@ -1116,6 +1124,7 @@ def init_new_ds(subj_list, n_seq, nx, ny, nz):
                                np.zeros((len(subj_list), n_seq, nx, ny, nz), dtype=np.int16)),
                     'mask': (['subject', 'sequence', 'x', 'y', 'z'],
                              np.zeros((len(subj_list), n_seq, nx, ny, nz), dtype=np.int16)),
+                     'mr_ct_id': (['subject'], np.zeros(len(subj_list), dtype=np.int16))
                      },
 
                     coords={'subject': subj_list,
