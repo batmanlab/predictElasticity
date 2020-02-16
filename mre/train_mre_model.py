@@ -158,7 +158,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
             do_ord = False
 
         model = DeepLab(in_channels=cfg['in_channels'], out_channels=cfg['out_channels_final'],
-                        output_stride=8, do_ord=do_ord)
+                        output_stride=8, do_ord=do_ord, norm='bn')
     elif cfg['model_arch'] == 'debug':
         model = Debug(in_channels=cfg['in_channels'], out_channels=cfg['out_channels_final'])
 
