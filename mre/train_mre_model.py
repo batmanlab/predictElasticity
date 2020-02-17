@@ -158,7 +158,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
             do_ord = False
 
         model = DeepLab(in_channels=cfg['in_channels'], out_channels=cfg['out_channels_final'],
-                        output_stride=8, do_ord=do_ord, norm='bn')
+                        output_stride=8, do_ord=do_ord, norm=cfg['norm'])
     elif cfg['model_arch'] == 'debug':
         model = Debug(in_channels=cfg['in_channels'], out_channels=cfg['out_channels_final'])
 
@@ -317,7 +317,7 @@ def default_cfg():
            'resize': False, 'patient_list': False, 'num_workers': 0, 'lr_scheduler': 'step',
            'lr': 1e-2, 'lr_max': 1e-2, 'lr_min': 1e-4, 'step_size': 20, 'dims': 2,
            'pixel_weight': 1, 'depth': False,
-           'do_val': True,
+           'do_val': True, 'norm': 'bn',
            'inputs': ['t1_pre_water', 't1_pre_in', 't1_pre_out', 't1_pre_fat', 't2',
                       't1_pos_0_water', 't1_pos_70_water', 't1_pos_160_water', 't1_pos_300_water']}
     return cfg
