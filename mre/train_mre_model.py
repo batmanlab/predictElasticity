@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+from collections import OrderedDict
 import warnings
 import argparse
 import pickle as pkl
@@ -19,7 +20,6 @@ from mre.mre_datasets import MREtoXr, MRETorchDataset
 from mre.prediction import train_model, add_predictions, add_val_linear_cor
 from mre import pytorch_arch_2d, pytorch_arch_3d
 from robust_loss_pytorch import adaptive
-from mre.pytorch_deeplabv3plus_3D.network.deeplabv3_3d import DeepLabV3_3D
 from mre.pytorch_arch_deeplab import AlignedXception, DeepLab
 from mre.pytorch_arch_debug import Debug
 
@@ -47,6 +47,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         None
     '''
     print(os.getcwd())
+    print(Path(__file__).parent.absolute())
     # Load config and data
     cfg = process_kwargs(kwargs)
     if verbose:
@@ -106,8 +107,12 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         print('test: ', len(test_set))
     num_workers = cfg['num_workers']
     if cfg['train_sample'] == 'shuffle':
+        if cfg['norm'] == 'bn':
+            drop_last = True
+        else:
+            drop_last = False
         dataloaders['train'] = DataLoader(train_set, batch_size=batch_size, shuffle=True,
-                                          num_workers=num_workers, drop_last=True)
+                                          num_workers=num_workers, drop_last=drop_last)
     elif cfg['train_sample'] == 'resample':
         dataloaders['train'] = DataLoader(train_set, batch_size=batch_size, shuffle=False,
                                           sampler=RandomSampler(
@@ -157,8 +162,31 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         else:
             do_ord = False
 
+        print(cfg['norm'])
         model = DeepLab(in_channels=cfg['in_channels'], out_channels=cfg['out_channels_final'],
                         output_stride=8, do_ord=do_ord, norm=cfg['norm'])
+        if cfg['transfer']:
+
+            transfer_path = Path('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data',
+                                 'trained_models', 'notebook',
+                                 'model_notebook_test_2020-02-20_12-04-13.pkl')
+
+            # transfer_path = Path('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/CHAOS/',
+            #                      'trained_models', '001', 'model_2020-02-16_16-12-44.pkl')
+            print('loading transfer')
+            transfer_dict = torch.load(transfer_path, map_location='cuda:0')
+            # print(transfer_dict.keys())
+            transfer_dict = OrderedDict([(key[7:], val) for key, val in transfer_dict.items()])
+            model_dict = model.state_dict()
+            # print(model_dict.keys())
+            # pretrained_dict = {k: v for k, v in transfer_dict.items() if k in model_dict}
+            pretrained_dict = {k: v for k, v in transfer_dict.items() if (k in model_dict) and
+                               (model_dict[k].shape == transfer_dict[k].shape)}
+            # print(pretrained_dict.keys())
+            print('updating state')
+            model_dict.update(pretrained_dict)
+            print('loading new state')
+            model.load_state_dict(model_dict, strict=False)
     elif cfg['model_arch'] == 'debug':
         model = Debug(in_channels=cfg['in_channels'], out_channels=cfg['out_channels_final'])
 
@@ -317,7 +345,7 @@ def default_cfg():
            'resize': False, 'patient_list': False, 'num_workers': 0, 'lr_scheduler': 'step',
            'lr': 1e-2, 'lr_max': 1e-2, 'lr_min': 1e-4, 'step_size': 20, 'dims': 2,
            'pixel_weight': 1, 'depth': False,
-           'do_val': True, 'norm': 'bn',
+           'do_val': True, 'norm': 'bn', 'transfer': False,
            'inputs': ['t1_pre_water', 't1_pre_in', 't1_pre_out', 't1_pre_fat', 't2',
                       't1_pos_0_water', 't1_pos_70_water', 't1_pos_160_water', 't1_pos_300_water']}
     return cfg

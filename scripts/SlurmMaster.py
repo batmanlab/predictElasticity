@@ -6,6 +6,7 @@
 import sys
 import os
 import shutil
+import random
 from pathlib import Path
 import argparse
 import configparser
@@ -23,16 +24,32 @@ class SlurmMaster:
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self.config = Path(config)
         self.parse_config()
-        print('wiping and recreating staging dir')
-        shutil.rmtree('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging')
-        os.mkdir('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging')
+        random.seed(self.date)
+        self.mre_id = random.randint(10000, 90000)
+        print('making staging dir')
+        os.mkdir(f'/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/{self.date}')
         shutil.copytree('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/mre',
-                        '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/mre')
-        shutil.copytree('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/mre.egg-info',
-                        '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/mre.egg-info')
+                        '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/' +
+                        f'{self.date}/mre{self.mre_id}')
         shutil.copy('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/__init__.py',
-                    '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/__init__.py')
-        os.chdir('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging')
+                    '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/' +
+                    f'{self.date}/__init__.py')
+        shutil.copy('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/setup.py',
+                    '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/' +
+                    f'{self.date}/setup.py')
+        shutil.rmtree('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/' +
+                      f'{self.date}/mre{self.mre_id}/__pycache__')
+        os.system(f"sed -i 's/import mre/import mre{self.mre_id}/g' " +
+                  "/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/" +
+                  f'{self.date}/mre{self.mre_id}/*.py')
+        os.system(f"sed -i 's/from mre/from mre{self.mre_id}/g' " +
+                  "/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/" +
+                  f"{self.date}/mre{self.mre_id}/*.py")
+        os.system(f"sed -i 's/mre/mre{self.mre_id}/g' " +
+                  "/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/" +
+                  f"{self.date}/setup.py")
+        os.chdir(f'/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/{self.date}')
+        os.system('python setup.py install')
 
     def generate_slurm_script(self, number, conf, subj, subj_num, date, project):
         '''Make a slurm submission script.'''
@@ -86,10 +103,12 @@ class SlurmMaster:
         script.write('echo "$@"\n')
         script.write('source /pghbio/dbmi/batmanlab/bpollack/anaconda3/etc/profile.d/conda.sh\n')
         script.write('conda activate mre\n')
+        # script.write('python /pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/' +
+        #              f'{self.date}/setup.py install\n')
         script.write('\n')
 
         script.write(f'python /pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/'
-                     f'mre/{module} {arg_string}\n')
+                     f'{self.date}/mre{self.mre_id}/{module} {arg_string}\n')
 
         script.close()
         print(arg_string)

@@ -81,16 +81,19 @@ class Block(nn.Module):
         padding = dilation
         if grow_first:
             rep.append(self.relu)
-            rep.append(SeparableConv3d(in_channels, out_channels, 3, 1, padding, dilation=dilation))
+            rep.append(SeparableConv3d(in_channels, out_channels, 3, 1, padding, dilation=dilation,
+                                       norm=norm))
             filters = out_channels
 
         for i in range(reps - 1):
             rep.append(self.relu)
-            rep.append(SeparableConv3d(filters, filters, 3, 1, padding, dilation=dilation))
+            rep.append(SeparableConv3d(filters, filters, 3, 1, padding, dilation=dilation,
+                                       norm=norm))
 
         if not grow_first:
             rep.append(self.relu)
-            rep.append(SeparableConv3d(in_channels, out_channels, 3, 1, padding, dilation=dilation))
+            rep.append(SeparableConv3d(in_channels, out_channels, 3, 1, padding, dilation=dilation,
+                                       norm=norm))
 
         # if stride == 2:
         #     rep.append(self.relu)
@@ -103,11 +106,11 @@ class Block(nn.Module):
             else:
                 stride_3d = (1, 2, 2)
             rep.append(self.relu)
-            rep.append(SeparableConv3d(out_channels, out_channels, 3, stride_3d, 1))
+            rep.append(SeparableConv3d(out_channels, out_channels, 3, stride_3d, 1, norm=norm))
 
         if stride == 1 and is_last:
             rep.append(self.relu)
-            rep.append(SeparableConv3d(out_channels, out_channels, 3, 1, 1))
+            rep.append(SeparableConv3d(out_channels, out_channels, 3, 1, 1, norm=norm))
 
         if not start_with_relu:
             rep = rep[1:]
@@ -417,7 +420,7 @@ class Decoder(nn.Module):
                                            nn.ReLU(),
                                            nn.Conv3d(128, out_channels, kernel_size=1, stride=1))
         elif norm == 'gn':
-            self.norm = nn.GroupNorm(18, 32)
+            self.norm = nn.GroupNorm(16, 32)
             self.last_conv = nn.Sequential(nn.Conv3d(256+32, 128, kernel_size=3, stride=1,
                                                      padding=1, bias=False),
                                            nn.GroupNorm(32, 128),

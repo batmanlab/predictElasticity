@@ -427,8 +427,10 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                     # ds['image_mre'].loc[{'subject': name,
                     #                      'mre_type': 'mre_pred'}] = (prediction[i, 0].T)**2
                     if loss_func == 'l2':
+                        # ds['image_mre'].loc[{'subject': name,
+                        #                      'mre_type': 'mre_pred'}] = (prediction[i, 0].T)**2
                         ds['image_mre'].loc[{'subject': name,
-                                             'mre_type': 'mre_pred'}] = (prediction[i, 0].T)**2
+                                             'mre_type': 'mre_pred'}] = (prediction[i, 0].T)*1000
                     elif loss_func == 'ordinal':
                         ds['image_mre'].loc[{'subject': name,
                                              'mre_type': 'mre_pred'}] = (prediction[i, 0].T)*400
@@ -494,7 +496,8 @@ def get_linear_fit(ds, do_cor=False, make_plot=True, verbose=True, return_df=Fal
     df_results['fibrosis'] = np.where(df_results.true > 4000,
                                       'Severe Fibrosis', 'Mild Fibrosis')
     model = LinearModel()
-    params = model.guess(df_results['predict'], x=df_results['true'])
+    # params = model.guess(df_results['predict'], x=df_results['true'])
+    params = model.make_params(slope=0.5, intercept=0)
     result = model.fit(df_results['predict'], params, x=df_results['true'])
 
     if make_plot:

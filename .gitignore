@@ -56,4 +56,4 @@ mre_slurm
 # Staging and temp
 staging/
 staging/*
-
+pytorch_deeplabv3plus_3D
