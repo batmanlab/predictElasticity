@@ -649,7 +649,7 @@ class MRETorchDataset(Dataset):
             if self.loss == 'l2':
                 with np.errstate(divide='ignore', invalid='ignore'):
                     # target = np.float32(np.where(target > 0, np.sqrt(target), 0))
-                    target = np.float32(target/1000.0)
+                    target = np.float32(target/100.0)
             elif self.loss == 'ordinal':
                 bins = list(range(0, 20000, 400))
                 bins[-1] = 1e6

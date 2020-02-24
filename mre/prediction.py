@@ -367,10 +367,10 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                         best_loss = epoch_loss
                         best_model_wts = copy.deepcopy(model.state_dict())
 
-                    elif phase == 'val' and epoch_loss < best_loss*1.1:
-                        if verbose:
-                            print("saving best model (within 10%) ")
-                        best_model_wts = copy.deepcopy(model.state_dict())
+                    # elif phase == 'val' and epoch_loss < best_loss*1.05:
+                    #     if verbose:
+                    #         print("saving best model (within 5%) ")
+                    #     best_model_wts = copy.deepcopy(model.state_dict())
                 else:
                     if phase == 'train' and epoch_loss < best_loss:
                         if verbose:
@@ -430,7 +430,7 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                         # ds['image_mre'].loc[{'subject': name,
                         #                      'mre_type': 'mre_pred'}] = (prediction[i, 0].T)**2
                         ds['image_mre'].loc[{'subject': name,
-                                             'mre_type': 'mre_pred'}] = (prediction[i, 0].T)*1000
+                                             'mre_type': 'mre_pred'}] = (prediction[i, 0].T)*100
                     elif loss_func == 'ordinal':
                         ds['image_mre'].loc[{'subject': name,
                                              'mre_type': 'mre_pred'}] = (prediction[i, 0].T)*400
