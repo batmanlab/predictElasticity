@@ -93,7 +93,7 @@ class SlurmMaster:
             script.write('#SBATCH --partition=DBMI\n')
             script.write('#SBATCH --mem=120GB\n')
             script.write('#SBATCH -C EGRESS\n')
-        script.write('#SBATCH --time=24:00:00\n')
+        script.write('#SBATCH --time=12:00:00\n')
         script.write('#SBATCH --mail-user=brianleepollack@gmail.com\n')
         script.write(f'#SBATCH --output={str(self.log_dir)}/job_n{number}_subj{subj_name}.stdout\n')
         script.write(f'#SBATCH --error={str(self.log_dir)}/job_n{number}_subj{subj_name}.stderr\n')

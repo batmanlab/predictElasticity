@@ -410,6 +410,7 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
     model.eval()   # Set model to evaluate mode
     # iterate through batches of data for each epoch
     if ds:
+        print('converting prediction to correct units')
         for phase in phases:
             for data in dataloaders[phase]:
                 inputs = data[0].to(device)
@@ -433,7 +434,6 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                         ds['image_mre'].loc[{'subject': name,
                                              'mre_type': 'mre_pred'}] = (prediction[i, 0].T)*100
                     elif loss_func == 'ordinal':
-                        print(bins)
                         if bins == 'uniform':
                             centers = [311.32407407, 907.97222222, 1504.62037037,
                                        2101.26851852, 2697.91666667, 3294.56481481, 3891.21296296,
@@ -466,7 +466,6 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                         subj_pred = prediction[i, 0].T.astype(int)
                         pred_transform = np.zeros_like(subj_pred)
                         it = np.nditer(subj_pred, flags=['multi_index'])
-                        print('assigning')
                         while not it.finished:
                             # print(it.multi_index)
                             # print(it[0])

@@ -28,7 +28,7 @@ class SeparableConv3d(nn.Module):
         if norm == 'bn':
             self.norm = nn.BatchNorm3d(out_channels)
         elif norm == 'gn':
-            groups = int(min(out_channels/16, 32))
+            groups = int(min(out_channels/2, 32))
             self.norm = nn.GroupNorm(num_groups=groups, num_channels=out_channels)
         else:
             raise ValueError(f'Incorrect norm "{norm}" specified')
@@ -67,7 +67,7 @@ class Block(nn.Module):
             if norm == 'bn':
                 self.skipnorm = nn.BatchNorm3d(out_channels)
             elif norm == 'gn':
-                groups = int(min(out_channels/16, 32))
+                groups = int(min(out_channels/2, 32))
                 self.skipnorm = nn.GroupNorm(num_groups=groups, num_channels=out_channels)
             else:
                 raise ValueError(f'Incorrect norm "{norm}" specified')
@@ -160,14 +160,14 @@ class AlignedXception(nn.Module):
         if norm == 'bn':
             self.norm1 = nn.BatchNorm3d(18)
         elif norm == 'gn':
-            self.norm1 = nn.GroupNorm(9, 18)
+            self.norm1 = nn.GroupNorm(18, 18)
         self.relu = nn.ReLU(inplace=True)
 
         self.conv2 = nn.Conv3d(18, 32, 3, stride=1, padding=1, bias=False)
         if norm == 'bn':
             self.norm2 = nn.BatchNorm3d(32)
         elif norm == 'gn':
-            self.norm2 = nn.GroupNorm(16, 32)
+            self.norm2 = nn.GroupNorm(32, 32)
 
         self.block1 = Block(32, 64, reps=2, stride=2, start_with_relu=False, shrink_z=False,
                             norm=norm)
@@ -304,7 +304,7 @@ class _ASPPModule(nn.Module):
         if norm == 'bn':
             self.norm = nn.BatchNorm3d(out_channels)
         elif norm == 'gn':
-            groups = int(min(out_channels/16, 32))
+            groups = int(min(out_channels/2, 32))
             self.norm = nn.GroupNorm(num_groups=groups, num_channels=out_channels)
         self.relu = nn.ReLU()
 
@@ -360,13 +360,13 @@ class ASPP(nn.Module):
             self.global_avg_pool = nn.Sequential(nn.AdaptiveAvgPool3d((1, 1, 1)),
                                                  nn.Conv3d(in_channels, 256, 1, stride=1,
                                                            bias=False),
-                                                 nn.GroupNorm(32, 256),
+                                                 nn.GroupNorm(64, 256),
                                                  nn.ReLU())
         self.conv1 = nn.Conv3d(1280, 256, 1, bias=False)
         if norm == 'bn':
             self.norm = nn.BatchNorm3d(256)
         elif norm == 'gn':
-            self.norm = nn.GroupNorm(32, 256)
+            self.norm = nn.GroupNorm(64, 256)
         self.relu = nn.ReLU()
         # self.dropout = nn.Dropout(0.5)
         self._init_weight()
@@ -420,14 +420,14 @@ class Decoder(nn.Module):
                                            nn.ReLU(),
                                            nn.Conv3d(128, out_channels, kernel_size=1, stride=1))
         elif norm == 'gn':
-            self.norm = nn.GroupNorm(16, 32)
+            self.norm = nn.GroupNorm(32, 32)
             self.last_conv = nn.Sequential(nn.Conv3d(256+32, 128, kernel_size=3, stride=1,
                                                      padding=1, bias=False),
-                                           nn.GroupNorm(32, 128),
+                                           nn.GroupNorm(64, 128),
                                            nn.ReLU(),
                                            nn.Conv3d(128, 128, kernel_size=3, stride=1,
                                                      padding=1, bias=False),
-                                           nn.GroupNorm(32, 128),
+                                           nn.GroupNorm(64, 128),
                                            nn.ReLU(),
                                            nn.Conv3d(128, out_channels, kernel_size=1, stride=1))
         self._init_weight()

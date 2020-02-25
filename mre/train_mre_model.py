@@ -344,7 +344,7 @@ def default_cfg():
            'channel_growth': False, 'transfer_layer': False, 'seed': 100,
            'resize': False, 'patient_list': False, 'num_workers': 0, 'lr_scheduler': 'step',
            'lr': 1e-2, 'lr_max': 1e-2, 'lr_min': 1e-4, 'step_size': 20, 'dims': 2,
-           'pixel_weight': 1, 'depth': False, 'bins': None,
+           'pixel_weight': 1, 'depth': False, 'bins': 'none',
            'do_val': True, 'norm': 'bn', 'transfer': False,
            'inputs': ['t1_pre_water', 't1_pre_in', 't1_pre_out', 't1_pre_fat', 't2',
                       't1_pos_0_water', 't1_pos_70_water', 't1_pos_160_water', 't1_pos_300_water']}
