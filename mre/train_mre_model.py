@@ -260,7 +260,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
                                        num_epochs=cfg['num_epochs'], tb_writer=writer,
                                        verbose=verbose, loss_func=loss_func, sls=use_sls,
                                        pixel_weight=cfg['pixel_weight'], do_val=cfg['do_val'],
-                                       ds=ds)
+                                       ds=ds, bins=cfg['bins'])
 
         # Write outputs and save model
         cfg['best_loss'] = best_loss
@@ -344,7 +344,7 @@ def default_cfg():
            'channel_growth': False, 'transfer_layer': False, 'seed': 100,
            'resize': False, 'patient_list': False, 'num_workers': 0, 'lr_scheduler': 'step',
            'lr': 1e-2, 'lr_max': 1e-2, 'lr_min': 1e-4, 'step_size': 20, 'dims': 2,
-           'pixel_weight': 1, 'depth': False,
+           'pixel_weight': 1, 'depth': False, 'bins': None,
            'do_val': True, 'norm': 'bn', 'transfer': False,
            'inputs': ['t1_pre_water', 't1_pre_in', 't1_pre_out', 't1_pre_fat', 't2',
                       't1_pos_0_water', 't1_pos_70_water', 't1_pos_160_water', 't1_pos_300_water']}

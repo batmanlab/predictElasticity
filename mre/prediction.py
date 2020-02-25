@@ -287,7 +287,8 @@ def print_metrics(metrics, epoch_samples, phase):
 
 
 def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25, tb_writer=None,
-                verbose=True, loss_func=None, sls=False, pixel_weight=1, do_val=True, ds=None):
+                verbose=True, loss_func=None, sls=False, pixel_weight=1, do_val=True, ds=None,
+                bins=None):
     if loss_func is None:
         loss_func = 'l2'
     best_model_wts = copy.deepcopy(model.state_dict())
@@ -432,8 +433,49 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                         ds['image_mre'].loc[{'subject': name,
                                              'mre_type': 'mre_pred'}] = (prediction[i, 0].T)*100
                     elif loss_func == 'ordinal':
+                        print(bins)
+                        if bins == 'uniform':
+                            centers = [311.32407407, 907.97222222, 1504.62037037,
+                                       2101.26851852, 2697.91666667, 3294.56481481, 3891.21296296,
+                                       4487.86111111, 5084.50925926, 5681.15740741, 6277.80555556,
+                                       6874.4537037, 7471.10185185, 8067.75, 8664.39814815,
+                                       9261.0462963, 9857.69444444, 10454.34259259, 11050.99074074,
+                                       11647.63888889, 12244.28703704, 12840.93518519,
+                                       13437.58333333, 14034.23148148, 14630.87962963,
+                                       15227.52777778, 15824.17592593, 16420.82407407,
+                                       17017.47222222, 17614.12037037, 18210.76851852,
+                                       18807.41666667, 19404.06481481, 20000.71296296,
+                                       20597.36111111, 21194.00925926, 21790.65740741,
+                                       22387.30555556, 22983.9537037, 23580.60185185, 24177.25,
+                                       24773.89814815, 25370.5462963, 25967.19444444,
+                                       26563.84259259, 27160.49074074, 27757.13888889,
+                                       28353.78703704, 28950.43518519, 29547.08333333,
+                                       30143.73148148, 30740.37962963, 31337.02777778,
+                                       31933.67592593]
+                        elif bins == 'blocks':
+                            centers = [124.75, 302., 457., 634.5, 763., 857.,
+                                       961., 1058.5, 1146., 1233.5, 1322., 1414.,
+                                       1499., 1570., 1648., 1744.5, 1859.5, 2001.5,
+                                       2427.5, 2910.5, 3150.5, 3349.5, 3534.5, 3696.5,
+                                       3897.5, 4149.5, 4377.5, 4601., 4903.5, 5233.,
+                                       5509., 5767.5, 6089., 6452.5, 6832.5, 7277.5,
+                                       7748.5, 8278.5, 8863., 9366.5, 9855., 10453.5,
+                                       11184., 11951.5, 12691., 13492., 14262.5, 14967.,
+                                       15806., 16923., 18085.5, 19530., 21824., 27715.75]
+
+                        subj_pred = prediction[i, 0].T.astype(int)
+                        pred_transform = np.zeros_like(subj_pred)
+                        it = np.nditer(subj_pred, flags=['multi_index'])
+                        print('assigning')
+                        while not it.finished:
+                            # print(it.multi_index)
+                            # print(it[0])
+                            # print(centers)
+                            # print(pred_transform)
+                            pred_transform[it.multi_index] = centers[it[0]]
+                            it.iternext()
                         ds['image_mre'].loc[{'subject': name,
-                                             'mre_type': 'mre_pred'}] = (prediction[i, 0].T)*400
+                                             'mre_type': 'mre_pred'}] = pred_transform
                     else:
                         raise ValueError('Cannot save predictions due to unknown loss function'
                                          f' {loss_func}')
