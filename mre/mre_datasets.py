@@ -60,7 +60,7 @@ class MREtoXr:
             from_file_pred = kwargs.get('from_file_pred', None)
             if not from_file_pred:
                 self.ds = self.load_files(from_file)
-                self.ds = self.ds.load()
+                # self.ds = self.ds.load()
                 return None
             else:
                 ds_pred = self.load_files(from_file_pred)
@@ -630,11 +630,11 @@ class MRETorchDataset(Dataset):
 
         elif self.dims == 3:
             self.input_images = self.xa_ds.sel(sequence=self.inputs).image_mri.transpose(
-                'subject', 'sequence', 'z', 'y', 'x').values
+                'subject', 'sequence', 'z', 'y', 'x')
             self.target_images = self.xa_ds.sel(mre_type=[self.target]).image_mre.transpose(
-                'subject', 'mre_type', 'z', 'y', 'x').values
+                'subject', 'mre_type', 'z', 'y', 'x')
             self.mask_images = self.xa_ds.sel(mask_type=[self.mask]).mask_mre.transpose(
-                'subject', 'mask_type', 'z', 'y', 'x').values
+                'subject', 'mask_type', 'z', 'y', 'x')
 
             self.names = self.xa_ds.subject.values
 
@@ -642,9 +642,9 @@ class MRETorchDataset(Dataset):
         return len(self.input_images)
 
     def __getitem__(self, idx):
-        mask = self.mask_images[idx].astype(np.float32)
-        image = self.input_images[idx]
-        target = self.target_images[idx]
+        mask = self.mask_images[idx].values.astype(np.float32)
+        image = self.input_images[idx].values
+        target = self.target_images[idx].values
         if self.clip:
             image  = np.where(image >= 2000, 2000, image)
             if self.loss == 'l2':

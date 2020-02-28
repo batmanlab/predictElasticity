@@ -466,17 +466,18 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                             raise ValueError(f'bins = {bins}, this is wrong')
 
                         subj_pred = prediction[i, 0].T.astype(int)
-                        pred_transform = np.zeros_like(subj_pred)
+                        pred_transform = np.ones_like(subj_pred)
                         it = np.nditer(subj_pred, flags=['multi_index'])
                         while not it.finished:
                             # print(it.multi_index)
                             # print(it[0])
                             # print(centers)
                             # print(pred_transform)
-                            pred_transform[it.multi_index] = centers[it[0]]
+                            # pred_transform[it.multi_index] = centers[it[0]]
                             it.iternext()
-                        ds['image_mre'].loc[{'subject': name,
-                                             'mre_type': 'mre_pred'}] = pred_transform
+                        ds_tmp = ds['image_mre'].loc[{'subject': name,
+                                             'mre_type': 'mre_pred'}].load()
+                        ds_tmp = pred_transform
                     else:
                         raise ValueError('Cannot save predictions due to unknown loss function'
                                          f' {loss_func}')
