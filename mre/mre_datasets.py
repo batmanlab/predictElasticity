@@ -680,6 +680,8 @@ class MRETorchDataset(Dataset):
                             9.58250e+03, 1.01275e+04, 1.07795e+04, 1.15885e+04, 1.23145e+04,
                             1.30675e+04, 1.39165e+04, 1.46085e+04, 1.53255e+04, 1.62865e+04,
                             1.75595e+04, 1.86115e+04, 2.04485e+04, 2.31995e+04, 3.22320e+04]
+                else:
+                    raise ValueError(f'self.bins = {self.bins}, this is wrong')
                 bins[-1] = 1e6
                 bins[0] = 0
                 target = np.float32(np.digitize(target, bins))

@@ -61,7 +61,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         xr_maker = MREtoXr(from_file=Path(data_path, data_file))
     # xr_maker = MREtoXr(from_file='/pghbio/dbmi/batmanlab/Data/MRE/XR/*.nc')
     ds = xr_maker.get_ds()
-    ds = ds.load()
+    # ds = ds.load()
     if verbose:
         print(ds)
     batch_size = cfg['batch_size']

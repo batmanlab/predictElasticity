@@ -462,6 +462,8 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                                        7748.5, 8278.5, 8863., 9366.5, 9855., 10453.5,
                                        11184., 11951.5, 12691., 13492., 14262.5, 14967.,
                                        15806., 16923., 18085.5, 19530., 21824., 27715.75]
+                        else:
+                            raise ValueError(f'bins = {bins}, this is wrong')
 
                         subj_pred = prediction[i, 0].T.astype(int)
                         pred_transform = np.zeros_like(subj_pred)

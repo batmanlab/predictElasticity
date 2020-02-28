@@ -22,6 +22,9 @@ class SlurmMaster:
         self.date = datetime.today().strftime('%Y-%m-%d_%H-%M-%S')
         self.log_dir = Path('/pylon5/ac5616p/bpollack/mre_slurm', self.date)
         self.log_dir.mkdir(parents=True, exist_ok=True)
+        self.notes_dir = Path('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/notes',
+                              self.date)
+        self.notes_dir.mkdir(parents=True, exist_ok=True)
         self.config = Path(config)
         self.parse_config()
         random.seed(self.date)
@@ -49,7 +52,7 @@ class SlurmMaster:
                   "/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/" +
                   f"{self.date}/setup.py")
         os.chdir(f'/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/{self.date}')
-        os.system('python setup.py install')
+        os.system('python setup.py develop')
 
     def generate_slurm_script(self, number, conf, subj, subj_num, date, project):
         '''Make a slurm submission script.'''
@@ -78,9 +81,9 @@ class SlurmMaster:
             arg_string += f' --model_version={date}_n{number}'
             # script.write('#SBATCH -D /pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging')
             script.write('#SBATCH -A ac5616p\n')
-            script.write('#SBATCH --partition=GPU-AI\n')
-            script.write('#SBATCH --gres=gpu:volta32:1\n')
-            # script.write('#SBATCH --gres=gpu:volta16:4\n')
+            script.write(f'#SBATCH --partition={self.node["partition"]}\n')
+            # script.write('#SBATCH --gres=gpu:volta32:1\n')
+            script.write(f'#SBATCH --gres=gpu:{self.node["gpu"]}:{self.node["ngpus"]}\n')
             # script.write('#SBATCH -A bi561ip\n')
             # script.write('#SBATCH --partition=DBMI-GPU\n')
             # script.write('#SBATCH --gres=gpu:p100:2\n')
@@ -93,7 +96,7 @@ class SlurmMaster:
             script.write('#SBATCH --partition=DBMI\n')
             script.write('#SBATCH --mem=120GB\n')
             script.write('#SBATCH -C EGRESS\n')
-        script.write('#SBATCH --time=12:00:00\n')
+        script.write('#SBATCH --time=24:00:00\n')
         script.write('#SBATCH --mail-user=brianleepollack@gmail.com\n')
         script.write(f'#SBATCH --output={str(self.log_dir)}/job_n{number}_subj{subj_name}.stdout\n')
         script.write(f'#SBATCH --error={str(self.log_dir)}/job_n{number}_subj{subj_name}.stderr\n')
@@ -106,6 +109,7 @@ class SlurmMaster:
         # script.write('python /pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/' +
         #              f'{self.date}/setup.py install\n')
         script.write('\n')
+        script.write('nvidia-smi\n')
 
         script.write(f'python /pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/'
                      f'{self.date}/mre{self.mre_id}/{module} {arg_string}\n')
@@ -127,6 +131,14 @@ class SlurmMaster:
             self.project = config['Project']['task']
         else:
             self.project = 'MRE'
+
+        if 'Notes' in sections:
+            self.notes = config['Notes']['note']
+            with open(Path(self.notes_dir, 'notes.txt'), 'w') as f:
+                f.writelines(self.notes+'\n')
+
+        if 'Node' in sections:
+            self.node = config['Node']
 
         # Iterate through config and convert all scalars to lists
         for c in config['Hyper']:
@@ -184,3 +196,4 @@ if __name__ == "__main__":
 
     SM = SlurmMaster(args.config)
     SM.submit_scripts()
+    print(SM.notes)
