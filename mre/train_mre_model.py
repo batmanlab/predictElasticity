@@ -256,11 +256,13 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         # writer.add_graph(model, torch.zeros(1, 3, 256, 256).to(device), verbose=True)
 
         # Train Model
-        model, best_loss = train_model(model, optimizer, exp_lr_scheduler, device, dataloaders,
-                                       num_epochs=cfg['num_epochs'], tb_writer=writer,
-                                       verbose=verbose, loss_func=loss_func, sls=use_sls,
-                                       pixel_weight=cfg['pixel_weight'], do_val=cfg['do_val'],
-                                       ds=ds, bins=cfg['bins'])
+        model, best_loss, ds_mem = train_model(model, optimizer, exp_lr_scheduler, device,
+                                               dataloaders, num_epochs=cfg['num_epochs'],
+                                               tb_writer=writer, verbose=verbose,
+                                               loss_func=loss_func, sls=use_sls,
+                                               pixel_weight=cfg['pixel_weight'],
+                                               do_val=cfg['do_val'], ds=ds, bins=cfg['bins'])
+        print('model trained, handed off new mem_ds')
 
         # Write outputs and save model
         cfg['best_loss'] = best_loss
@@ -297,10 +299,12 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         # torch.cuda.empty_cache()
 
         # add_predictions(ds, model, None, dims=cfg['dims'], inputs=cfg['inputs'])
-        ds_test = ds.sel(subject=test_list)
-        ds_train = ds.sel(subject=train_list)
+        ds_mem['mask_mre'].loc[{'mask_type': 'combo'}] = ds['mask_mre'].sel(mask_type='combo')
+        ds_mem['image_mre'].loc[{'mre_type': 'mre'}] = ds['image_mre'].sel(mre_type='mre')
+        ds_test = ds_mem.sel(subject=test_list)
+        ds_train = ds_mem.sel(subject=train_list)
         if cfg['do_val']:
-            ds_val = ds.sel(subject=val_list)
+            ds_val = ds_mem.sel(subject=val_list)
             add_val_linear_cor(ds_val, ds_test)
             ds_val_stub = ds_val.sel(mre_type='mre_pred')['image_mre']
             ds_val_stub.to_netcdf(Path(xr_dir, 'val', f'xarray_pred_{subj_group}.nc'))

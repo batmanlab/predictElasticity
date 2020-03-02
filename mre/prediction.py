@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm_notebook
 from lmfit.models import LinearModel
+import xarray as xr
 
 import torch
 import torch.nn as nn
@@ -411,17 +412,42 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
     # iterate through batches of data for each epoch
     if ds:
         print('converting prediction to correct units')
+
+        ds_mem = xr.Dataset(
+            {'image_mre': (['subject', 'mre_type', 'x', 'y', 'z'],
+                           np.zeros((ds.subject.size, 2, ds.x.size, ds.y.size,
+                                     ds.z.size), dtype=np.int16)),
+             'mask_mre': (['subject', 'mask_type', 'x', 'y', 'z'],
+                          np.zeros((ds.subject.size, 1, ds.x.size, ds.y.size,
+                                    ds.z.size), dtype=np.int16)),
+             },
+
+            coords={'subject': ds.subject,
+                    'mask_type': ['combo'],
+                    'mre_type': ['mre', 'mre_pred'],
+                    'x': ds.x,
+                    'y': ds.y,
+                    'z': ds.z
+                    }
+        )
+        print(ds_mem)
+        # ds_mem = ds_mem.load()
+        print('loaded data to mem')
+        # print(ds_mem)
         for phase in phases:
+            print(phase)
             for data in dataloaders[phase]:
                 inputs = data[0].to(device)
                 names = data[3]
                 # print(names)
-                if loss_func == 'ordinal':
-                    prediction = model(inputs)[0].data.cpu().numpy()
-                else:
-                    prediction = model(inputs).data.cpu().numpy()
                 # print(prediction.shape)
+                # print('looping over names')
                 for i, name in enumerate(names):
+                    # print('loading pred to mem')
+                    if loss_func == 'ordinal':
+                        prediction = model(inputs[i:i+1])[0].data.cpu().numpy()
+                    else:
+                        prediction = model(inputs[i:i+1]).data.cpu().numpy()
                     # print(name)
                     # print(prediction[i])
                     # print(prediction[i][0])
@@ -431,8 +457,8 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                     if loss_func == 'l2':
                         # ds['image_mre'].loc[{'subject': name,
                         #                      'mre_type': 'mre_pred'}] = (prediction[i, 0].T)**2
-                        ds['image_mre'].loc[{'subject': name,
-                                             'mre_type': 'mre_pred'}] = (prediction[i, 0].T)*100
+                        ds_mem['image_mre'].loc[{'subject': name,
+                                                 'mre_type': 'mre_pred'}] = (prediction[i, 0].T)*100
                     elif loss_func == 'ordinal':
                         if bins == 'uniform':
                             centers = [311.32407407, 907.97222222, 1504.62037037,
@@ -465,19 +491,18 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                         else:
                             raise ValueError(f'bins = {bins}, this is wrong')
 
-                        subj_pred = prediction[i, 0].T.astype(int)
+                        subj_pred = prediction[0, 0].T.astype(int)
                         pred_transform = np.ones_like(subj_pred)
                         it = np.nditer(subj_pred, flags=['multi_index'])
+                        # print('iterating pred_trans')
                         while not it.finished:
                             # print(it.multi_index)
                             # print(it[0])
                             # print(centers)
                             # print(pred_transform)
-                            # pred_transform[it.multi_index] = centers[it[0]]
+                            pred_transform[it.multi_index] = centers[it[0]]
                             it.iternext()
-                        ds_tmp = ds['image_mre'].loc[{'subject': name,
-                                             'mre_type': 'mre_pred'}].load()
-                        ds_tmp = pred_transform
+                        ds_mem['image_mre'].loc[{'subject': name}] = pred_transform
                     else:
                         raise ValueError('Cannot save predictions due to unknown loss function'
                                          f' {loss_func}')
@@ -487,7 +512,7 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
     del outputs
     torch.cuda.empty_cache()
 
-    return model, best_loss
+    return model, best_loss, ds_mem
 
 
 def add_predictions(ds, model, model_params, dims=2, inputs=None):
