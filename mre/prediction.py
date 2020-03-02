@@ -458,7 +458,7 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                         # ds['image_mre'].loc[{'subject': name,
                         #                      'mre_type': 'mre_pred'}] = (prediction[i, 0].T)**2
                         ds_mem['image_mre'].loc[{'subject': name,
-                                                 'mre_type': 'mre_pred'}] = (prediction[i, 0].T)*100
+                                                 'mre_type': 'mre_pred'}] = (prediction[0, 0].T)*100
                     elif loss_func == 'ordinal':
                         if bins == 'uniform':
                             centers = [311.32407407, 907.97222222, 1504.62037037,

@@ -183,10 +183,13 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
             pretrained_dict = {k: v for k, v in transfer_dict.items() if (k in model_dict) and
                                (model_dict[k].shape == transfer_dict[k].shape)}
             # print(pretrained_dict.keys())
-            print('updating state')
             model_dict.update(pretrained_dict)
-            print('loading new state')
             model.load_state_dict(model_dict, strict=False)
+            print('freezing transfer params')
+            for name, param in model.named_parameters():
+                if ((name in pretrained_dict.keys()) and
+                        (param.data.shape == pretrained_dict[name].shape)):
+                    param.requires_grad = False
     elif cfg['model_arch'] == 'debug':
         model = Debug(in_channels=cfg['in_channels'], out_channels=cfg['out_channels_final'])
 
@@ -219,7 +222,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
 
     if torch.cuda.device_count() > 1 and not cfg['dry_run']:
         print("Let's use", torch.cuda.device_count(), "GPUs!")
-        model = nn.DataParallel(model)
+        model = nn.DataParallel(model, [0, 1])
 
     model.to(device)
 

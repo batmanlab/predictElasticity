@@ -961,7 +961,8 @@ class SelfSupTorchDataset(Dataset):
                 if self.smear == 'gaussian':
                     sigma = np.random.uniform(0, 3, 1)[0]
                 elif self.smear == 'median':
-                    sigma = np.random.randint(1, 10)
+                    # sigma = np.random.randint(1, 10)
+                    sigma = 3
                 else:
                     sigma = 0
             else:
