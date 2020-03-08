@@ -23,6 +23,7 @@ from tensorboardX import SummaryWriter
 # from mre.plotting import hv_dl_vis
 from mre.mre_datasets import MRETorchDataset
 from robust_loss_pytorch import adaptive
+from mre.ord_bins import get_ord_binning
 
 
 def masked_L1(pred, target, mask):
@@ -173,7 +174,7 @@ class OrdLoss(nn.Module):
         super(OrdLoss, self).__init__()
         self.loss = 0.0
 
-    def forward(self, pred, target, mask):
+    def forward(self, pred, target, mask, widths=None):
         """
         Ordinal loss is defined as the average of pixelwise ordinal loss F(h, w, X, O)
         over the entire image domain:
@@ -219,19 +220,37 @@ class OrdLoss(nn.Module):
         # faster version
         # K = torch.zeros((N, C, D, H, W), dtype=torch.int, requires_grad=False).cuda()
         K = torch.zeros((C, S), dtype=torch.int, requires_grad=False).cuda()
+        if widths is not None:
+            weights = torch.zeros((C, S), dtype=torch.float, requires_grad=False).cuda()
         for i in range(ord_num):
             # K[:, i, :, :, :] = K[:, i, :, :, :] + i * torch.ones((N, D, H, W),
             #                                                      dtype=torch.int,
             #                                                      requires_grad=False).cuda()
             K[i, :] = K[i, :] + i * torch.ones(S, dtype=torch.int, requires_grad=False).cuda()
+            if widths is not None:
+                weights[i, :] = widths[i] * torch.ones(S, dtype=torch.int,
+                                                       requires_grad=False).cuda()
 
         mask_0 = (K <= target).detach()
         mask_1 = (K > target).detach()
 
         # one = torch.ones(pred[mask_1].size(), dtype=torch.int, requires_grad=False).cuda()
 
-        self.loss = torch.sum(torch.log(torch.clamp(pred[mask_0], min=1e-8, max=1e8))) \
-            + torch.sum(torch.log(torch.clamp(1 - pred[mask_1], min=1e-8, max=1e8)))
+        # print(pred.size())
+        # print(pred)
+        # print(pred[0:4, 0:10])
+        # print(pred[mask_0].size())
+        # print(pred[mask_1].size())
+        if widths is not None:
+            wnorm_0 = 1/torch.mean(weights[mask_0])
+            wnorm_1 = 1/torch.mean(weights[mask_1])
+            self.loss = wnorm_0*torch.sum(weights[mask_0]*torch.log(
+                torch.clamp(pred[mask_0], min=1e-8, max=1e8))) \
+                + wnorm_1*torch.sum(weights[mask_1]*torch.log(
+                    torch.clamp(1 - pred[mask_1], min=1e-8, max=1e8)))
+        else:
+            self.loss = torch.sum(torch.log(torch.clamp(pred[mask_0], min=1e-8, max=1e8))) \
+                + torch.sum(torch.log(torch.clamp(1 - pred[mask_1], min=1e-8, max=1e8)))
 
         # del K
         # del one
@@ -243,7 +262,7 @@ class OrdLoss(nn.Module):
         return self.loss
 
 
-def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.05):
+def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.05, widths=None):
 
     if loss_func is None or loss_func == 'l2':
         pixel_loss = masked_mse(pred, target, mask)
@@ -261,7 +280,7 @@ def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.05):
         ord_loss = OrdLoss()
         # print('requires_grad', pred[0].requires_grad)
         # print('requires_grad', pred[1].requires_grad)
-        loss = ord_loss(pred[1], target, mask)
+        loss = ord_loss(pred[1], target, mask, widths=widths)
         # loss = masked_mse(pred[1], target, mask)
 
     else:
@@ -289,9 +308,12 @@ def print_metrics(metrics, epoch_samples, phase):
 
 def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25, tb_writer=None,
                 verbose=True, loss_func=None, sls=False, pixel_weight=1, do_val=True, ds=None,
-                bins=None):
+                bins=None, nbins=0):
+    widths = centers = 0
     if loss_func is None:
         loss_func = 'l2'
+    elif loss_func == 'ordinal':
+        _, centers, widths = get_ord_binning(bins, nbins)
     best_model_wts = copy.deepcopy(model.state_dict())
     best_loss = 1e16
     if do_val:
@@ -337,7 +359,7 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                             if not sls:
                                 with torch.autograd.detect_anomaly():
                                     loss = calc_loss(outputs, labels, masks, metrics, loss_func,
-                                                     pixel_weight)
+                                                     pixel_weight, widths=widths)
                                     loss.backward()
                                     optimizer.step()
                             else:
@@ -348,7 +370,7 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                                 optimizer.step(closure)
                         else:
                             loss = calc_loss(outputs, labels, masks, metrics, loss_func,
-                                             pixel_weight)
+                                             pixel_weight, widths=widths)
                     # accrue total number of samples
                     epoch_samples += inputs.size(0)
 
@@ -446,6 +468,7 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                     # print('loading pred to mem')
                     if loss_func == 'ordinal':
                         prediction = model(inputs[i:i+1])[0].data.cpu().numpy()
+                        # print(prediction.shape)
                     else:
                         prediction = model(inputs[i:i+1]).data.cpu().numpy()
                     # print(name)
@@ -460,37 +483,6 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                         ds_mem['image_mre'].loc[{'subject': name,
                                                  'mre_type': 'mre_pred'}] = (prediction[0, 0].T)*100
                     elif loss_func == 'ordinal':
-                        if bins == 'uniform':
-                            centers = [311.32407407, 907.97222222, 1504.62037037,
-                                       2101.26851852, 2697.91666667, 3294.56481481, 3891.21296296,
-                                       4487.86111111, 5084.50925926, 5681.15740741, 6277.80555556,
-                                       6874.4537037, 7471.10185185, 8067.75, 8664.39814815,
-                                       9261.0462963, 9857.69444444, 10454.34259259, 11050.99074074,
-                                       11647.63888889, 12244.28703704, 12840.93518519,
-                                       13437.58333333, 14034.23148148, 14630.87962963,
-                                       15227.52777778, 15824.17592593, 16420.82407407,
-                                       17017.47222222, 17614.12037037, 18210.76851852,
-                                       18807.41666667, 19404.06481481, 20000.71296296,
-                                       20597.36111111, 21194.00925926, 21790.65740741,
-                                       22387.30555556, 22983.9537037, 23580.60185185, 24177.25,
-                                       24773.89814815, 25370.5462963, 25967.19444444,
-                                       26563.84259259, 27160.49074074, 27757.13888889,
-                                       28353.78703704, 28950.43518519, 29547.08333333,
-                                       30143.73148148, 30740.37962963, 31337.02777778,
-                                       31933.67592593]
-                        elif bins == 'blocks':
-                            centers = [124.75, 302., 457., 634.5, 763., 857.,
-                                       961., 1058.5, 1146., 1233.5, 1322., 1414.,
-                                       1499., 1570., 1648., 1744.5, 1859.5, 2001.5,
-                                       2427.5, 2910.5, 3150.5, 3349.5, 3534.5, 3696.5,
-                                       3897.5, 4149.5, 4377.5, 4601., 4903.5, 5233.,
-                                       5509., 5767.5, 6089., 6452.5, 6832.5, 7277.5,
-                                       7748.5, 8278.5, 8863., 9366.5, 9855., 10453.5,
-                                       11184., 11951.5, 12691., 13492., 14262.5, 14967.,
-                                       15806., 16923., 18085.5, 19530., 21824., 27715.75]
-                        else:
-                            raise ValueError(f'bins = {bins}, this is wrong')
-
                         subj_pred = prediction[0, 0].T.astype(int)
                         pred_transform = np.ones_like(subj_pred)
                         it = np.nditer(subj_pred, flags=['multi_index'])

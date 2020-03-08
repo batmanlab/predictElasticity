@@ -455,6 +455,34 @@ class Decoder(nn.Module):
                 m.bias.data.zero_()
 
 
+class OrdinalRegressionLayerSigmoid(nn.Module):
+    def __init__(self):
+        super(OrdinalRegressionLayerSigmoid, self).__init__()
+
+    def forward(self, x):
+        """
+        :param x: N X D X H X W X C, N is batch_size, C is channels of features
+        :return: ord_labels is ordinal outputs for each spatial locations,
+                 size is N x H X W X K (K is interval of SID)
+                 decode_label is the ordinal labels for each position of Image I
+        """
+        # N, K, D, H, W = x.size()
+
+        """
+        replace iter with matrix operation
+        fast speed methods
+        """
+        # x = torch.clamp(x, min=-1e8, max=1e8)  # prevent nans
+
+        ord_c = torch.sigmoid(x)
+        # print(ord_c.requires_grad)
+
+        decode_c = torch.sum((ord_c > 0.5), dim=1).unsqueeze(1)
+        # print(decode_c.requires_grad)
+        # decode_c = torch.sum(ord_c1, dim=1).view(-1, 1, H, W)
+        return decode_c, ord_c.float()
+
+
 # https://github.com/dontLoveBugs/DORN_pytorch/blob/master/network/DORN_nyu.py
 class OrdinalRegressionLayer(nn.Module):
     def __init__(self):
@@ -505,7 +533,7 @@ class DeepLab(nn.Module):
         self.decoder = Decoder(out_channels, norm=norm)
         self.do_ord = do_ord
         if self.do_ord:
-            self.ord_layer = OrdinalRegressionLayer()
+            self.ord_layer = OrdinalRegressionLayerSigmoid()
 
     def forward(self, input):
         x, low_level_feat = self.backbone(input)
