@@ -167,12 +167,15 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
                         output_stride=8, do_ord=do_ord, norm=cfg['norm'])
         if cfg['transfer']:
 
-            transfer_path = Path('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data',
-                                 'trained_models', 'notebook',
-                                 'model_notebook_test_2020-02-20_12-04-13.pkl')
+            # transfer_path = Path('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data',
+            #                      'trained_models', 'notebook',
+            #                      'model_notebook_test_2020-02-20_12-04-13.pkl')
             # transfer_path = Path('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data',
             #                      'trained_models', 'GROUP0',
             #                      'model_2020-03-05_13-50-59.pkl')
+            transfer_path = Path('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data',
+                                 'trained_models', 'GROUP0',
+                                 'model_2020-03-09_10-09-32_n0.pkl')
 
             # transfer_path = Path('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/CHAOS/',
             #                      'trained_models', '001', 'model_2020-02-16_16-12-44.pkl')
@@ -188,11 +191,11 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
             # print(pretrained_dict.keys())
             model_dict.update(pretrained_dict)
             model.load_state_dict(model_dict, strict=False)
-            print('freezing transfer params')
-            for name, param in model.named_parameters():
-                if ((name in pretrained_dict.keys()) and
-                        (param.data.shape == pretrained_dict[name].shape)):
-                    param.requires_grad = False
+            # print('freezing transfer params')
+            # for name, param in model.named_parameters():
+            #     if ((name in pretrained_dict.keys()) and
+            #             (param.data.shape == pretrained_dict[name].shape)):
+            #         param.requires_grad = False
     elif cfg['model_arch'] == 'debug':
         model = Debug(in_channels=cfg['in_channels'], out_channels=cfg['out_channels_final'])
 
@@ -204,7 +207,10 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         loss_params = torch.nn.ParameterList(loss_func.parameters())
         optimizer = optim.Adam(chain(model.parameters(), loss_params), lr=cfg['lr'])
     elif loss_type in ['l2', 'ordinal'] and cfg['lr_scheduler'] == 'step':
-        optimizer = optim.Adam(model.parameters(), lr=cfg['lr'], weight_decay=0.1)
+        optimizer = optim.Adam(model.parameters(), lr=cfg['lr'], weight_decay=cfg['weight_decay'])
+    elif loss_type in ['l2', 'ordinal'] and cfg['lr_scheduler'] == 'cyclic':
+        optimizer = optim.SGD(model.parameters(), lr=cfg['lr_max'], momentum=0.9,
+                              weight_decay=cfg['weight_decay'])
     elif use_sls:
         optimizer = sls.Sls(model.parameters(),
                             n_batches_per_epoch=len(train_set)/float(cfg["batch_size"]))
@@ -356,7 +362,7 @@ def default_cfg():
            'resize': False, 'patient_list': False, 'num_workers': 0, 'lr_scheduler': 'step',
            'lr': 1e-2, 'lr_max': 1e-2, 'lr_min': 1e-4, 'step_size': 20, 'dims': 2,
            'pixel_weight': 1, 'depth': False, 'bins': 'none',
-           'do_val': True, 'norm': 'bn', 'transfer': False,
+           'do_val': True, 'norm': 'bn', 'transfer': False, 'weight_decay': 0.1,
            'inputs': ['t1_pre_water', 't1_pre_in', 't1_pre_out', 't1_pre_fat', 't2',
                       't1_pos_0_water', 't1_pos_70_water', 't1_pos_160_water', 't1_pos_300_water']}
     return cfg
