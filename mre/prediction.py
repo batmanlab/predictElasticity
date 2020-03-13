@@ -228,7 +228,7 @@ class OrdLoss(nn.Module):
             #                                                      requires_grad=False).cuda()
             K[i, :] = K[i, :] + i * torch.ones(S, dtype=torch.int, requires_grad=False).cuda()
             if widths is not None:
-                weights[i, :] = widths[i] * torch.ones(S, dtype=torch.int,
+                weights[i, :] = widths[i] * torch.ones(S, dtype=torch.float,
                                                        requires_grad=False).cuda()
 
         mask_0 = (K <= target).detach()
