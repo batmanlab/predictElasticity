@@ -45,10 +45,22 @@ class MREtoXr:
             file_names = [f for f in file_names if Path(f).exists()]
 
         if '*' in file_names or type(file_names) is list:
-            ds = xr.open_mfdataset(file_names, combine='nested', concat_dim='subject')
+            if re.match(r'_n\*_', file_names):
+                ds = self.get_best_data(file_names)
+            else:
+                ds = xr.open_mfdataset(file_names, combine='nested', concat_dim='subject')
         else:
             ds = xr.open_dataset(file_names)
         return ds
+
+    def get_best_data(self, file_names):
+        pass
+        # versions = []
+        # groups = []
+        # slurm_config_dir = '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/config/'
+        # config_path = Path(slurm_config_dir)
+        # for i in Path(test_path).parents[2].glob(Path(test_path).parents[1].stem):
+        #     versions.append(str(i).split('_')[-1])
 
     def __init__(self, data_dir=None, sequences=None, patient=None, from_file=None, **kwargs):
 
@@ -655,12 +667,7 @@ class MRETorchDataset(Dataset):
                 with np.errstate(divide='ignore', invalid='ignore'):
                     # target = np.float32(np.where(target > 0, np.sqrt(target), 0))
                     target = np.float32(target/100.0)
-            elif self.loss == 'ordinal':
-                bins, _, _ = get_ord_binning(self.bins, self.nbins)
-                bins[-1] = 1e6
-                bins[0] = 0
-                target = np.float32(np.digitize(target, bins))
-            # target = np.float32(target/1000.0)
+            target = np.float32(target)
 
         if self.dims == 2:
             image, target, mask = self.get_data_aug_2d(image, target, mask)
@@ -725,7 +732,9 @@ class MRETorchDataset(Dataset):
                 if self.smear == 'gaussian':
                     sigma = np.random.uniform(0, 3, 1)[0]
                 elif self.smear == 'median':
-                    sigma = np.random.randint(1, 10)
+                    # sigma = np.random.randint(1, 10)
+                    # sigma = np.random.randint(1, 6)
+                    sigma = 4
                 else:
                     sigma = 0
             else:
@@ -772,7 +781,13 @@ class MRETorchDataset(Dataset):
 
         image = torch.FloatTensor(image)
         # target = torch.FloatTensor(target)
-        target = torch.IntTensor(target.type(torch.IntTensor))
+        if self.loss == 'ordinal':
+            bins, _, _ = get_ord_binning(self.bins, self.nbins)
+            bins[-1] = 1e6
+            bins[0] = 0
+            target = np.digitize(target, bins)
+        # target = torch.IntTensor(target.type(torch.IntTensor))
+        target = torch.IntTensor(target)
         target = target.unsqueeze(0)
         mask = torch.FloatTensor(mask)
         mask = mask.unsqueeze(0)

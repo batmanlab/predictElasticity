@@ -539,6 +539,10 @@ def get_linear_fit(ds, do_cor=False, make_plot=True, verbose=True, return_df=Fal
 
     true = []
     pred = []
+    if do_cor:
+        slope = np.mean(ds['val_slope'].values)
+        intercept = np.mean(ds['val_intercept'].values)
+        print(slope, intercept)
     for subj in ds.subject:
         true_mre_region = (ds.sel(subject=subj, mre_type='mre')['image_mre'].values *
                            ds.sel(subject=subj, mask_type='combo')['mask_mre'].values)
@@ -547,8 +551,9 @@ def get_linear_fit(ds, do_cor=False, make_plot=True, verbose=True, return_df=Fal
                            ds.sel(subject=subj, mask_type='combo')['mask_mre'].values)
         pred_mre_region = np.where(pred_mre_region > 0, pred_mre_region, np.nan)
         if do_cor:
-            slope = ds.sel(subject=subj)['val_slope'].values
-            intercept = ds.sel(subject=subj)['val_intercept'].values
+            # slope = np.mean(ds.sel(subject=subj)['val_slope'].values)
+            # intercept = np.mean(ds.sel(subject=subj)['val_intercept'].values)
+            # print(slope, intercept)
             pred_mre_region = (pred_mre_region-intercept)/slope
         true.append(np.nanmean(true_mre_region))
         pred.append(np.nan_to_num(np.nanmean(pred_mre_region)))

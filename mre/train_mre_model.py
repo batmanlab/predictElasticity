@@ -175,7 +175,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
             #                      'model_2020-03-05_13-50-59.pkl')
             transfer_path = Path('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data',
                                  'trained_models', 'GROUP0',
-                                 'model_2020-03-09_10-09-32_n0.pkl')
+                                 'model_2020-02-19_08-25-34_n0.pkl')
 
             # transfer_path = Path('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/CHAOS/',
             #                      'trained_models', '001', 'model_2020-02-16_16-12-44.pkl')
