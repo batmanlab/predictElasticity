@@ -10,6 +10,7 @@ import holoviews as hv
 from holoviews import opts
 from holoviews.operation.datashader import datashade, shade, dynspread, rasterize
 from mre.preprocessing import MRIImage
+from lmfit.models import LinearModel
 
 hv.extension('bokeh')
 
@@ -602,3 +603,48 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
     return pn.Column(wb, pn_layout)
     # return hv_ds_mri_image
     # return hv_ds_mre_image
+
+
+def miccai_plots(ds, do_cor=True):
+    true = []
+    pred = []
+    # if do_cor:
+    #     slope = np.mean(ds['val_slope'].values)
+    #     intercept = np.mean(ds['val_intercept'].values)
+    #     print(slope, intercept)
+    for subj in ds.subject:
+        mask = ds.sel(subject=subj, mask_type='combo')['mask_mre'].values
+        mask = np.where(mask > 0, mask, np.nan)
+        true_mre_region = (ds.sel(subject=subj, mre_type='mre')['image_mre'].values * mask)
+        true_mre_region = true_mre_region.flatten()
+        true_mre_region = true_mre_region[~np.isnan(true_mre_region)]
+        pred_mre_region = (ds.sel(subject=subj, mre_type='mre_pred')['image_mre'].values * mask)
+        pred_mre_region = pred_mre_region.flatten()
+        pred_mre_region = pred_mre_region[~np.isnan(pred_mre_region)]
+        if do_cor:
+            slope = np.mean(ds.sel(subject=subj)['val_slope'].values)
+            intercept = np.mean(ds.sel(subject=subj)['val_intercept'].values)
+            # print(slope, intercept)
+            pred_mre_region = (pred_mre_region-intercept)/slope
+            pred_mre_region = np.where(pred_mre_region > 0, pred_mre_region, 0)
+        true.append(np.nanmean(true_mre_region))
+        pred.append(np.nan_to_num(np.nanmean(pred_mre_region)))
+
+    df_results = pd.DataFrame({'true': true, 'predict': pred, 'subject': ds.subject.values})
+    df_results['fibrosis'] = np.where(df_results.true > 4000,
+                                      'Severe Fibrosis', 'Mild Fibrosis')
+    model = LinearModel()
+    # params = model.guess(df_results['predict'], x=df_results['true'])
+    params = model.make_params(slope=0.5, intercept=0)
+    result = model.fit(df_results['predict'], params, x=df_results['true'])
+    result.plot()
+    plt.title('Mre_true vs Mre_pred')
+    plt.ylim(0, 12000)
+    plt.xlim(0, 12000)
+    plt.xlabel('True MRE')
+    plt.ylabel('Predicted MRE')
+    # return result
+
+    print(result.fit_report())
+    print('R2:', 1 - result.residual.var() / np.var(df_results['predict']))
+    return df_results

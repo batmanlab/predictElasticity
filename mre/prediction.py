@@ -555,6 +555,7 @@ def get_linear_fit(ds, do_cor=False, make_plot=True, verbose=True, return_df=Fal
             # intercept = np.mean(ds.sel(subject=subj)['val_intercept'].values)
             # print(slope, intercept)
             pred_mre_region = (pred_mre_region-intercept)/slope
+            pred_mre_region = np.where(pred_mre_region > 0, pred_mre_region, 0)
         true.append(np.nanmean(true_mre_region))
         pred.append(np.nan_to_num(np.nanmean(pred_mre_region)))
 
@@ -574,7 +575,6 @@ def get_linear_fit(ds, do_cor=False, make_plot=True, verbose=True, return_df=Fal
         plt.xlim(0, 12000)
         plt.xlabel('True MRE')
         plt.ylabel('Predicted MRE')
-        plt.show()
 
     if verbose:
         print(result.fit_report())

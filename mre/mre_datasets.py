@@ -787,7 +787,7 @@ class MRETorchDataset(Dataset):
             bins[0] = 0
             target = np.digitize(target, bins)
         # target = torch.IntTensor(target.type(torch.IntTensor))
-        target = torch.IntTensor(target)
+        target = torch.FloatTensor(target)
         target = target.unsqueeze(0)
         mask = torch.FloatTensor(mask)
         mask = mask.unsqueeze(0)
