@@ -81,7 +81,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         train_list = list(shuffle_list[:train_idx])
         val_list = list(shuffle_list[train_idx:val_idx])
         test_list = list(shuffle_list[val_idx:])
-    else:
+    elif cfg['sampling_breakdown'] == 'dumb':
         dataloaders = {}
         test_list = cfg['subj']
         np.random.seed(cfg['seed'])
@@ -94,6 +94,8 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
             val_list = list(shuffle_list[train_idx:])
         else:
             train_list = list(shuffle_list)
+    elif cfg['sampling_breakdown'] == 'smart':
+        print('finish this')
 
     train_set = MRETorchDataset(ds.sel(subject=train_list), set_type='train', **cfg)
     if cfg['do_val']:
