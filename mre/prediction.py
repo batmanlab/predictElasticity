@@ -391,10 +391,10 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                         best_loss = epoch_loss
                         best_model_wts = copy.deepcopy(model.state_dict())
 
-                    # elif phase == 'val' and epoch_loss < best_loss*1.05:
-                    #     if verbose:
-                    #         print("saving best model (within 5%) ")
-                    #     best_model_wts = copy.deepcopy(model.state_dict())
+                    elif phase == 'val' and epoch_loss < best_loss*1.01:
+                        if verbose:
+                            print("saving best model (within 1%) ")
+                        best_model_wts = copy.deepcopy(model.state_dict())
                 else:
                     if phase == 'train' and epoch_loss < best_loss:
                         if verbose:

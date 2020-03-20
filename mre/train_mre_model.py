@@ -7,6 +7,7 @@ import warnings
 import argparse
 import pickle as pkl
 import numpy as np
+import pandas as pd
 from itertools import chain
 import torch
 import torch.nn as nn
@@ -71,9 +72,9 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         use_sls = True
 
     # Start filling dataloaders
+    dataloaders = {}
+    np.random.seed(cfg['seed'])
     if cfg['subj'] is None:
-        dataloaders = {}
-        np.random.seed(cfg['seed'])
         shuffle_list = np.asarray(ds.subject)
         np.random.shuffle(shuffle_list)
         train_idx = int(0.7*len(shuffle_list))
@@ -82,9 +83,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         val_list = list(shuffle_list[train_idx:val_idx])
         test_list = list(shuffle_list[val_idx:])
     elif cfg['sampling_breakdown'] == 'dumb':
-        dataloaders = {}
         test_list = cfg['subj']
-        np.random.seed(cfg['seed'])
         shuffle_list = [subj for subj in ds.subject.values if subj not in test_list]
         shuffle_list = np.asarray(shuffle_list)
         np.random.shuffle(shuffle_list)
@@ -94,8 +93,35 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
             val_list = list(shuffle_list[train_idx:])
         else:
             train_list = list(shuffle_list)
+
     elif cfg['sampling_breakdown'] == 'smart':
-        print('finish this')
+        # Needs to be hardcoded for now, problem with calc on the fly
+        high_subj = ['1106', '1853', '0173', '1033', '0954', '1427', '2007', '1736', '1967', '1474',
+                     '1343', '0135', '0890', '1296', '1839', '1395', '1526', '0838', '1336', '1103',
+                     '0929', '1149', '1577', '0747', '2001', '1590', '1083', '0932', '1530', '0291',
+                     '1790', '0210', '1785', '1574', '1896', '1789', '1979', '1311', '1722', '0491',
+                     '1714', '1595', '1367', '1935', '0344', '0931', '1798', '1287', '0659', '0234',
+                     '1715', '0126', '1271', '1791', '1851', '0219', '1550', '0693', '0461', '1720',
+                     '2046', '1077', '0235', '0898', '0628']
+        low_subj = ['0737', '1426', '1712', '0995', '1464', '1123', '1400', '1278',
+                    '1072', '0704', '1360', '1209', '0564', '1883', '1806', '1045',
+                    '1417', '1404', '1893', '0655', '1699', '1028', '1144', '1554',
+                    '1795', '1578', '0164', '1579', '0020', '1453', '1341', '1903',
+                    '1679', '1447', '0006', '1344', '0904', '1215', '1456', '1671',
+                    '1483', '1121', '0612', '1765', '0914', '1748', '0395', '1727',
+                    '1940', '1948', '0415', '1110', '2034', '1217', '1603', '0734',
+                    '1504', '0830', '0860', '0979', '1819', '1119', '1642', '1491',
+                    '1694', '1843', '1433', '1529', '1706', '0872', '1541', '1561',
+                    '0401', '1382', '1667', '1980', '1545', '0653', '1829', '0043',
+                    '0975', '1076', '2029', '0556', '1435', '0735', '0029', '1303',
+                    '0509', '1899', '1412', '1337', '1329', '1793', '0937', '1786',
+                    '0492', '0940', '0748', '1448', '0510', '0989']
+        test_list = cfg['subj']
+        high_subj = [subj for subj in high_subj if subj not in test_list]
+        low_subj = [subj for subj in low_subj if subj not in test_list]
+
+        val_list = high_subj[:14] + low_subj[:24]
+        train_list = high_subj[14:] + low_subj[24:]
 
     train_set = MRETorchDataset(ds.sel(subject=train_list), set_type='train', **cfg)
     if cfg['do_val']:
@@ -236,6 +262,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         model = nn.DataParallel(model, [0, 1])
 
     model.to(device)
+    print('model loaded to gpu')
 
     if cfg['dry_run']:
         inputs, targets, masks, names = next(iter(dataloaders['test']))
@@ -364,6 +391,7 @@ def default_cfg():
            'resize': False, 'patient_list': False, 'num_workers': 0, 'lr_scheduler': 'step',
            'lr': 1e-2, 'lr_max': 1e-2, 'lr_min': 1e-4, 'step_size': 20, 'dims': 2,
            'pixel_weight': 1, 'depth': False, 'bins': 'none',
+           'sampling_breakdown': 'smart',
            'do_val': True, 'norm': 'bn', 'transfer': False, 'weight_decay': 0.1,
            'inputs': ['t1_pre_water', 't1_pre_in', 't1_pre_out', 't1_pre_fat', 't2',
                       't1_pos_0_water', 't1_pos_70_water', 't1_pos_160_water', 't1_pos_300_water']}
