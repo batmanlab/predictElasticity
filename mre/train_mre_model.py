@@ -383,6 +383,7 @@ def default_cfg():
            'val_trans': True, 'val_clip': True, 'val_aug': False, 'val_sample': 'shuffle',
            'test_trans': True, 'test_clip': True, 'test_aug': False,
            'train_smear': 'gaussian', 'val_smear': False, 'test_smear': False,
+           'smear_amt': 3,
            'batch_size': 64, 'model_cap': 16, 'subj': None,
            'gamma': 0.1, 'num_epochs': 40, 'dry_run': False, 'coord_conv': False, 'loss': 'l2',
            'mask_trimmer': False, 'mask_mixer': 'mixed', 'target_max': None, 'target_bins': 100,

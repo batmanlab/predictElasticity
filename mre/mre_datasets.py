@@ -613,6 +613,7 @@ class MRETorchDataset(Dataset):
         self.transform = kwargs.get(f'{set_type}_transform', True)
         self.aug = kwargs.get(f'{set_type}_aug', False)
         self.smear = kwargs.get(f'{set_type}_smear', False)
+        self.smear_amt = kwargs.get('smear_amt', 0)
         self.loss = kwargs.get(f'loss', 'l2')
         self.bins = kwargs.get(f'bins', None)
         self.nbins = kwargs.get(f'out_channels_final', 0)
@@ -683,10 +684,12 @@ class MRETorchDataset(Dataset):
                 translations = np.random.uniform(-10, 10, 2)
                 scale = np.random.uniform(0.90, 1.10, 1)
                 if self.smear == 'gaussian':
-                    sigma = np.random.uniform(0, 3, 1)[0]
+                    # sigma = np.random.uniform(0, 3, 1)[0]
+                    sigma = self.smear_amt
                 elif self.smear == 'median':
                     # sigma = np.random.randint(10)
-                    sigma = 6
+                    # sigma = 6
+                    sigma = self.smear_amt
                 else:
                     sigma = 0
             else:
@@ -730,11 +733,13 @@ class MRETorchDataset(Dataset):
                 scale = np.random.uniform(0.90, 1.10, 1)[0]
 
                 if self.smear == 'gaussian':
-                    sigma = np.random.uniform(0, 3, 1)[0]
+                    # sigma = np.random.uniform(0, 3, 1)[0]
+                    sigma = self.smear_amt
                 elif self.smear == 'median':
                     # sigma = np.random.randint(1, 10)
                     # sigma = np.random.randint(1, 6)
-                    sigma = 4
+                    # sigma = 4
+                    sigma = self.smear_amt
                 else:
                     sigma = 0
             else:
@@ -787,217 +792,6 @@ class MRETorchDataset(Dataset):
             bins[0] = 0
             target = np.digitize(target, bins)
         # target = torch.IntTensor(target.type(torch.IntTensor))
-        target = torch.FloatTensor(target)
-        target = target.unsqueeze(0)
-        mask = torch.FloatTensor(mask)
-        mask = mask.unsqueeze(0)
-
-        return image, target, mask
-
-    def affine_transform(self, input_slice, rot_angle=0, translations=0, scale=1, resample=None):
-        input_slice = transforms.ToPILImage()(input_slice)
-        input_slice = TF.affine(input_slice, angle=rot_angle,
-                                translate=list(translations), scale=scale, shear=0,
-                                resample=resample)
-        input_slice = transforms.ToTensor()(input_slice)
-        return input_slice
-
-    def affine_transform_3d(self, image, rot_angle_xy=None, rot_angle_xz=None, rot_angle_yz=None,
-                            translations_xy=None, scale=None, order=None):
-        image = ndi.interpolation.rotate(image, rot_angle_xy, axes=(1, 2), order=order,
-                                         reshape=False)
-        # image = ndi.interpolation.rotate(image, rot_angle_xz, axes=(0, 2), order=order,
-        #                                  reshape=False)
-        # image = ndi.interpolation.rotate(image, rot_angle_yz, axes=(0, 1), order=order,
-        #                                  reshape=False)
-        image = ndi.interpolation.shift(image, shift=[0, translations_xy[1], translations_xy[0]],
-                                        order=order)
-        # image = ndi.interpolation.zoom(image, zoom=scale, order=order)
-        return image
-
-    def input_norm(self, input_image, rot_angle=0, translations=0, scale=1, resample=None):
-
-        # normalize image
-        if self.dims == 2:
-            image = input_image
-            image = np.where(input_image <= 1e-9, np.nan, input_image)
-            mean = np.nanmean(image, axis=(1, 2))
-            std = np.nanstd(image, axis=(1, 2))
-            image = ((image.T - mean)/std).T
-            image = np.where(image != image, 0, image)
-            image = image.astype(np.float32)
-        elif self.dims == 3:
-            image = input_image
-            image = np.where(input_image <= 1e-9, np.nan, input_image)
-            mean = np.nanmean(image, axis=(1, 2, 3))
-            std = np.nanstd(image, axis=(1, 2, 3))
-            image = ((image.T - mean)/std).T
-            image = np.where(image != image, 0, image)
-            image = image.astype(np.float32)
-        return image
-
-
-class SelfSupTorchDataset(Dataset):
-    '''Make a torch dataset compatible with the torch dataloader.'''
-    def __init__(self, xa_ds, set_type, **kwargs):
-
-        # Required params
-        self.xa_ds = xa_ds
-        self.set_type = set_type
-
-        # Assign kwargs
-        self.seed = kwargs.get('seed', 100)
-        self.inputs = kwargs.get('inputs', ['t1_pre_water', 't1_pre_in', 't1_pre_out', 't1_pre_fat',
-                                            't2', 't1_pos_0_water', 't1_pos_70_water',
-                                            't1_pos_160_water', 't1_pos_300_water'])
-        self.target = kwargs.get('target', 'mre')
-        self.mask = kwargs.get('mask', 'combo')
-        self.clip = kwargs.get(f'{set_type}_clip', True)
-        self.transform = kwargs.get(f'{set_type}_transform', True)
-        self.aug = kwargs.get(f'{set_type}_aug', False)
-        self.smear = kwargs.get(f'{set_type}_smear', False)
-        self.organize_data()
-
-    def organize_data(self):
-        '''Reorder, seperate and manipulate input data such that it conforms to dataloader
-        standards and required format given a particular training task.'''
-
-        np.random.seed(self.seed)
-        if self.set_type != 'eval':
-            print(self.xa_ds.subject)
-
-        self.input_images = self.xa_ds.sel(sequence=self.inputs).image_mri.transpose(
-            'subject', 'sequence', 'z', 'y', 'x').values
-        self.target_images = self.xa_ds.sel(mre_type=[self.target]).image_mre.transpose(
-            'subject', 'mre_type', 'z', 'y', 'x').values
-        self.mask_images = self.xa_ds.sel(mask_type=[self.mask]).mask_mre.transpose(
-            'subject', 'mask_type', 'z', 'y', 'x').values
-
-        self.names = self.xa_ds.subject.values
-
-    def __len__(self):
-        return len(self.input_images)
-
-    def __getitem__(self, idx):
-        mask = self.mask_images[idx].astype(np.float32)
-        image = self.input_images[idx]
-        target = self.target_images[idx]
-        if self.clip:
-            image  = np.where(image >= 2000, 2000, image)
-            # target = np.float32(np.digitize(target, list(range(0, 20000, 200))+[1e6]))
-            with np.errstate(divide='ignore', invalid='ignore'):
-                target = np.float32(np.where(target > 0, np.sqrt(target), 0))
-            # target = np.float32(target/1000.0)
-
-        if self.dims == 2:
-            image, target, mask = self.get_data_aug_2d(image, target, mask)
-        elif self.dims == 3:
-            image, target, mask = self.get_data_aug_3d(image, target, mask)
-
-        return [image, target, mask, self.names[idx]]
-
-    def get_data_aug_2d(self, image, target, mask):
-        if self.transform:
-            if self.aug:
-                rot_angle = np.random.uniform(-8, 8, 1)
-                translations = np.random.uniform(-10, 10, 2)
-                scale = np.random.uniform(0.90, 1.10, 1)
-                if self.smear == 'gaussian':
-                    sigma = np.random.uniform(0, 3, 1)[0]
-                elif self.smear == 'median':
-                    sigma = np.random.randint(10)
-                else:
-                    sigma = 0
-            else:
-                rot_angle = 0
-                translations = (0, 0)
-                scale = 1
-                sigma = 0
-
-            image = self.input_norm(image)
-            img_list = []
-            # Iterate over channels
-            for i in range(image.shape[0]):
-                img_list.append(self.affine_transform(image[i], rot_angle, translations, scale,
-                                                      resample=PIL.Image.BILINEAR))
-            image = torch.cat(img_list)
-
-            mask = self.affine_transform(mask[0], rot_angle, translations, scale,
-                                         resample=PIL.Image.NEAREST)
-            if self.smear == 'gaussian':
-                target = gaussian_filter(target[0], sigma=sigma)
-            elif self.smear == 'median':
-                target = median_filter(target[0], sigma=sigma)
-            target = self.affine_transform(target, rot_angle, translations, scale,
-                                           resample=PIL.Image.BILINEAR)
-
-        image = torch.FloatTensor(image)
-        target = torch.FloatTensor(target)
-        mask = torch.FloatTensor(mask)
-
-        return image, target, mask
-
-    def get_data_aug_3d(self, image, target, mask):
-        if self.transform:
-            if self.aug:
-                rot_angle_xy = np.random.uniform(-8, 8, 1)[0]
-                translations_xy = np.random.uniform(-10, 10, 2)
-
-                # rot_angle_xz = np.random.uniform(-1, 1, 1)[0]
-                # rot_angle_yz = np.random.uniform(-1, 1, 1)[0]
-
-                scale = np.random.uniform(0.90, 1.10, 1)[0]
-
-                if self.smear == 'gaussian':
-                    sigma = np.random.uniform(0, 3, 1)[0]
-                elif self.smear == 'median':
-                    # sigma = np.random.randint(1, 10)
-                    sigma = 3
-                else:
-                    sigma = 0
-            else:
-                # raise NotImplementedError('you must transform 3d images')
-                rot_angle_xy = 0
-                translations_xy = (0, 0)
-
-                # rot_angle_xz = 0
-                # rot_angle_yz = 0
-
-                scale = 1
-                sigma = 0
-
-            image = self.input_norm(image)
-            img_list = []
-            # Iterate over channels
-            for i in range(image.shape[0]):
-                slice_list = []
-                # Iterate over z-slice
-                for j in range(image.shape[1]):
-                    slice_list.append(self.affine_transform(image[i][j], rot_angle_xy,
-                                                            translations_xy, scale,
-                                                            resample=PIL.Image.BILINEAR))
-                img_list.append(torch.cat(slice_list))
-            image = torch.stack(img_list)
-
-            # Iterate over z-slice
-            mask_list = []
-            target_list = []
-            for j in range(mask.shape[1]):
-                mask_list.append(self.affine_transform(mask[0][j], rot_angle_xy, translations_xy,
-                                                       scale, resample=PIL.Image.NEAREST))
-                if self.smear == 'guassian':
-                    target_tmp = gaussian_filter(target[0][j], sigma=sigma)
-                elif self.smear == 'median':
-                    target_tmp = median_filter(target[0][j], size=sigma)
-                else:
-                    target_tmp = target[0][j]
-                target_list.append(self.affine_transform(target_tmp, rot_angle_xy,
-                                                         translations_xy, scale,
-                                                         resample=PIL.Image.BILINEAR))
-            mask = torch.cat(mask_list)
-            target = torch.cat(target_list)
-
-        image = torch.FloatTensor(image)
         target = torch.FloatTensor(target)
         target = target.unsqueeze(0)
         mask = torch.FloatTensor(mask)
