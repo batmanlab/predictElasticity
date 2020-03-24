@@ -490,6 +490,8 @@ def xr_viewer(xr_ds, grid_coords=None, group_coords=None, overlay_data='default'
             layout = (hv_ds_main_dict[vdims[0]] * hv_ds_over).grid('sequence')
             # layout = (hv_ds_main_dict[vdims[0]] * hv_ds_over)
             # layout = (hv_ds_over).grid('sequence', dynamic=True)
+        else:
+            layout = (hv_ds_main_dict[vdims[0]] * hv_ds_over).grid('sequence')
     else:
         layout = (hv_ds_main_dict[vdims[0]]).grid('sequence', dynamic=False)
 

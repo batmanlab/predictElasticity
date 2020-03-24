@@ -86,26 +86,39 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
         print('train: ', len(train_set))
         print('val: ', len(val_set))
         print('test: ', len(test_set))
+
+    if cfg['worker_init_fn'] == 'default':
+        worker_init_fn = None
+    elif cfg['worker_init_fn'] == 'rand_epoch':
+        worker_init_fn = my_worker_init_fn
+    else:
+        raise ValueError('worker_init_fn specified incorrectly')
+
     if cfg['train_sample'] == 'shuffle':
         dataloaders['train'] = DataLoader(train_set, batch_size=batch_size, shuffle=True,
-                                          num_workers=2)
+                                          num_workers=2,
+                                          worker_init_fn=worker_init_fn)
     elif cfg['train_sample'] == 'resample':
         dataloaders['train'] = DataLoader(train_set, batch_size=batch_size, shuffle=False,
                                           sampler=RandomSampler(
                                               train_set, replacement=True,
                                               num_samples=cfg['train_num_samples']),
-                                          num_workers=2),
+                                          num_workers=2,
+                                          worker_init_fn=worker_init_fn)
     if cfg['val_sample'] == 'shuffle':
         dataloaders['val'] = DataLoader(val_set, batch_size=batch_size, shuffle=True,
-                                        num_workers=2)
+                                        num_workers=2,
+                                        worker_init_fn=worker_init_fn)
     elif cfg['val_sample'] == 'resample':
         dataloaders['val'] = DataLoader(val_set, batch_size=batch_size, shuffle=False,
                                         sampler=RandomSampler(
                                             val_set, replacement=True,
                                             num_samples=cfg['val_num_samples']),
-                                        num_workers=2),
+                                        num_workers=2,
+                                        worker_init_fn=worker_init_fn)
     dataloaders['test'] = DataLoader(test_set, batch_size=len(test_set), shuffle=False,
-                                     num_workers=2)
+                                     num_workers=2,
+                                     worker_init_fn=worker_init_fn)
 
     # Set device for computation
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -240,12 +253,17 @@ def str2bool(val):
         return val
 
 
+def my_worker_init_fn(worker_id):
+    np.random.seed(torch.random.get_rng_state()[0].item() + worker_id)
+
+
 def default_cfg():
     cfg = {'train_trans': True, 'train_clip': True, 'train_aug': True, 'train_sample': 'shuffle',
            'val_trans': True, 'val_clip': True, 'val_aug': False, 'val_sample': 'shuffle',
            'test_trans': True, 'test_clip': True, 'test_aug': False,
            'train_seq_mode': None, 'val_seq_mode': None, 'test_seq_mode': 'all', 'def_seq_mode':
            'random', 'seed': 100,
+           'worker_init_fn': 'default',
            'subj': '01', 'batch_size': 50, 'model_cap': 16, 'lr': 1e-2, 'step_size': 20,
            'gamma': 0.1, 'num_epochs': 40, 'dry_run': False, 'coord_conv': False, 'loss': 'dice',
            'model_arch': 'modular', 'n_layers': 3, 'in_channels': 1, 'out_channels_final': 1,
