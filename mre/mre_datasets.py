@@ -739,7 +739,10 @@ class MRETorchDataset(Dataset):
                     # sigma = np.random.randint(1, 10)
                     # sigma = np.random.randint(1, 6)
                     # sigma = 4
-                    sigma = self.smear_amt
+                    if self.smear_amt == -1:
+                        sigma = np.random.randint(1, 6)
+                    else:
+                        sigma = self.smear_amt
                 else:
                     sigma = 0
             else:
