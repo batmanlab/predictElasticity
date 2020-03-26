@@ -607,6 +607,8 @@ class MRETorchDataset(Dataset):
         self.inputs = kwargs.get('inputs', ['t1_pre_water', 't1_pre_in', 't1_pre_out', 't1_pre_fat',
                                             't2', 't1_pos_0_water', 't1_pos_70_water',
                                             't1_pos_160_water', 't1_pos_300_water'])
+        if type(self.inputs) is str:
+            self.inputs = [self.inputs]
         self.target = kwargs.get('target', 'mre')
         self.mask = kwargs.get('mask', 'combo')
         self.clip = kwargs.get(f'{set_type}_clip', True)
@@ -646,6 +648,7 @@ class MRETorchDataset(Dataset):
             self.names = self.xa_ds.subject_2d.values
 
         elif self.dims == 3:
+            print(self.inputs)
             self.input_images = self.xa_ds.sel(sequence=self.inputs).image_mri.transpose(
                 'subject', 'sequence', 'z', 'y', 'x')
             self.target_images = self.xa_ds.sel(mre_type=[self.target]).image_mre.transpose(

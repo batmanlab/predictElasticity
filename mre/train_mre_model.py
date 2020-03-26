@@ -407,7 +407,7 @@ def default_cfg():
            'mask_trimmer': False, 'mask_mixer': 'mixed', 'target_max': None, 'target_bins': 100,
            'model_arch': 'modular', 'n_layers': 7, 'in_channels': 5, 'out_channels_final': 1,
            'channel_growth': False, 'transfer_layer': False, 'seed': 100,
-           'worker_init_fn': 'default',
+           'worker_init_fn': 'rand_epoch',
            'resize': False, 'patient_list': False, 'num_workers': 0, 'lr_scheduler': 'step',
            'lr': 1e-2, 'lr_max': 1e-2, 'lr_min': 1e-4, 'step_size': 20, 'dims': 2,
            'pixel_weight': 1, 'depth': False, 'bins': 'none',
@@ -439,6 +439,9 @@ if __name__ == "__main__":
         if key == 'subj':
             parser.add_argument(f'--{key}', nargs='*',
                                 default=val)
+        elif key == 'inputs':
+            parser.add_argument(f'--{key}', nargs='*',
+                                default=val)
         elif type(val) is bool:
             parser.add_argument(f'--{key}', action='store', type=str2bool,
                                 default=val)
@@ -447,4 +450,5 @@ if __name__ == "__main__":
                                 default=val)
 
     args = parser.parse_args()
+    print(args)
     train_model_full(**vars(args))

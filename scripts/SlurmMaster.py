@@ -72,7 +72,15 @@ class SlurmMaster:
         else:
             subj_name = subj
 
-        arg_string = ' '.join(f'--{i}={conf[i]}' for i in conf)
+        print(conf)
+        arg_string = ''
+        for i in conf:
+            if type(conf[i]) is list:
+                clean_vals = ' '.join(conf[i])
+                arg_string += f' --{i} {clean_vals}'
+            else:
+                arg_string += f' --{i}={conf[i]}'
+        # arg_string = ' '.join(f'--{i}={conf[i]}' for i in conf)
         script_name = f'/tmp/slurm_script_{self.date}_n{number}_subj{subj_name}'
         script = open(script_name, 'w')
         script.write('#!/bin/bash\n')

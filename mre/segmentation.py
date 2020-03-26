@@ -158,9 +158,9 @@ class ChaosDataset(Dataset):
 
         if self.transform:
             if self.aug:
-                rot_angle = np.random.uniform(-3, 3, 1)
-                translations = np.random.uniform(-5, 5, 2)
-                scale = np.random.uniform(0.90, 1.10, 1)
+                rot_angle = np.random.uniform(-10, 10, 1)
+                translations = np.random.uniform(-10, 10, 2)
+                scale = np.random.uniform(0.80, 1.20, 1)
                 restack = 0
                 flip = 0
             else:
