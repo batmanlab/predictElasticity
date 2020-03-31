@@ -717,7 +717,7 @@ def miccai_plots(ds, do_cor=True, save_name='test'):
     return df_subj
 
 
-def xr_viewer_models(xr_ds, size=250, do_cor=True):
+def xr_viewer_models(xr_ds, size=250, do_cor=False):
     '''generic xr ds viewer for pollack-format image holders, this time with support for the
     3d mre-style xarrays.  Some argument customization will be sacrificed for consistency and ease
     of use. Maybe.
@@ -741,6 +741,11 @@ def xr_viewer_models(xr_ds, size=250, do_cor=True):
 
     # Make holoviews dataset from xarray
     hv_ds_mri = hv.Dataset(xr_ds[['image_mri', 'mask_mri']])
+    if do_cor:
+        cor = (xr_ds['image_mre']-xr_ds['val_intercept'])/xr_ds['val_slope']
+        cor = np.where(cor > 0, cor, 0)
+        xr_ds['image_mre'].loc[{}] = cor
+        # xr_ds['image_mre'].loc[{}] = xr_ds['image_mre']+1000
     hv_ds_mre = hv.Dataset(xr_ds[['image_mre', 'mask_mre']])
 
     mre_types = list(xr_ds.mre_type.values)

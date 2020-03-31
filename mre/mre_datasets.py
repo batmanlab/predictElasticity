@@ -1000,6 +1000,14 @@ class ModelCompare:
                           base_ds['mask_mre']),
              'mri_to_mre_idx': (['subject', 'z_idx'],
                                 base_ds['mri_to_mre_idx']),
+             'val_slope': (['subject', 'mre_type'],
+                           np.ones((len(base_ds.subject),
+                                    len(mre_type)),
+                                   dtype=np.float)),
+             'val_intercept': (['subject', 'mre_type'],
+                               np.zeros((len(base_ds.subject),
+                                         len(mre_type)),
+                                        dtype=np.float)),
              },
 
             coords={'subject': base_ds.subject,
@@ -1041,3 +1049,5 @@ class ModelCompare:
             ds_pred = ds_pred.sortby('subject')
             print(ds_pred)
             self.ds['image_mre'].loc[dict(mre_type=pred)] = ds_pred['image_mre']
+            self.ds['val_slope'].loc[dict(mre_type=pred)] = ds_pred['val_slope']
+            self.ds['val_intercept'].loc[dict(mre_type=pred)] = ds_pred['val_intercept']
