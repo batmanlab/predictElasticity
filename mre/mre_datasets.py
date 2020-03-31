@@ -957,3 +957,87 @@ class TorchToXr:
                         'y': range(self.ny)[::-1],
                         }
             )
+
+
+class ModelCompare:
+    '''
+    Simple Class for making an xarray made for many model predictions.
+    '''
+
+    def __init__(self, base_model_path='/pghbio/dbmi/batmanlab/Data/MRE/XR_full_gold_v3/*.nc',
+                 pred_dict=None):
+
+        if pred_dict is None:
+            pred_dict = {}
+
+        self.init_new_ds(base_model_path, pred_dict.keys())
+        self.add_predictions(pred_dict)
+
+    def init_new_ds(self, base_model_path, pred_names):
+        '''Initialize a new xarray dataset based on the size and shape of our inputs.'''
+
+        # Generate an xarray dataset from a saved base model and append all the saved predictions
+        # All 4 data vars are 5D (subject, sequence/mask_type, x, y, z).
+
+        print(base_model_path)
+        base_ds = self.load_files(base_model_path)
+
+        mre_type = list(base_ds.mre_type.values)
+        mre_type.remove('mre_pred')
+        mre_type += pred_names
+        # mre_type
+        self.ds = xr.Dataset(
+            {'image_mri': (['subject', 'sequence', 'x', 'y', 'z'],
+                           base_ds['image_mri']),
+             'mask_mri': (['subject', 'mask_type', 'x', 'y', 'z'],
+                          base_ds['mask_mri']),
+             'image_mre': (['subject', 'mre_type', 'x', 'y', 'z'],
+                           np.zeros((len(base_ds.subject),
+                                     len(mre_type),
+                                     len(base_ds.x), len(base_ds.y), len(base_ds.z)),
+                                    dtype=np.float)),
+             'mask_mre': (['subject', 'mask_type', 'x', 'y', 'z'],
+                          base_ds['mask_mre']),
+             'mri_to_mre_idx': (['subject', 'z_idx'],
+                                base_ds['mri_to_mre_idx']),
+             },
+
+            coords={'subject': base_ds.subject,
+                    'sequence': base_ds.sequence,
+                    'mask_type': base_ds.mask_type,
+                    'mre_type': mre_type,
+                    'x': base_ds.x,
+                    'y': base_ds.y,
+                    'z': base_ds.z
+                    }
+        )
+        # Fill in the model mre_types
+        self.ds['image_mre'].loc[
+            {'mre_type': 'mre'}] = base_ds['image_mre'].sel(mre_type='mre')
+        self.ds['image_mre'].loc[
+            {'mre_type': 'mre_wave'}] = base_ds['image_mre'].sel(mre_type='mre_wave')
+        self.ds['image_mre'].loc[
+            {'mre_type': 'mre_mask'}] = base_ds['image_mre'].sel(mre_type='mre_mask')
+        self.ds['image_mre'].loc[
+            {'mre_type': 'mre_raw'}] = base_ds['image_mre'].sel(mre_type='mre_raw')
+
+    def load_files(self, file_names):
+        if type(file_names) is not list:
+            file_names = str(file_names)
+        else:
+            file_names = [f for f in file_names if Path(f).exists()]
+
+        if '*' in file_names or type(file_names) is list:
+            ds = xr.open_mfdataset(file_names, combine='nested', concat_dim='subject')
+        else:
+            ds = xr.open_dataset(file_names)
+        return ds
+
+    def add_predictions(self, pred_dict):
+        '''Append predictions to self.ds'''
+        for pred in pred_dict:
+            ds_pred = self.load_files(pred_dict[pred])
+            ds_pred = ds_pred.assign_coords(mre_type=[pred])
+            ds_pred = ds_pred.sortby('subject')
+            print(ds_pred)
+            self.ds['image_mre'].loc[dict(mre_type=pred)] = ds_pred['image_mre']

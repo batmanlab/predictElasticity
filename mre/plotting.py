@@ -715,3 +715,83 @@ def miccai_plots(ds, do_cor=True, save_name='test'):
 
     print('accuracy', (tn+tp)/(tn+fp+tp+fn))
     return df_subj
+
+
+def xr_viewer_models(xr_ds, size=250, do_cor=True):
+    '''generic xr ds viewer for pollack-format image holders, this time with support for the
+    3d mre-style xarrays.  Some argument customization will be sacrificed for consistency and ease
+    of use. Maybe.
+
+    Valid vdims: image_mri, mask_mri, image_mre, mask_mre
+    Valis kdims: subject, sequence, mask_type, x, y, z_mri, z_mre
+    '''
+    opts.defaults(
+        opts.GridSpace(shared_xaxis=True, shared_yaxis=True,
+                       fontsize={'title': 16, 'labels': 16, 'xticks': 12, 'yticks': 12},
+                       plot_size=size),
+        opts.Layout(fontsize={'title': 16, 'labels': 16, 'xticks': 12, 'yticks': 12}),
+        opts.Image(cmap='gray', width=size, height=size, xaxis=None,
+                   yaxis=None),
+        opts.Labels(text_color='white', text_font_size='20pt', text_align='left',
+                    text_baseline='bottom'),
+        opts.Path(color='white'),
+        opts.Spread(width=600),
+        opts.NdOverlay(show_legend=True, border_muted_alpha=0.1)
+    )
+
+    # Make holoviews dataset from xarray
+    hv_ds_mri = hv.Dataset(xr_ds[['image_mri', 'mask_mri']])
+    hv_ds_mre = hv.Dataset(xr_ds[['image_mre', 'mask_mre']])
+
+    mre_types = list(xr_ds.mre_type.values)
+    mre_types = [mre for mre in mre_types if mre not in ['mre_raw', 'mre', 'mre_pred', 'mre_wave']]
+    hv_ds_mre = hv_ds_mre.select(mre_type=mre_types)
+    print(hv_ds_mri)
+    print(hv_ds_mre)
+
+    hv_ds_mri_image = hv_ds_mri.to(hv.Image, kdims=['x', 'y'], vdims='image_mri', dynamic=True)
+    hv_ds_mri_mask = hv_ds_mri.to(hv.Image, kdims=['x', 'y'], vdims='mask_mri',
+                                  dynamic=True).opts(tools=[])
+
+    hv_ds_mre_image = hv_ds_mre.to(hv.Image, kdims=['x', 'y'], vdims='image_mre',
+                                   dynamic=True).opts(cmap='viridis')
+    hv_ds_mre_mask = hv_ds_mre.to(hv.Image, kdims=['x', 'y'], vdims='mask_mre',
+                                  dynamic=True).opts(tools=[])
+
+    slider = pn.widgets.FloatSlider(start=0, end=1, value=0.7, name='mask transparency')
+    cslider = pn.widgets.RangeSlider(start=0, end=2000, value=(0, 1000), name='contrast')
+    cslider2 = pn.widgets.RangeSlider(start=0, end=12000, value=(0, 10000), name='mre contrast')
+
+    redim_image_mri = {'image_mri': (0, 1200)}
+    hv_ds_mri_image = hv_ds_mri_image.redim.range(**redim_image_mri).opts(tools=['hover'])
+    hv_ds_mri_image = hv_ds_mri_image.apply.opts(clim=cslider.param.value)
+    redim_mask_mri = {'mask_mri': (0.1, 2)}
+    hv_ds_mri_mask = hv_ds_mri_mask.opts(cmap='Category10', clipping_colors={'min': 'transparent'},
+                                         color_levels=10)
+    hv_ds_mri_mask = hv_ds_mri_mask.redim.range(**redim_mask_mri)
+    hv_ds_mri_mask = hv_ds_mri_mask.apply.opts(alpha=slider.param.value)
+
+    redim_image_mre = {'image_mre': (0, 10000)}
+    # hv_ds_mre_image = hv_ds_mre_image.redim(image_mre='image_mre')
+    hv_ds_mre_image = hv_ds_mre_image.apply.opts(clim=cslider2.param.value)
+    hv_ds_mre_image = hv_ds_mre_image.redim.range(**redim_image_mre).opts(tools=['hover'])
+    redim_mask_mre = {'mask_mre': (0.1, 2)}
+    hv_ds_mre_mask = hv_ds_mre_mask.opts(cmap='Category10',
+                                         clipping_colors={'min': 'transparent'},
+                                         color_levels=10)
+    hv_ds_mre_mask = hv_ds_mre_mask.redim.range(**redim_mask_mre)
+    hv_ds_mre_mask = hv_ds_mre_mask.apply.opts(alpha=slider.param.value)
+
+    layout = (((hv_ds_mre_image * hv_ds_mre_mask).grid('mre_type')) +
+              (hv_ds_mri_image * hv_ds_mri_mask).layout('sequence').cols(3)
+              ).cols(1)
+    pn_layout = pn.pane.HoloViews(layout)
+    wb = pn_layout.widget_box
+    wb.append(slider)
+    wb.append(cslider)
+    wb.append(cslider2)
+
+    # return pn.Column(slider, cslider2, layout, cslider)
+    return pn.Column(wb, pn_layout)
+    # return hv_ds_mri_image
+    # return hv_ds_mre_image
