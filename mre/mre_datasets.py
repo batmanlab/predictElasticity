@@ -1051,3 +1051,33 @@ class ModelCompare:
             self.ds['image_mre'].loc[dict(mre_type=pred)] = ds_pred['image_mre']
             self.ds['val_slope'].loc[dict(mre_type=pred)] = ds_pred['val_slope']
             self.ds['val_intercept'].loc[dict(mre_type=pred)] = ds_pred['val_intercept']
+
+
+class ModelComparePandas:
+    '''
+    Simple Class for converting the model compare xarray to a pandas Dataframe.
+    Assumes input is the ModelCompare Xarray
+    '''
+
+    def __init__(self, ds):
+        pred_names = [pred for pred in list(ds.mre_type.values) if
+                      pred not in ['mre_raw', 'mre_mask', 'mre_pred', 'mre_wave']]
+        pred_dict = {}
+        for pred in pred_names:
+            pred_dict[pred] = []
+            for subj in ds.subject:
+                mask = ds.sel(subject=subj, mask_type='combo')['mask_mre'].values
+                mask = np.where(mask > 0, mask, np.nan)
+                pred_mre_region = (ds.sel(subject=subj, mre_type=pred)['image_mre'].values * mask)
+                pred_mre_region = pred_mre_region.flatten()
+                pred_mre_region = pred_mre_region[~np.isnan(pred_mre_region)]
+                # if do_cor:
+                #     slope = np.mean(ds.sel(subject=subj)['val_slope'].values)
+                #     intercept = np.mean(ds.sel(subject=subj)['val_intercept'].values)
+                #     # print(slope, intercept)
+                #     pred_mre_region = (pred_mre_region-intercept)/slope
+                #     pred_mre_region = np.where(pred_mre_region > 0, pred_mre_region, 0)
+
+                pred_dict[pred].append(np.nan_to_num(np.nanmean(pred_mre_region)))
+
+        self.df = pd.DataFrame(pred_dict, index=ds.subject.values)
