@@ -700,6 +700,7 @@ def miccai_plots(ds, do_cor=True, save_name='test'):
     print('R2:', 1 - result.residual.var() / np.var(pred_pixel))
     plt.savefig(f'../plots/pixel_results_{save_name}.pdf', bbox_inches='tight')
 
+    # Sensitivity S: TP/(TP+FN)
     tp = df_subj.query('true>4 and predict>4').count()[0]
     fn = df_subj.query('true>4 and predict<4').count()[0]
     print('tp', tp)
@@ -800,3 +801,7 @@ def xr_viewer_models(xr_ds, size=250, do_cor=False):
     return pn.Column(wb, pn_layout)
     # return hv_ds_mri_image
     # return hv_ds_mre_image
+
+
+def roc_curves(df):
+    pass

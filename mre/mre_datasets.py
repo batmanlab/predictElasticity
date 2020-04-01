@@ -1059,7 +1059,7 @@ class ModelComparePandas:
     Assumes input is the ModelCompare Xarray
     '''
 
-    def __init__(self, ds):
+    def __init__(self, ds, do_cor=False):
         pred_names = [pred for pred in list(ds.mre_type.values) if
                       pred not in ['mre_raw', 'mre_mask', 'mre_pred', 'mre_wave']]
         pred_dict = {}
@@ -1071,13 +1071,17 @@ class ModelComparePandas:
                 pred_mre_region = (ds.sel(subject=subj, mre_type=pred)['image_mre'].values * mask)
                 pred_mre_region = pred_mre_region.flatten()
                 pred_mre_region = pred_mre_region[~np.isnan(pred_mre_region)]
+                if do_cor:
+                    slope = ds.sel(subject=subj, mre_type=pred)['val_slope'].values
+                    intercept = ds.sel(subject=subj, mre_type=pred)['val_intercept'].values
+                    pred_mre_region = (pred_mre_region-intercept)/slope
+                    pred_mre_region = np.where(pred_mre_region > 0, pred_mre_region, 0)
+                mean_pred = np.nanmean(pred_mre_region)
                 # if do_cor:
-                #     slope = np.mean(ds.sel(subject=subj)['val_slope'].values)
-                #     intercept = np.mean(ds.sel(subject=subj)['val_intercept'].values)
-                #     # print(slope, intercept)
-                #     pred_mre_region = (pred_mre_region-intercept)/slope
-                #     pred_mre_region = np.where(pred_mre_region > 0, pred_mre_region, 0)
+                #     slope = ds.sel(subject=subj, mre_type=pred)['val_slope'].values
+                #     intercept = ds.sel(subject=subj, mre_type=pred)['val_intercept'].values
+                #     mean_pred = max((mean_pred-intercept)/slope, 0)
 
-                pred_dict[pred].append(np.nan_to_num(np.nanmean(pred_mre_region)))
+                pred_dict[pred].append(mean_pred)
 
         self.df = pd.DataFrame(pred_dict, index=ds.subject.values)
