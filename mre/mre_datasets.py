@@ -107,7 +107,7 @@ class MREtoXr:
             if sequences is None:
                 sequences = ['t1_pre_water', 't1_pre_in', 't1_pre_out', 't1_pre_fat', 't2',
                              't1_pos_0_water', 't1_pos_70_water', 't1_pos_160_water',
-                             't1_pos_300_water']
+                             't1_pos_300_water', 'dwi']
             self.sequences = sequences
             if len(self.sequences) == 0:
                 raise ValueError('No sequences specificed')
@@ -117,7 +117,11 @@ class MREtoXr:
                 self.patient = str(patient)
 
             # Check if any contrast images are specified
-            if np.any(['pos' in seq for seq in self.sequences]):
+            if np.any(['dwi' in seq for seq in self.sequences]):
+                # out_subdir = 'XR_with_contrast_v2'
+                # out_subdir = 'XR_resized'
+                out_subdir = 'XR_v4'
+            elif np.any(['pos' in seq for seq in self.sequences]):
                 # out_subdir = 'XR_with_contrast_v2'
                 # out_subdir = 'XR_resized'
                 out_subdir = 'XR_v3'
@@ -157,8 +161,11 @@ class MREtoXr:
         #     self.model.eval()
 
         # NEW VERSION
+        # model_path = Path('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/CHAOS/',
+        #                   'trained_models', '001', 'model_2020-02-12_14-14-16.pkl')
+        # NEWER VERSION
         model_path = Path('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/CHAOS/',
-                          'trained_models', '001', 'model_2020-02-12_14-14-16.pkl')
+                          'trained_models', '001', 'model_2020-04-02_13-54-57.pkl')
         with torch.no_grad():
             self.model = DeepLab(1, 1, output_stride=8, do_ord=False)
             model_dict = torch.load(model_path, map_location='cpu')

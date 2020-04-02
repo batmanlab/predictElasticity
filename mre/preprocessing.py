@@ -650,6 +650,7 @@ def dicom_to_nifti(data_path, subdirs):
                             t1_pos_art_in=False,
                             t1_pos_art_out=False,
                             t2=False,
+                            dwi=False,
                             mre_raw=False,
                             mre=False,
                             mre_mask=False)
@@ -904,6 +905,10 @@ def select_image(img, desc, sel_dict):
         sel_dict['mre_mask'] = desc
         return 'mre_mask'
 
+    if not sel_dict['dwi'] and is_dwi(desc):
+        sel_dict['dwi'] = desc
+        return 'dwi'
+
     return False
 
 
@@ -1021,6 +1026,12 @@ def is_t1_pos_art_out(desc):
 
 def is_t2(desc):
     if 't2' in desc and 'ssfse' in desc:
+        return True
+    return False
+
+
+def is_dwi(desc):
+    if 'dwi' in desc:
         return True
     return False
 
