@@ -25,13 +25,17 @@ class RegPatient:
         self.load_niftis()
 
     def load_niftis(self):
+        print(self.full_path)
+        print('loading niftis')
         for f in self.full_path.glob('*.nii'):
+            print(f)
             reader = sitk.ImageFileReader()
             reader.SetImageIO("NiftiImageIO")
             reader.SetFileName(str(f))
             img = reader.Execute()
-            # img.SetOrigin((0, 0, 0))
-            # img.SetDirection((1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0))
+            # if 'dwi' in str(f):
+            #     img.SetOrigin((0, 0, 0))
+            #     img.SetDirection((1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0))
             self.images[f.stem] = img
 
 
@@ -66,6 +70,17 @@ class Register:
             paff['NumberOfHistogramBins'] = ['64', '256', '512']
             paff['MaximumNumberOfIterations'] = ['256']
             paff['ImagePyramidRescaleSchedule'] = ['4', '2', '1']
+            self.p_map_vector.append(paff)
+        if self.config == 'dwi':
+            paff = sitk.GetDefaultParameterMap("affine")
+            paff['AutomaticTransformInitialization'] = ['true']
+            # paff['AutomaticTransformInitializationMethod'] = ['CenterOfGravity']
+            paff['NumberOfSamplesForExactGradient'] = ['100000']
+            paff['NumberOfSpatialSamples'] = ['5000']
+            paff['NumberOfHistogramBins'] = ['64', '256', '512']
+            paff['MaximumNumberOfIterations'] = ['256']
+            paff['ImagePyramidRescaleSchedule'] = ['4', '2', '1']
+            self.p_map_vector.append(paff)
             self.p_map_vector.append(paff)
         elif self.config == 'mre_reg':
             paff = sitk.GetDefaultParameterMap("affine")

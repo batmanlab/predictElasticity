@@ -30,7 +30,7 @@ def make_xr(data_dir: str, subj: str, sequences: list, verbose: str = True, **kw
     '''
 
     # cfg = process_kwargs(kwargs)
-    data_dir = Path(data_dir[1:-1])
+    data_dir = Path(data_dir)
     xr_maker = MREtoXr(data_dir, None, subj, output_name=subj)
     _  = xr_maker.load_xr()
 
@@ -81,4 +81,5 @@ if __name__ == "__main__":
     #                             default=val)
 
     args = parser.parse_args()
+    print(args)
     make_xr(**vars(args))

@@ -288,6 +288,8 @@ def patient_series_viewer(path, patient, img_type='DICOM', info=''):
             reader.SetFileName(str(img_files))
             desc = ' '.join(img_files.parts[-2:])
             image = reader.Execute()
+            if 'dwi' in str(img_files):
+                image = sitk.ConstantPad(image, (0, 0, 20), (0, 0, 0))
             print('direction', image.GetDirection())
             print('origin', image.GetOrigin())
             print('spacing', image.GetSpacing())

@@ -233,6 +233,7 @@ class MREtoXr:
 
     def load_xr(self):
         # Grab all available niftis using the RegPatient Class
+        print(self.patient, self.data_dir)
         reg_pat = RegPatient(self.patient, self.data_dir)
         # Make sure patient has needed niftis:
         for seq in self.sequences:
@@ -547,8 +548,29 @@ class MREtoXr:
             np_tmp = sitk.GetArrayFromImage(reg_pat.images[seq])
             mov_min = float(np_tmp.min())
             mov_max = float(np_tmp.max())
-            reg = Register(reg_pat.images[self.primary_input], reg_pat.images[seq],
-                           config='mri_seq')
+            print(f'registering {seq}')
+            if seq == 'dwi':
+                print(reg_pat.images[seq].GetOrigin())
+                print(reg_pat.images[seq].GetSpacing())
+                print(reg_pat.images[seq].GetDirection())
+                print()
+                dwi_padded = sitk.ConstantPad(reg_pat.images[seq], (0, 0, 50), (0, 0, 0))
+                print(dwi_padded.GetOrigin())
+                print(dwi_padded.GetSpacing())
+                print(dwi_padded.GetDirection())
+                print()
+                print(reg_pat.images[self.primary_input].GetOrigin())
+                print(reg_pat.images[self.primary_input].GetSpacing())
+                print(reg_pat.images[self.primary_input].GetDirection())
+                dwi_spacing = list(dwi_padded.GetSpacing())
+                dwi_spacing[2] = reg_pat.images[self.primary_input].GetSpacing()[2]*2
+                dwi_padded.SetSpacing(dwi_spacing)
+
+                reg = Register(reg_pat.images[self.primary_input], dwi_padded,
+                               config='dwi')
+            else:
+                reg = Register(reg_pat.images[self.primary_input], reg_pat.images[seq],
+                               config='mri_seq')
             reg.moving_img_result = sitk.RescaleIntensity(
                 reg.moving_img_result, mov_min, mov_max)
 

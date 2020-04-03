@@ -1,6 +1,6 @@
 (Transform "AffineTransform")
 (NumberOfParameters 6)
-(TransformParameters 1.005673 -0.003763 -0.016974 0.950715 -57.363223 -53.101703)
+(TransformParameters 0.970086 0.021993 0.016615 0.978871 -45.966691 -36.012308)
 (InitialTransformParametersFileName "NoInitialTransform")
 (UseBinaryFormatForTransformationParameters "false")
 (HowToCombineTransforms "Compose")
@@ -13,12 +13,12 @@
 (Size 256 256)
 (Index 0 0)
 (Spacing 1.8750000000 1.8750000000)
-(Origin -209.7209930420 -199.6479949951)
+(Origin -163.9470062256 -260.5029907227)
 (Direction 1.0000000000 0.0000000000 0.0000000000 1.0000000000)
 (UseDirectionCosines "true")
 
 // AdvancedAffineTransform specific
-(CenterOfRotationPoint 29.3415069580 39.4145050049)
+(CenterOfRotationPoint 75.1154937744 -21.4404907227)
 
 // ResampleInterpolator specific
 (ResampleInterpolator "FinalBSplineInterpolator")
