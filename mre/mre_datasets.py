@@ -627,7 +627,7 @@ class MRETorchDataset(Dataset):
     def __init__(self, xa_ds, set_type, **kwargs):
 
         # Required params
-        self.xa_ds = xa_ds
+        self.xa_ds = xa_ds.load()
         self.set_type = set_type
 
         # Assign kwargs
@@ -648,6 +648,7 @@ class MRETorchDataset(Dataset):
         self.loss = kwargs.get(f'loss', 'l2')
         self.bins = kwargs.get(f'bins', None)
         self.nbins = kwargs.get(f'out_channels_final', 0)
+        self.do_clinical = kwargs.get(f'do_clinical', False)
         self.organize_data()
 
     def organize_data(self):
@@ -687,12 +688,22 @@ class MRETorchDataset(Dataset):
 
             self.names = self.xa_ds.subject.values
 
+        if self.do_clinical:
+            self.clinical = np.stack([self.xa_ds['age'].values, self.xa_ds['gender'].values,
+                                      self.xa_ds['height'].values, self.xa_ds['weight'].values,
+                                      self.xa_ds['bmi'].values, self.xa_ds['htn'].values,
+                                      self.xa_ds['hld'].values, self.xa_ds['dm'].values,
+                                      self.xa_ds['ast'].values, self.xa_ds['alt'].values,
+                                      self.xa_ds['alk'].values, self.xa_ds['tbili'].values,
+                                      self.xa_ds['albumin'].values, self.xa_ds['plt'].values],
+                                     axis=1)
+
     def __len__(self):
         return len(self.input_images)
 
     def __getitem__(self, idx):
-        mask = self.mask_images[idx].values.astype(np.float32)
         image = self.input_images[idx].values
+        mask = self.mask_images[idx].values.astype(np.float32)
         target = self.target_images[idx].values
         if self.clip:
             image  = np.where(image >= 2000, 2000, image)
@@ -707,7 +718,10 @@ class MRETorchDataset(Dataset):
         elif self.dims == 3:
             image, target, mask = self.get_data_aug_3d(image, target, mask)
 
-        return [image, target, mask, self.names[idx]]
+        if self.do_clinical:
+            return [image, self.clinical[idx], target, mask, self.names[idx]]
+        else:
+            return [image, target, mask, self.names[idx]]
 
     def get_data_aug_2d(self, image, target, mask):
         if self.transform:
