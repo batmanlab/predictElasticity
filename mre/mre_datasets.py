@@ -1114,3 +1114,30 @@ class ModelComparePandas:
                 pred_dict[pred].append(mean_pred)
 
         self.df = pd.DataFrame(pred_dict, index=ds.subject.values)
+
+
+def clinical_df_maker():
+    df_clinical = pd.read_excel(
+        '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/MRE/MRE_dataset_clinical.xlsx')
+    df_clinical.drop(['Other relevant PMH', 'Accession Numbers',
+                      'Race (White=0, Black=1, Hispanic=2, Other=3)', 'direct bili',
+                      'Elastography Date', 'Lab Date (CMP)'], axis=1,
+                     inplace=True)
+    df_clinical.rename({'Research code': 'subject',
+                        'Gender (M=0, F=1)': 'gender',
+                        'Height (cm)': 'height',
+                        'Weight (kg)': 'weight',
+                        'HTN (no=blank, yes=1)': 'htn',
+                        'HLD (no=blank, yes=1)': 'hld',
+                        'DM 1&2 (no=blank, yes=1)': 'dm',
+                        'T Protein': 't_protein'}, axis=1, inplace=True)
+    df_clinical['htn'] = df_clinical['htn'].fillna(0)
+    df_clinical['hld'] = df_clinical['hld'].fillna(0)
+    df_clinical['dm'] = df_clinical['dm'].fillna(0)
+    df_clinical['subject'] = df_clinical['subject'].str[9:]
+    df_clinical.columns = df_clinical.columns.str.lower()
+    df_clinical.set_index('subject', inplace=True)
+    good_columns = (
+        df_clinical.describe().loc['count'][df_clinical.describe().loc['count'] >= 164].index)
+    df_clinical = df_clinical[good_columns.append(pd.Index(['plt']))].dropna()
+    return df_clinical

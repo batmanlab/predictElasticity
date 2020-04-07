@@ -402,23 +402,37 @@ class ASPP(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, out_channels, norm='bn'):
+    def __init__(self, out_channels, norm='bn', do_clinical=False):
         super(Decoder, self).__init__()
         low_level_inplanes = 64
 
         self.conv1 = nn.Conv3d(low_level_inplanes, 32, 1, bias=False)
         self.relu = nn.ReLU()
+        self.do_clinical = do_clinical
         if norm == 'bn':
             self.norm = nn.BatchNorm3d(32)
-            self.last_conv = nn.Sequential(nn.Conv3d(256+32, 128, kernel_size=3, stride=1,
-                                                     padding=1, bias=False),
-                                           nn.BatchNorm3d(128),
-                                           nn.ReLU(),
-                                           nn.Conv3d(128, 128, kernel_size=3, stride=1,
-                                                     padding=1, bias=False),
-                                           nn.BatchNorm3d(128),
-                                           nn.ReLU(),
-                                           nn.Conv3d(128, out_channels, kernel_size=1, stride=1))
+            if self.do_clinical:
+                self.almost_last_conv = nn.Sequential(nn.Conv3d(256+32, 128, kernel_size=3,
+                                                                stride=1, padding=1, bias=False),
+                                                      nn.BatchNorm3d(128),
+                                                      nn.ReLU(),
+                                                      nn.Conv3d(128, 128, kernel_size=3, stride=1,
+                                                                padding=1, bias=False),
+                                                      nn.BatchNorm3d(128),
+                                                      nn.ReLU())
+                self.last_conv_clin = nn.Conv3d(128+14, out_channels, kernel_size=1, stride=1)
+            else:
+                self.last_conv = nn.Sequential(nn.Conv3d(256+32, 128, kernel_size=3, stride=1,
+                                                         padding=1, bias=False),
+                                               nn.BatchNorm3d(128),
+                                               nn.ReLU(),
+                                               nn.Conv3d(128, 128, kernel_size=3, stride=1,
+                                                         padding=1, bias=False),
+                                               nn.BatchNorm3d(128),
+                                               nn.ReLU(),
+                                               nn.Conv3d(128, out_channels, kernel_size=1,
+                                                         stride=1)
+                                               )
         elif norm == 'gn':
             self.norm = nn.GroupNorm(32, 32)
             self.last_conv = nn.Sequential(nn.Conv3d(256+32, 128, kernel_size=3, stride=1,
@@ -432,14 +446,20 @@ class Decoder(nn.Module):
                                            nn.Conv3d(128, out_channels, kernel_size=1, stride=1))
         self._init_weight()
 
-    def forward(self, x, low_level_feat):
+    def forward(self, x, low_level_feat, clinical=None):
         low_level_feat = self.conv1(low_level_feat)
         low_level_feat = self.norm(low_level_feat)
         low_level_feat = self.relu(low_level_feat)
 
         x = F.interpolate(x, size=low_level_feat.size()[2:], mode='trilinear', align_corners=True)
-        x = torch.cat((x, low_level_feat), dim=1)
-        x = self.last_conv(x)
+        if self.do_clinical:
+            x = torch.cat((x, low_level_feat), dim=1)
+            x = self.almost_last_conv(x)
+            x = torch.cat((x, clinical), dim=1)
+            x = self.last_conv_clin(x)
+        else:
+            x = torch.cat((x, low_level_feat), dim=1)
+            x = self.last_conv(x)
 
         return x
 
@@ -525,12 +545,13 @@ class OrdinalRegressionLayer(nn.Module):
 
 
 class DeepLab(nn.Module):
-    def __init__(self, in_channels, out_channels, output_stride=8, do_ord=False, norm='bn'):
+    def __init__(self, in_channels, out_channels, output_stride=8, do_ord=False, norm='bn',
+                 do_clinical=False):
         super(DeepLab, self).__init__()
 
         self.backbone = AlignedXception(in_channels, output_stride, norm=norm)
         self.aspp = ASPP(output_stride, norm=norm)
-        self.decoder = Decoder(out_channels, norm=norm)
+        self.decoder = Decoder(out_channels, norm=norm, do_clinical=do_clinical)
         self.do_ord = do_ord
         if self.do_ord:
             self.ord_layer = OrdinalRegressionLayerSigmoid()
