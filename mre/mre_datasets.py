@@ -627,7 +627,7 @@ class MRETorchDataset(Dataset):
     def __init__(self, xa_ds, set_type, **kwargs):
 
         # Required params
-        self.xa_ds = xa_ds.load()
+        self.xa_ds = xa_ds
         self.set_type = set_type
 
         # Assign kwargs
@@ -678,33 +678,44 @@ class MRETorchDataset(Dataset):
             self.names = self.xa_ds.subject_2d.values
 
         elif self.dims == 3:
-            print(self.inputs)
+            if self.do_clinical:
+                self.xa_ds[['age', 'gender', 'height', 'weight', 'bmi', 'htn', 'hld', 'dm', 'ast',
+                            'alt', 'alk', 'tbili', 'albumin', 'plt']].load()
+                self.clinical = np.stack([self.xa_ds.age.values,
+                                          self.xa_ds.gender.values,
+                                          self.xa_ds.height.values,
+                                          self.xa_ds.weight.values,
+                                          self.xa_ds.bmi.values,
+                                          self.xa_ds.htn.values,
+                                          self.xa_ds.hld.values,
+                                          self.xa_ds.dm.values,
+                                          self.xa_ds.ast.values,
+                                          self.xa_ds.alt.values,
+                                          self.xa_ds.alk.values,
+                                          self.xa_ds.tbili.values,
+                                          self.xa_ds.albumin.values,
+                                          self.xa_ds.plt.values],
+                                         axis=1).astype(np.float32)
+                self.xa_ds = self.xa_ds[['image_mri', 'image_mre', 'mask_mre']]
             self.input_images = self.xa_ds.sel(sequence=self.inputs).image_mri.transpose(
-                'subject', 'sequence', 'z', 'y', 'x')
+                'subject', 'sequence', 'z', 'y', 'x').values
             self.target_images = self.xa_ds.sel(mre_type=[self.target]).image_mre.transpose(
-                'subject', 'mre_type', 'z', 'y', 'x')
+                'subject', 'mre_type', 'z', 'y', 'x').values
             self.mask_images = self.xa_ds.sel(mask_type=[self.mask]).mask_mre.transpose(
-                'subject', 'mask_type', 'z', 'y', 'x')
+                'subject', 'mask_type', 'z', 'y', 'x').values
 
             self.names = self.xa_ds.subject.values
-
-        if self.do_clinical:
-            self.clinical = np.stack([self.xa_ds['age'].values, self.xa_ds['gender'].values,
-                                      self.xa_ds['height'].values, self.xa_ds['weight'].values,
-                                      self.xa_ds['bmi'].values, self.xa_ds['htn'].values,
-                                      self.xa_ds['hld'].values, self.xa_ds['dm'].values,
-                                      self.xa_ds['ast'].values, self.xa_ds['alt'].values,
-                                      self.xa_ds['alk'].values, self.xa_ds['tbili'].values,
-                                      self.xa_ds['albumin'].values, self.xa_ds['plt'].values],
-                                     axis=1)
 
     def __len__(self):
         return len(self.input_images)
 
     def __getitem__(self, idx):
-        image = self.input_images[idx].values
-        mask = self.mask_images[idx].values.astype(np.float32)
-        target = self.target_images[idx].values
+        # image = self.input_images[idx].values
+        # mask = self.mask_images[idx].values.astype(np.float32)
+        # target = self.target_images[idx].values
+        image = self.input_images[idx]
+        mask = self.mask_images[idx].astype(np.float32)
+        target = self.target_images[idx]
         if self.clip:
             image  = np.where(image >= 2000, 2000, image)
             if self.loss == 'l2':
