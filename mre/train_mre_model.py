@@ -235,7 +235,8 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
 
         print(cfg['norm'])
         model = DeepLab(in_channels=cfg['in_channels'], out_channels=cfg['out_channels_final'],
-                        output_stride=8, do_ord=do_ord, norm=cfg['norm'])
+                        output_stride=8, do_ord=do_ord, norm=cfg['norm'],
+                        do_clinical=cfg['do_clinical'])
         if cfg['transfer']:
 
             # transfer_path = Path('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data',
@@ -309,7 +310,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
 
     if cfg['dry_run']:
         if cfg['do_clinical']:
-            inputs, clinical, targets, masks, names = next(iter(dataloaders['test']))
+            inputs, targets, masks, names, clinical = next(iter(dataloaders['test']))
         else:
             inputs, targets, masks, names = next(iter(dataloaders['test']))
 
@@ -322,9 +323,12 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         print('names', names)
 
         print('Model Summary:')
-        summary(model, input_size=(cfg['in_channels'], 32, 256, 256))
-        # summary(model, input_size=(inputs.shape[1:]))
-        return inputs, targets, masks, names, None
+        if cfg['do_clinical']:
+            summary(model, input_size=[(cfg['in_channels'], 32, 256, 256), clinical.shape[1:]])
+            return inputs, targets, masks, names, clinical, None
+        else:
+            summary(model, input_size=(cfg['in_channels'], 32, 256, 256))
+            return inputs, targets, masks, names, None
 
     else:
         # Tensorboardx writer, model, config paths
@@ -352,12 +356,16 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
                                                loss_func=loss_func, sls=use_sls,
                                                pixel_weight=cfg['pixel_weight'],
                                                do_val=cfg['do_val'], ds=ds, bins=cfg['bins'],
-                                               nbins=cfg['out_channels_final'])
+                                               nbins=cfg['out_channels_final'],
+                                               do_clinical=cfg['do_clinical'])
         print('model trained, handed off new mem_ds')
 
         # Write outputs and save model
         cfg['best_loss'] = best_loss
-        inputs, targets, masks, names = next(iter(dataloaders['test']))
+        if cfg['do_clinical']:
+            inputs, targets, masks, names, clinical = next(iter(dataloaders['test']))
+        else:
+            inputs, targets, masks, names = next(iter(dataloaders['test']))
         inputs = inputs.to('cuda:0')
         targets = targets.to('cpu')
         masks.to('cpu')
@@ -365,6 +373,9 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         # model.to('cpu')
         if cfg['loss'] == 'ordinal':
             model_pred = model(inputs)[0]
+        elif cfg['do_clinical']:
+            clinical = clinical.to('cuda:0')
+            model_pred = model(inputs, clinical)
         else:
             model_pred = model(inputs)
         model_pred.to('cpu')

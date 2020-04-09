@@ -308,7 +308,7 @@ def print_metrics(metrics, epoch_samples, phase):
 
 def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25, tb_writer=None,
                 verbose=True, loss_func=None, sls=False, pixel_weight=1, do_val=True, ds=None,
-                bins=None, nbins=0):
+                bins=None, nbins=0, do_clinical=False):
     widths = centers = 0
     if loss_func is None:
         loss_func = 'l2'
@@ -348,12 +348,17 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                     inputs = data[0].to(device)
                     labels = data[1].to(device)
                     masks = data[2].to(device)
+                    if do_clinical:
+                        clinical = data[4].to(device)
                     # zero the parameter gradients
                     optimizer.zero_grad()
                     # forward
                     # track history if only in train
                     with torch.set_grad_enabled(phase == 'train'):
-                        outputs = model(inputs)
+                        if do_clinical:
+                            outputs = model(inputs, clinical)
+                        else:
+                            outputs = model(inputs)
                         # backward + optimize only if in training phase
                         if phase == 'train':
                             if not sls:
@@ -460,6 +465,9 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
             print(phase)
             for data in dataloaders[phase]:
                 inputs = data[0].to(device)
+                clinical = [None]*inputs.shape[0]
+                if do_clinical:
+                    clinical = data[4].to(device)
                 names = data[3]
                 # print(names)
                 # print(prediction.shape)
@@ -470,7 +478,7 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                         prediction = model(inputs[i:i+1])[0].data.cpu().numpy()
                         # print(prediction.shape)
                     else:
-                        prediction = model(inputs[i:i+1]).data.cpu().numpy()
+                        prediction = model(inputs[i:i+1], clinical[i:i+1]).data.cpu().numpy()
                     # print(name)
                     # print(prediction[i])
                     # print(prediction[i][0])

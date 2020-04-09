@@ -730,7 +730,8 @@ class MRETorchDataset(Dataset):
             image, target, mask = self.get_data_aug_3d(image, target, mask)
 
         if self.do_clinical:
-            return [image, self.clinical[idx], target, mask, self.names[idx]]
+            clin_tensor = self.make_clin_tensor(self.clinical[idx])
+            return [image, target, mask, self.names[idx], clin_tensor]
         else:
             return [image, target, mask, self.names[idx]]
 
@@ -900,6 +901,12 @@ class MRETorchDataset(Dataset):
             image = np.where(image != image, 0, image)
             image = image.astype(np.float32)
         return image
+
+    def make_clin_tensor(self, clinical):
+        clin_tensor = torch.zeros((len(clinical), 16, 64, 64), dtype=torch.float32)
+        for i, val in enumerate(clinical):
+            clin_tensor[:, i, :] = torch.tensor(val, dtype=torch.float32)
+        return clin_tensor
 
 
 class TorchToXr:

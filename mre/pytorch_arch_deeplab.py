@@ -555,11 +555,13 @@ class DeepLab(nn.Module):
         self.do_ord = do_ord
         if self.do_ord:
             self.ord_layer = OrdinalRegressionLayerSigmoid()
+        self.do_clinical = do_clinical
 
-    def forward(self, input):
+    def forward(self, input, clinical=None):
         x, low_level_feat = self.backbone(input)
         x = self.aspp(x)
-        x = self.decoder(x, low_level_feat)
+        x = self.decoder(x, low_level_feat, clinical)
+
         if self.do_ord:
             depth_labels, ord_labels = self.ord_layer(x)
             depth_labels = F.interpolate(depth_labels.float(), size=input.size()[2:],
