@@ -649,6 +649,8 @@ class MRETorchDataset(Dataset):
         self.bins = kwargs.get(f'bins', None)
         self.nbins = kwargs.get(f'out_channels_final', 0)
         self.do_clinical = kwargs.get(f'do_clinical', False)
+        self.norm_clinical = kwargs.get(f'norm_clinical', False)
+        self.norm_clin_vals = kwargs.get(f'norm_clin_vals', None)
         self.organize_data()
 
     def organize_data(self):
@@ -696,6 +698,17 @@ class MRETorchDataset(Dataset):
                                           self.xa_ds.albumin.values,
                                           self.xa_ds.plt.values],
                                          axis=1).astype(np.float32)
+                if self.norm_clinical:
+                    if self.norm_clin_vals is None:
+                        mean = self.clinical.mean(axis=0)
+                        std = self.clinical.std(axis=0)
+                        self.clinical = (self.clinical-mean)/std
+
+                        self.norm_clin_vals = [mean, std]
+                    else:
+                        self.clinical = (
+                            (self.clinical-self.norm_clin_vals[0])/self.norm_clin_vals[1])
+
                 self.xa_ds = self.xa_ds[['image_mri', 'image_mre', 'mask_mre']]
             self.input_images = self.xa_ds.sel(sequence=self.inputs).image_mri.transpose(
                 'subject', 'sequence', 'z', 'y', 'x').values

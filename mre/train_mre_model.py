@@ -95,7 +95,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
             train_list = list(shuffle_list)
 
     elif cfg['sampling_breakdown'] == 'smart':
-        if cfg['do_clinical'] is False:
+        if cfg['do_older_dataset'] is True:
             # Needs to be hardcoded for now, problem with calc on the fly
             high_subj = ['1106', '1853', '0173', '1033', '0954', '1427', '2007', '1736', '1967',
                          '1474', '1343', '0135', '0890', '1296', '1839', '1395', '1526', '0838',
@@ -154,6 +154,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
             train_list = high_subj[10:] + low_subj[20:]
 
     train_set = MRETorchDataset(ds.sel(subject=train_list), set_type='train', **cfg)
+    cfg['norm_clin_vals'] = train_set.norm_clin_vals
     if cfg['do_val']:
         val_set = MRETorchDataset(ds.sel(subject=val_list), set_type='val', **cfg)
     test_set = MRETorchDataset(ds.sel(subject=test_list), set_type='test', **cfg)
@@ -458,7 +459,8 @@ def default_cfg():
            'resize': False, 'patient_list': False, 'num_workers': 0, 'lr_scheduler': 'step',
            'lr': 1e-2, 'lr_max': 1e-2, 'lr_min': 1e-4, 'step_size': 20, 'dims': 2,
            'pixel_weight': 1, 'depth': False, 'bins': 'none',
-           'sampling_breakdown': 'smart', 'do_clinical': False,
+           'sampling_breakdown': 'smart', 'do_clinical': False, 'do_older_dataset': False,
+           'norm_clinical': False, 'norm_clin_vals': None,
            'do_val': True, 'norm': 'bn', 'transfer': False, 'weight_decay': 0.1,
            'inputs': ['t1_pre_water', 't1_pre_in', 't1_pre_out', 't1_pre_fat', 't2',
                       't1_pos_0_water', 't1_pos_70_water', 't1_pos_160_water', 't1_pos_300_water']}
