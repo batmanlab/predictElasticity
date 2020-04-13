@@ -682,7 +682,7 @@ class MRETorchDataset(Dataset):
         elif self.dims == 3:
             if self.do_clinical:
                 self.xa_ds[['age', 'gender', 'height', 'weight', 'bmi', 'htn', 'hld', 'dm', 'ast',
-                            'alt', 'alk', 'tbili', 'albumin', 'plt']].load()
+                            'alt', 'alk', 'tbili', 'albumin', 'plt']].persist()
                 self.clinical = np.stack([self.xa_ds.age.values,
                                           self.xa_ds.gender.values,
                                           self.xa_ds.height.values,
@@ -845,7 +845,8 @@ class MRETorchDataset(Dataset):
             target_list = []
             for j in range(mask.shape[1]):
                 mask_list.append(self.affine_transform(mask[0][j], rot_angle_xy, translations_xy,
-                                                       scale, resample=PIL.Image.NEAREST))
+                                                       scale, resample=PIL.Image.NEAREST,
+                                                       erode_mask=False))
                 if self.smear == 'guassian':
                     target_tmp = gaussian_filter(target[0][j], sigma=sigma)
                 elif self.smear == 'median':
@@ -873,26 +874,16 @@ class MRETorchDataset(Dataset):
 
         return image, target, mask
 
-    def affine_transform(self, input_slice, rot_angle=0, translations=0, scale=1, resample=None):
+    def affine_transform(self, input_slice, rot_angle=0, translations=0, scale=1, resample=None,
+                         erode_mask=False):
+        if erode_mask:
+            input_slice = ndi.binary_erosion(input_slice, iterations=3).astype(input_slice.dtype)
         input_slice = transforms.ToPILImage()(input_slice)
         input_slice = TF.affine(input_slice, angle=rot_angle,
                                 translate=list(translations), scale=scale, shear=0,
                                 resample=resample)
         input_slice = transforms.ToTensor()(input_slice)
         return input_slice
-
-    def affine_transform_3d(self, image, rot_angle_xy=None, rot_angle_xz=None, rot_angle_yz=None,
-                            translations_xy=None, scale=None, order=None):
-        image = ndi.interpolation.rotate(image, rot_angle_xy, axes=(1, 2), order=order,
-                                         reshape=False)
-        # image = ndi.interpolation.rotate(image, rot_angle_xz, axes=(0, 2), order=order,
-        #                                  reshape=False)
-        # image = ndi.interpolation.rotate(image, rot_angle_yz, axes=(0, 1), order=order,
-        #                                  reshape=False)
-        image = ndi.interpolation.shift(image, shift=[0, translations_xy[1], translations_xy[0]],
-                                        order=order)
-        # image = ndi.interpolation.zoom(image, zoom=scale, order=order)
-        return image
 
     def input_norm(self, input_image, rot_angle=0, translations=0, scale=1, resample=None):
 

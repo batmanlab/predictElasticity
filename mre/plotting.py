@@ -810,20 +810,24 @@ def xr_viewer_models(xr_ds, size=250, do_cor=False):
     # return hv_ds_mre_image
 
 
-def roc_curves(df, true='mre', pred='baseline', threshold=4000):
+def roc_curves(df, true='mre', pred='baseline', threshold=4, label=None, title=None):
+    if label is None:
+        label = pred
+    if title is None:
+        title = f'ROC Curves, Threshold={threshold} kPa'
+    threshold = threshold*1000
     pred_probs = torch.sigmoid(
         torch.Tensor((df[f'{pred}'].values)-threshold)/df[f'{pred}'].std()).numpy()
     true_labels = (df[f'{true}'] >= threshold).values.astype(int)
     fpr, tpr, _ = roc_curve(true_labels, pred_probs)
     roc_auc = auc(fpr, tpr)
     lw = 2
-    plt.plot(fpr, tpr, color='darkorange',
-             lw=lw, label='ROC curve (area = %0.2f)' % roc_auc)
-    plt.plot([0, 1], [0, 1], color='navy', lw=lw, linestyle='--')
+    plt.plot(fpr, tpr, lw=lw, label=f'{label} (AUROC = {roc_auc:0.2f})')
+    plt.plot([0, 1], [0, 1], color='k', lw=lw, linestyle='--')
     plt.xlim([0.0, 1.0])
     plt.ylim([0.0, 1.05])
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('Receiver operating characteristic example')
-    plt.legend(loc="lower right")
+    plt.xlabel('False Positive Rate', size=20)
+    plt.ylabel('True Positive Rate', size=20)
+    plt.title(title, size=22)
+    plt.legend(loc="lower right", fontsize=15)
     return None

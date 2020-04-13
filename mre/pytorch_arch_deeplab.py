@@ -412,15 +412,17 @@ class Decoder(nn.Module):
         if norm == 'bn':
             self.norm = nn.BatchNorm3d(32)
             if self.do_clinical:
-                self.almost_last_conv = nn.Sequential(nn.Conv3d(256+32, 128, kernel_size=3,
-                                                                stride=1, padding=1, bias=False),
-                                                      nn.BatchNorm3d(128),
-                                                      nn.ReLU(),
-                                                      nn.Conv3d(128, 128, kernel_size=3, stride=1,
-                                                                padding=1, bias=False),
-                                                      nn.BatchNorm3d(128),
-                                                      nn.ReLU())
-                self.last_conv_clin = nn.Conv3d(128+14, out_channels, kernel_size=1, stride=1)
+                self.last_conv = nn.Sequential(nn.Conv3d(256+32+14, 128, kernel_size=3, stride=1,
+                                                         padding=1, bias=False),
+                                               nn.BatchNorm3d(128),
+                                               nn.ReLU(),
+                                               nn.Conv3d(128, 128, kernel_size=3, stride=1,
+                                                         padding=1, bias=False),
+                                               nn.BatchNorm3d(128),
+                                               nn.ReLU(),
+                                               nn.Conv3d(128, out_channels, kernel_size=1,
+                                                         stride=1)
+                                               )
             else:
                 self.last_conv = nn.Sequential(nn.Conv3d(256+32, 128, kernel_size=3, stride=1,
                                                          padding=1, bias=False),
@@ -453,10 +455,8 @@ class Decoder(nn.Module):
 
         x = F.interpolate(x, size=low_level_feat.size()[2:], mode='trilinear', align_corners=True)
         if self.do_clinical:
-            x = torch.cat((x, low_level_feat), dim=1)
-            x = self.almost_last_conv(x)
-            x = torch.cat((x, clinical), dim=1)
-            x = self.last_conv_clin(x)
+            x = torch.cat((x, low_level_feat, clinical), dim=1)
+            x = self.last_conv(x)
         else:
             x = torch.cat((x, low_level_feat), dim=1)
             x = self.last_conv(x)

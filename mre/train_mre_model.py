@@ -458,7 +458,7 @@ def default_cfg():
            'worker_init_fn': 'rand_epoch',
            'resize': False, 'patient_list': False, 'num_workers': 0, 'lr_scheduler': 'step',
            'lr': 1e-2, 'lr_max': 1e-2, 'lr_min': 1e-4, 'step_size': 20, 'dims': 2,
-           'pixel_weight': 1, 'depth': False, 'bins': 'none',
+           'pixel_weight': 1.0, 'depth': False, 'bins': 'none',
            'sampling_breakdown': 'smart', 'do_clinical': False, 'do_older_dataset': False,
            'norm_clinical': False, 'norm_clin_vals': None,
            'do_val': True, 'norm': 'bn', 'transfer': False, 'weight_decay': 0.1,
