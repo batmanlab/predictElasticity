@@ -651,6 +651,7 @@ class MRETorchDataset(Dataset):
         self.do_clinical = kwargs.get(f'do_clinical', False)
         self.norm_clinical = kwargs.get(f'norm_clinical', False)
         self.norm_clin_vals = kwargs.get(f'norm_clin_vals', None)
+        self.erode_mask = kwargs.get(f'erode_mask', 0)
         self.organize_data()
 
     def organize_data(self):
@@ -846,7 +847,7 @@ class MRETorchDataset(Dataset):
             for j in range(mask.shape[1]):
                 mask_list.append(self.affine_transform(mask[0][j], rot_angle_xy, translations_xy,
                                                        scale, resample=PIL.Image.NEAREST,
-                                                       erode_mask=False))
+                                                       erode_mask=self.erode_mask))
                 if self.smear == 'guassian':
                     target_tmp = gaussian_filter(target[0][j], sigma=sigma)
                 elif self.smear == 'median':
@@ -875,9 +876,10 @@ class MRETorchDataset(Dataset):
         return image, target, mask
 
     def affine_transform(self, input_slice, rot_angle=0, translations=0, scale=1, resample=None,
-                         erode_mask=False):
-        if erode_mask:
-            input_slice = ndi.binary_erosion(input_slice, iterations=3).astype(input_slice.dtype)
+                         erode_mask=0):
+        if erode_mask != 0:
+            input_slice = ndi.binary_erosion(
+                input_slice, iterations=erode_mask).astype(input_slice.dtype)
         input_slice = transforms.ToPILImage()(input_slice)
         input_slice = TF.affine(input_slice, angle=rot_angle,
                                 translate=list(translations), scale=scale, shear=0,

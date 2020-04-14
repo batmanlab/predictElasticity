@@ -404,6 +404,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         # add_predictions(ds, model, None, dims=cfg['dims'], inputs=cfg['inputs'])
         ds_mem['mask_mre'].loc[{'mask_type': 'combo'}] = ds['mask_mre'].sel(mask_type='combo')
         ds_mem['image_mre'].loc[{'mre_type': 'mre'}] = ds['image_mre'].sel(mre_type='mre')
+        ds.close()
         ds_test = ds_mem.sel(subject=test_list)
         ds_train = ds_mem.sel(subject=train_list)
         if cfg['do_val']:
@@ -411,10 +412,16 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
             add_val_linear_cor(ds_val, ds_test)
             ds_val_stub = ds_val.sel(mre_type='mre_pred')['image_mre']
             ds_val_stub.to_netcdf(Path(xr_dir, 'val', f'xarray_pred_{subj_group}.nc'))
+            ds_val.close()
+            ds_val_stub.close()
         ds_test_stub = ds_test.sel(mre_type='mre_pred')[['image_mre', 'val_slope', 'val_intercept']]
         ds_test_stub.to_netcdf(Path(xr_dir, 'test', f'xarray_pred_{subj_group}.nc'))
+        ds_test.close()
+        ds_test_stub.close()
         ds_train_stub = ds_train.sel(mre_type='mre_pred')['image_mre']
         ds_train_stub.to_netcdf(Path(xr_dir, 'train', f'xarray_pred_{subj_group}.nc'))
+        ds_train.close()
+        ds_train_stub.close()
 
         # consider changing output to just ds?
         return inputs, targets, masks, names, model
@@ -460,7 +467,7 @@ def default_cfg():
            'lr': 1e-2, 'lr_max': 1e-2, 'lr_min': 1e-4, 'step_size': 20, 'dims': 2,
            'pixel_weight': 1.0, 'depth': False, 'bins': 'none',
            'sampling_breakdown': 'smart', 'do_clinical': False, 'do_older_dataset': False,
-           'norm_clinical': False, 'norm_clin_vals': None,
+           'norm_clinical': False, 'norm_clin_vals': None, 'erode_mask': 0,
            'do_val': True, 'norm': 'bn', 'transfer': False, 'weight_decay': 0.1,
            'inputs': ['t1_pre_water', 't1_pre_in', 't1_pre_out', 't1_pre_fat', 't2',
                       't1_pos_0_water', 't1_pos_70_water', 't1_pos_160_water', 't1_pos_300_water']}
