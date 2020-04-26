@@ -2,7 +2,7 @@ from functools import reduce
 from pathlib import Path
 import numpy as np
 from sklearn.metrics import roc_curve, auc
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, accuracy_score
 import pandas as pd
 import xarray as xr
 from lmfit.models import LinearModel
@@ -779,7 +779,7 @@ def xr_viewer_models(xr_ds, size=250, do_cor=False):
     hv_ds_mri_image = hv_ds_mri_image.redim.range(**redim_image_mri).opts(tools=['hover'])
     hv_ds_mri_image = hv_ds_mri_image.apply.opts(clim=cslider.param.value)
     redim_mask_mri = {'mask_mri': (0.1, 2)}
-    hv_ds_mri_mask = hv_ds_mri_mask.opts(cmap='Category10', clipping_colors={'min': 'transparent'},
+    hv_ds_mri_mask = hv_ds_mri_mask.opts(cmap='Reds', clipping_colors={'min': 'transparent'},
                                          color_levels=10)
     hv_ds_mri_mask = hv_ds_mri_mask.redim.range(**redim_mask_mri)
     hv_ds_mri_mask = hv_ds_mri_mask.apply.opts(alpha=slider.param.value)
@@ -789,7 +789,7 @@ def xr_viewer_models(xr_ds, size=250, do_cor=False):
     hv_ds_mre_image = hv_ds_mre_image.apply.opts(clim=cslider2.param.value)
     hv_ds_mre_image = hv_ds_mre_image.redim.range(**redim_image_mre).opts(tools=['hover'])
     redim_mask_mre = {'mask_mre': (0.1, 2)}
-    hv_ds_mre_mask = hv_ds_mre_mask.opts(cmap='Category10',
+    hv_ds_mre_mask = hv_ds_mre_mask.opts(cmap='Reds',
                                          clipping_colors={'min': 'transparent'},
                                          color_levels=10)
     hv_ds_mre_mask = hv_ds_mre_mask.redim.range(**redim_mask_mre)
@@ -830,4 +830,22 @@ def roc_curves(df, true='mre', pred='baseline', threshold=4, label=None, title=N
     plt.ylabel('True Positive Rate', size=20)
     plt.title(title, size=22)
     plt.legend(loc="lower right", fontsize=15)
-    return None
+
+    tp = df.query(f'{true}>{threshold} and {pred}>{threshold}').count()[0]
+    fn = df.query(f'{true}>{threshold} and {pred}<{threshold}').count()[0]
+    sens = tp/(tp+fn)
+    # print('tp', tp)
+    # print('fn', fn)
+    # print('sensitivity', tp/(tp+fn))
+
+    # Specificity: TN/(TN+FP)
+    tn = df.query(f'{true}<{threshold} and {pred}<{threshold}').count()[0]
+    fp = df.query(f'{true}<{threshold} and {pred}>{threshold}').count()[0]
+    spec = tn/(tn+fp)
+    # print('tn', tn)
+    # print('fp', fp)
+    # print('specificity', spec)
+
+    acc = (tn+tp)/(tn+fp+tp+fn)
+    # print('accuracy', acc)
+    return sens, spec, acc, roc_auc

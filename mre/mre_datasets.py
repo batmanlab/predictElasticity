@@ -1126,15 +1126,26 @@ class ModelComparePandas:
     Assumes input is the ModelCompare Xarray
     '''
 
-    def __init__(self, ds, do_cor=False):
+    def __init__(self, ds, do_cor=False, do_aug=False):
         pred_names = [pred for pred in list(ds.mre_type.values) if
                       pred not in ['mre_raw', 'mre_mask', 'mre_pred', 'mre_wave']]
         pred_dict = {}
-        for pred in pred_names:
-            pred_dict[pred] = []
-            for subj in ds.subject:
-                mask = ds.sel(subject=subj, mask_type='combo')['mask_mre'].values
-                mask = np.where(mask > 0, mask, np.nan)
+
+        for subj in ds.subject:
+            mask = ds.sel(subject=subj, mask_type='combo')['mask_mre'].values
+            # print(mask.shape)
+            # print(mask.mean())
+            if do_aug:
+                for i in range(mask.shape[2]):
+                    if mask[:, :, i].mean() > 0:
+                        mask[:, :, i] = ndi.binary_erosion(
+                            mask[:, :, i], iterations=5).astype(mask.dtype)
+            mask = np.where(mask > 0, mask, np.nan)
+            # print(mask.nanmean())
+            for pred in pred_names:
+                if pred not in pred_dict:
+                    pred_dict[pred] = []
+
                 pred_mre_region = (ds.sel(subject=subj, mre_type=pred)['image_mre'].values * mask)
                 pred_mre_region = pred_mre_region.flatten()
                 pred_mre_region = pred_mre_region[~np.isnan(pred_mre_region)]
@@ -1144,10 +1155,6 @@ class ModelComparePandas:
                     pred_mre_region = (pred_mre_region-intercept)/slope
                     pred_mre_region = np.where(pred_mre_region > 0, pred_mre_region, 0)
                 mean_pred = np.nanmean(pred_mre_region)
-                # if do_cor:
-                #     slope = ds.sel(subject=subj, mre_type=pred)['val_slope'].values
-                #     intercept = ds.sel(subject=subj, mre_type=pred)['val_intercept'].values
-                #     mean_pred = max((mean_pred-intercept)/slope, 0)
 
                 pred_dict[pred].append(mean_pred)
 
