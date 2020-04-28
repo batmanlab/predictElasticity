@@ -16,6 +16,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data.sampler import RandomSampler
 from torchsummary import summary
 from tensorboardX import SummaryWriter
+from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
 
 from mre.mre_datasets import MREtoXr, MRETorchDataset
 from mre.prediction import train_model, add_predictions, add_val_linear_cor
@@ -152,6 +153,18 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
 
             val_list = high_subj[:10] + low_subj[:20]
             train_list = high_subj[10:] + low_subj[20:]
+
+    elif cfg['sampling_breakdown'] == 'stratified':
+        test_list = cfg['subj']
+        df_strat = pd.read_pickle(
+            '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/MRE/df_strat_v0.pkl')
+        df_strat = df_strat.drop(index=test_list)
+        mskf = MultilabelStratifiedShuffleSplit(n_splits=1, test_size=30)
+        splits = mskf.split(df_strat.index.values, df_strat[['gender', 'mre_group', 'bmi_group',
+                                                             'age_group']].values)
+        train_index, val_index = next(splits)
+        val_list = list(df_strat.index.values[val_index])
+        train_list = list(df_strat.index.values[train_index])
 
     train_set = MRETorchDataset(ds.sel(subject=train_list), set_type='train', **cfg)
     cfg['norm_clin_vals'] = train_set.norm_clin_vals
