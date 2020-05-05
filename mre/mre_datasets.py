@@ -1048,7 +1048,6 @@ class ModelCompare:
 
         print(base_model_path)
         base_ds = self.load_files(base_model_path)
-        print(base_ds)
 
         mre_type = list(base_ds.mre_type.values)
         mre_type.remove('mre_pred')
@@ -1076,6 +1075,21 @@ class ModelCompare:
                                np.zeros((len(base_ds.subject),
                                          len(mre_type)),
                                         dtype=np.float)),
+
+             'age': (['subject'], base_ds['age']),
+             'gender': (['subject'], base_ds['gender']),
+             'height': (['subject'], base_ds['height']),
+             'weight': (['subject'], base_ds['weight']),
+             'bmi': (['subject'], base_ds['bmi']),
+             'htn': (['subject'], base_ds['htn']),
+             'hld': (['subject'], base_ds['hld']),
+             'dm': (['subject'], base_ds['dm']),
+             'ast': (['subject'], base_ds['ast']),
+             'alt': (['subject'], base_ds['alt']),
+             'alk': (['subject'], base_ds['alk']),
+             'tbili': (['subject'], base_ds['tbili']),
+             'albumin': (['subject'], base_ds['albumin']),
+             'plt': (['subject'], base_ds['plt'])
              },
 
             coords={'subject': base_ds.subject,

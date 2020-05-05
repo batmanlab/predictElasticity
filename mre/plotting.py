@@ -16,9 +16,10 @@ from holoviews import opts
 from holoviews.operation.datashader import datashade, shade, dynspread, rasterize
 
 import torch
+from torch.utils.data import DataLoader
 
 from mre.preprocessing import MRIImage
-from mre.pytorch_arch_deeplab import DeepLab
+from mre.pytorch_arch_deeplab import DeepLabFeatures
 from mre.mre_datasets import MRETorchDataset
 
 hv.extension('bokeh')
@@ -916,23 +917,51 @@ def example_images(ds, subj='0219', z=18):
 def model_feature_extractor(ds, model_path=None, subj='0219'):
     '''Load in a model, then get the next-to-last layer.'''
 
-    model = DeepLab(in_channels=3, out_channels=1, output_stride=8, do_ord=False, norm=True,
-                    do_clinical=True)
+    opts.defaults(
+        opts.GridSpace(shared_xaxis=True, shared_yaxis=True,
+                       fontsize={'title': 16, 'labels': 16, 'xticks': 12, 'yticks': 12},
+                       plot_size=300),
+        opts.Image(cmap='viridis', width=550, height=550, tools=['hover'], xaxis=None,
+                   yaxis=None),
+        opts.Labels(text_color='white', text_font_size='20pt', text_align='left',
+                    text_baseline='bottom'),
+        opts.Path(color='white'),
+        opts.Spread(width=600),
+        opts.Overlay(show_legend=True))
+
+    model = DeepLabFeatures(in_channels=3, out_channels=1, output_stride=8, do_ord=False, norm='bn',
+                            do_clinical=True)
 
     if model_path is None:
         model_path = Path('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data',
-                          'trained_models', 'GROUP0',
-                          '2020-04-15_10-55-56_n0.pkl')
+                          'trained_models', 'GROUP16',
+                          'model_2020-04-15_10-55-56_n0.pkl')
 
     model_dict = torch.load(model_path, map_location='cuda:0')
     model_dict = OrderedDict([(key[7:], val) for key, val in model_dict.items()])
     model.load_state_dict(model_dict, strict=False)
-    print(model)
+    model.to('cuda:0')
+    model.eval()
 
-    mean = ds.clinical.mean(axis=0)
-    std = ds.clinical.std(axis=0)
+    clinical = ['age', 'gender', 'height', 'weight', 'bmi', 'htn', 'hld', 'dm', 'ast', 'alt', 'alk',
+                'tbili', 'albumin', 'plt']
+    mean = ds[clinical].mean()
+    mean = np.asarray([mean[val].values for val in clinical])
+    std = ds[clinical].std()
+    std = np.asarray([std[val].values for val in clinical])
 
-    norm_clin_vals = [mean, std]
     torch_data = MRETorchDataset(ds.sel(subject=[subj]), set_type='test',
                                  inputs=['t1_pre_water', 't1_pre_fat', 't1_pos_70_water'],
                                  do_clinical=True, norm_clin_vals=[mean, std], erode_mask=3)
+    dataloader = DataLoader(torch_data, batch_size=1, shuffle=False, num_workers=1)
+    data = next(iter(dataloader))
+    inputs = data[0].to('cuda:0')
+    clinical = data[4].to('cuda:0')
+    outputs = model(inputs, clinical).cpu().detach().numpy()[0]
+    xa = xr.DataArray(outputs, dims=['features', 'z', 'y', 'x'])
+    xa.name = 'deeplab'
+    hv_xa = hv.Dataset(xa)
+    hv_image = hv_xa.to(hv.Image, kdims=['x', 'y'], vims='deeplab',
+                        dynamic=True).opts(invert_yaxis=True)
+    # hv_image = hv_image.redim.range((-1, 1))
+    return hv_image

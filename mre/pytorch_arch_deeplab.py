@@ -475,6 +475,47 @@ class Decoder(nn.Module):
                 m.bias.data.zero_()
 
 
+class DecoderFeatures(nn.Module):
+    def __init__(self, out_channels, norm='bn', do_clinical=False):
+        super(DecoderFeatures, self).__init__()
+        low_level_inplanes = 64
+
+        self.conv1 = nn.Conv3d(low_level_inplanes, 32, 1, bias=False)
+        self.relu = nn.ReLU()
+        self.do_clinical = do_clinical
+        self.norm = nn.BatchNorm3d(32)
+        self.last_conv = nn.Sequential(nn.Conv3d(256+32+14, 128, kernel_size=3, stride=1,
+                                                 padding=1, bias=False),
+                                       nn.BatchNorm3d(128),
+                                       nn.ReLU(),
+                                       nn.Conv3d(128, 128, kernel_size=3, stride=1,
+                                                 padding=1, bias=False),
+                                       )
+        self._init_weight()
+
+    def forward(self, x, low_level_feat, clinical=None):
+        low_level_feat = self.conv1(low_level_feat)
+        low_level_feat = self.norm(low_level_feat)
+        low_level_feat = self.relu(low_level_feat)
+
+        x = F.interpolate(x, size=low_level_feat.size()[2:], mode='trilinear', align_corners=True)
+        x = torch.cat((x, low_level_feat, clinical), dim=1)
+        x = self.last_conv(x)
+
+        return x
+
+    def _init_weight(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv3d):
+                torch.nn.init.kaiming_normal_(m.weight)
+            elif isinstance(m, nn.GroupNorm):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+            elif isinstance(m, nn.BatchNorm3d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+
+
 class OrdinalRegressionLayerSigmoid(nn.Module):
     def __init__(self):
         super(OrdinalRegressionLayerSigmoid, self).__init__()
@@ -574,6 +615,25 @@ class DeepLab(nn.Module):
             x = F.interpolate(x, size=input.size()[2:], mode='trilinear', align_corners=True)
 
             return x
+
+
+class DeepLabFeatures(nn.Module):
+    def __init__(self, in_channels, out_channels, output_stride=8, do_ord=False, norm='bn',
+                 do_clinical=False):
+        super(DeepLabFeatures, self).__init__()
+
+        self.backbone = AlignedXception(in_channels, output_stride, norm=norm)
+        self.aspp = ASPP(output_stride, norm=norm)
+        self.decoder = DecoderFeatures(out_channels, norm=norm, do_clinical=do_clinical)
+        self.do_ord = do_ord
+        self.do_clinical = do_clinical
+
+    def forward(self, input, clinical=None):
+        x, low_level_feat = self.backbone(input)
+        x = self.aspp(x)
+        x = self.decoder(x, low_level_feat, clinical)
+
+        return x
 
 
 if __name__ == "__main__":
