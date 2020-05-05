@@ -631,7 +631,7 @@ class MRETorchDataset(Dataset):
         self.set_type = set_type
 
         # Assign kwargs
-        self.dims = kwargs.get('dims', 2)
+        self.dims = kwargs.get('dims', 3)
         self.seed = kwargs.get('seed', 100)
         self.inputs = kwargs.get('inputs', ['t1_pre_water', 't1_pre_in', 't1_pre_out', 't1_pre_fat',
                                             't2', 't1_pos_0_water', 't1_pos_70_water',
@@ -649,7 +649,7 @@ class MRETorchDataset(Dataset):
         self.bins = kwargs.get(f'bins', None)
         self.nbins = kwargs.get(f'out_channels_final', 0)
         self.do_clinical = kwargs.get(f'do_clinical', False)
-        self.norm_clinical = kwargs.get(f'norm_clinical', False)
+        self.norm_clinical = kwargs.get(f'norm_clinical', True)
         self.norm_clin_vals = kwargs.get(f'norm_clin_vals', None)
         self.erode_mask = kwargs.get(f'erode_mask', 0)
         self.organize_data()
@@ -1048,6 +1048,7 @@ class ModelCompare:
 
         print(base_model_path)
         base_ds = self.load_files(base_model_path)
+        print(base_ds)
 
         mre_type = list(base_ds.mre_type.values)
         mre_type.remove('mre_pred')

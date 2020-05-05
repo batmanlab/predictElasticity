@@ -1,8 +1,10 @@
 from functools import reduce
 from pathlib import Path
+from collections import OrderedDict
 import numpy as np
 from sklearn.metrics import roc_curve, auc
 from sklearn.metrics import roc_auc_score, accuracy_score
+from skimage import morphology
 import pandas as pd
 import xarray as xr
 from lmfit.models import LinearModel
@@ -16,6 +18,8 @@ from holoviews.operation.datashader import datashade, shade, dynspread, rasteriz
 import torch
 
 from mre.preprocessing import MRIImage
+from mre.pytorch_arch_deeplab import DeepLab
+from mre.mre_datasets import MRETorchDataset
 
 hv.extension('bokeh')
 
@@ -849,3 +853,86 @@ def roc_curves(df, true='mre', pred='baseline', threshold=4, label=None, title=N
     acc = (tn+tp)/(tn+fp+tp+fn)
     # print('accuracy', acc)
     return sens, spec, acc, roc_auc
+
+
+def example_images(ds, subj='0219', z=18):
+    '''Make a 2x3 grid of images for the important concepts of the analysis'''
+    from matplotlib.colors import ListedColormap
+    mask_map = ListedColormap(['black', 'powderblue'])
+
+    ds = ds.sel(subject=subj, z=z)
+    fig, ax = plt.subplots(2, 3, sharex=True, sharey=True, figsize=(14, 10))
+    fig.patch.set_alpha(1)
+    mri = ds.sel(sequence='t1_pre_water')['image_mri']
+    ax[0][0].imshow(mri.T, cmap='gray', vmin=0, vmax=700)
+    ax[0][0].axis('off')
+    ax[0][0].set_title('MRI (Input Image)', size=18)
+    ax[0][0].set_ylim(235, 15)
+    ax[0][0].set_xlim(15, 235)
+
+    mre = ds.sel(mre_type='mre_mask')['image_mre']/1000
+    mre_cb = ax[0][1].imshow(mre.T, cmap='magma', vmin=0, vmax=7.800)
+    ax[0][1].axis('off')
+    ax[0][1].set_title('MRE (Hatched)', size=18)
+    ax[0][1].set_ylim(235, 15)
+    ax[0][1].set_xlim(15, 235)
+
+    mre_pred = ds.sel(mre_type='pred')['image_mre']/1000
+    ax[0][2].imshow(mre_pred.T, cmap='magma', vmin=0, vmax=7.800)
+    ax[0][2].axis('off')
+    ax[0][2].set_title('MRE (Predicted)', size=18)
+    ax[0][2].set_ylim(235, 15)
+    ax[0][2].set_xlim(15, 235)
+
+    liver_mask = ds.sel(mask_type='liver')['mask_mri']
+    liver_mask = morphology.remove_small_objects(liver_mask.values.astype(bool), min_size=1000)
+    ax[1][0].imshow(liver_mask.T, cmap=mask_map)
+    ax[1][0].axis('off')
+    ax[1][0].set_title('Liver Segmentation', size=18)
+    ax[1][0].set_ylim(235, 15)
+    ax[1][0].set_xlim(15, 235)
+
+    mre_mask = ds.sel(mask_type='mre')['mask_mre']
+    ax[1][1].imshow(mre_mask.T, cmap=mask_map)
+    ax[1][1].axis('off')
+    ax[1][1].set_title('MRE Segmentation', size=18)
+    ax[1][1].set_ylim(235, 15)
+    ax[1][1].set_xlim(15, 235)
+
+    combo_mask = ds.sel(mask_type='combo')['mask_mre']
+    ax[1][2].imshow(combo_mask.T, cmap=mask_map)
+    ax[1][2].axis('off')
+    ax[1][2].set_title('ROI', size=18)
+    ax[1][2].set_ylim(235, 15)
+    ax[1][2].set_xlim(15, 235)
+
+    fig.subplots_adjust(right=0.85)
+    cbar_ax = fig.add_axes([0.88, 0.55, 0.03, 0.3])
+    cbar_ax.set_title('Stiffness\n(kPa)', size=16)
+    cbar_ax.tick_params(labelsize=16)
+    fig.colorbar(mre_cb, cax=cbar_ax)
+
+
+def model_feature_extractor(ds, model_path=None, subj='0219'):
+    '''Load in a model, then get the next-to-last layer.'''
+
+    model = DeepLab(in_channels=3, out_channels=1, output_stride=8, do_ord=False, norm=True,
+                    do_clinical=True)
+
+    if model_path is None:
+        model_path = Path('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data',
+                          'trained_models', 'GROUP0',
+                          '2020-04-15_10-55-56_n0.pkl')
+
+    model_dict = torch.load(model_path, map_location='cuda:0')
+    model_dict = OrderedDict([(key[7:], val) for key, val in model_dict.items()])
+    model.load_state_dict(model_dict, strict=False)
+    print(model)
+
+    mean = ds.clinical.mean(axis=0)
+    std = ds.clinical.std(axis=0)
+
+    norm_clin_vals = [mean, std]
+    torch_data = MRETorchDataset(ds.sel(subject=[subj]), set_type='test',
+                                 inputs=['t1_pre_water', 't1_pre_fat', 't1_pos_70_water'],
+                                 do_clinical=True, norm_clin_vals=[mean, std], erode_mask=3)
