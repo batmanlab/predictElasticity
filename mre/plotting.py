@@ -965,3 +965,118 @@ def model_feature_extractor(ds, model_path=None, subj='0219'):
                         dynamic=True).opts(invert_yaxis=True)
     # hv_image = hv_image.redim.range((-1, 1))
     return hv_image
+
+
+def radiology_cor_plots(ds, do_cor=True, save_name='test'):
+    true_pixel = []
+    pred_pixel = []
+    true_subj = []
+    pred_subj = []
+    # if do_cor:
+    #     slope = np.mean(ds['val_slope'].values)
+    #     intercept = np.mean(ds['val_intercept'].values)
+    #     print(slope, intercept)
+    for subj in ds.subject:
+        mask = ds.sel(subject=subj, mask_type='combo')['mask_mre'].values
+        mask = np.where(mask > 0, mask, np.nan)
+        true_mre_region = (ds.sel(subject=subj, mre_type='mre')['image_mre'].values * mask)
+        true_mre_region = true_mre_region.flatten()
+        true_mre_region = true_mre_region[~np.isnan(true_mre_region)]
+        pred_mre_region = (ds.sel(subject=subj, mre_type='pred')['image_mre'].values * mask)
+        pred_mre_region = pred_mre_region.flatten()
+        pred_mre_region = pred_mre_region[~np.isnan(pred_mre_region)]
+        if do_cor:
+            slope = np.mean(ds.sel(subject=subj, mre_type='pred')['val_slope'].values)
+            intercept = np.mean(ds.sel(subject=subj, mre_type='pred')['val_intercept'].values)
+            # print(slope, intercept)
+            pred_mre_region = (pred_mre_region-intercept)/slope
+            pred_mre_region = np.where(pred_mre_region > 0, pred_mre_region, 0)
+        true_pixel.append(true_mre_region/1000)
+        pred_pixel.append(pred_mre_region/1000)
+        true_subj.append(np.nanmean(true_mre_region)/1000)
+        pred_subj.append(np.nan_to_num(np.nanmean(pred_mre_region/1000)))
+
+    true_pixel = np.concatenate(true_pixel)
+    pred_pixel = np.concatenate(pred_pixel)
+    df_subj = pd.DataFrame({'true': true_subj, 'predict': pred_subj, 'subject': ds.subject.values})
+    df_subj['fibrosis'] = np.where(df_subj.true > 3.77, 'Severe Fibrosis', 'Mild Fibrosis')
+
+    # Subj Plot
+    model = LinearModel()
+    params = model.make_params(slope=1, intercept=0)
+    result = model.fit(df_subj['predict'], params, x=df_subj['true'])
+    fig, ax = plt.subplots(1, 2, figsize=(20, 10))
+    ymax = df_subj['predict'].max()+1
+    xmax = df_subj['true'].max()+1
+    rect1 = plt.Rectangle((0, 0), 3.77, 3.77, color='grey', alpha=0.3,
+                          label='Correct Classification\n3.77 kPa Threshold')
+    rect2 = plt.Rectangle((3.77, 3.77), xmax-3.77, ymax-3.77, color='grey', alpha=0.3)
+    ax[0].add_patch(rect1)
+    ax[0].add_patch(rect2)
+    df_subj.query('true>3.77').plot(x='true', y='predict', kind='scatter',
+                                    xlim=(0, xmax), ylim=(0, ymax), color='C1', ax=ax[0],
+                                    label='High Stiffness')
+    df_subj.query('true<3.77').plot(x='true', y='predict', kind='scatter',
+                                    xlim=(0, xmax), ylim=(0, ymax), color='C0', ax=ax[0],
+                                    label='Low Stiffness')
+    ax[0].plot(df_subj['true'], result.best_fit, label='Best Fit', linewidth=2, c='k')
+    ax[0].set_title('Predicted vs True Stiffness, Subject-wise', size=22)
+    # plt.ylim(-1, df_subj['predict'].max())
+    # plt.xlim(-1, df_subj['predict'].max())
+    ax[0].set_xlabel('True Stiffness (kPa)', size=20)
+    ax[0].set_ylabel('Predicted Stiffness (kPa)', size=20)
+    lgnd = ax[0].legend(fontsize=15, frameon=False)
+    for handle in lgnd.legendHandles:
+        try:
+            handle.set_sizes([60])
+        except AttributeError:
+            pass
+    ax[0].tick_params(labelsize=16)
+    # return result
+
+    print(result.fit_report())
+    print('R2:', 1 - result.residual.var() / np.var(df_subj['predict']))
+    plt.savefig(f'../plots/subj_results_{save_name}.pdf', bbox_inches='tight')
+
+    # Pixel Plot
+    model = LinearModel()
+    params = model.make_params(slope=1, intercept=0)
+    result = model.fit(pred_pixel, params, x=true_pixel)
+    # hb = ax[1].hexbin(true_pixel, pred_pixel, bins=[0,10,100,1000,10000], cmap='Blues',
+    #                   extent=(0, 15, 0, 15), gridsize=20)
+    # hb = ax[1].hist2d(true_pixel, pred_pixel, bins=[0, 2.88, 3.54, 3.77, 4.09, 10], cmap='Blues')
+    ax[1].hist(true_pixel-pred_pixel, bins=50)
+    # ax[1].plot(true_pixel, result.best_fit, label='Best Fit', linewidth=2, c='k')
+    # cb = fig.colorbar(hb, ax=ax[1])
+    # cb.set_label('log(# of Pixels)', fontsize=20)
+    # cb.ax.tick_params(labelsize=16)
+
+    ax[1].set_title('Pixel-wise Difference', size=22)
+    # ax[1].set_ylim(0, 15)
+    # ax[1].set_xlim(-7, 7)
+    ax[1].set_xlabel('True - Predicted Stiffness (kPa)', size=20)
+    ax[1].set_ylabel('Pixel Count', size=20)
+    ax[1].tick_params(labelsize=16)
+    ax[1].ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
+    ax[1].yaxis.offsetText.set_fontsize(14)
+    # return result
+
+    print(result.fit_report())
+    print('R2:', 1 - result.residual.var() / np.var(pred_pixel))
+    plt.savefig(f'../plots/pixel_results_{save_name}.pdf', bbox_inches='tight')
+
+    # Sensitivity S: TP/(TP+FN)
+    tp = df_subj.query('true>3.77 and predict>3.77').count()[0]
+    fn = df_subj.query('true>3.77 and predict<3.77').count()[0]
+    print('tp', tp)
+    print('fn', fn)
+    print('sensitivity', tp/(tp+fn))
+
+    # Specificity: TN/(TN+FP)
+    tn = df_subj.query('true<3.77 and predict<3.77').count()[0]
+    fp = df_subj.query('true<3.77 and predict>3.77').count()[0]
+    print('tn', tn)
+    print('fp', fp)
+    print('specificity', tn/(tn+fp))
+
+    print('accuracy', (tn+tp)/(tn+fp+tp+fn))
