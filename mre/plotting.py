@@ -815,11 +815,11 @@ def xr_viewer_models(xr_ds, size=250, do_cor=False):
     # return hv_ds_mre_image
 
 
-def roc_curves(df, true='mre', pred='baseline', threshold=4, label=None, title=None):
+def roc_curves(df, true='mre', pred='baseline', threshold=4, label=None, title=None, ax=None):
     if label is None:
         label = pred
     if title is None:
-        title = f'ROC Curves, Threshold={threshold} kPa'
+        title = f'Threshold={threshold} kPa'
     threshold = threshold*1000
     pred_probs = torch.sigmoid(
         torch.Tensor((df[f'{pred}'].values)-threshold)/df[f'{pred}'].std()).numpy()
@@ -827,14 +827,25 @@ def roc_curves(df, true='mre', pred='baseline', threshold=4, label=None, title=N
     fpr, tpr, _ = roc_curve(true_labels, pred_probs)
     roc_auc = auc(fpr, tpr)
     lw = 2
-    plt.plot(fpr, tpr, lw=lw, label=f'{label} (AUROC = {roc_auc:0.2f})')
-    plt.plot([0, 1], [0, 1], color='k', lw=lw, linestyle='--')
-    plt.xlim([0.0, 1.0])
-    plt.ylim([0.0, 1.05])
-    plt.xlabel('False Positive Rate', size=20)
-    plt.ylabel('True Positive Rate', size=20)
-    plt.title(title, size=22)
-    plt.legend(loc="lower right", fontsize=15)
+    if ax is None:
+        plt.plot(fpr, tpr, lw=lw, label=f'{label} (AUROC = {roc_auc:0.2f})')
+        plt.plot([0, 1], [0, 1], color='k', lw=lw, linestyle='--')
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xlabel('False Positive Rate', size=20)
+        plt.ylabel('True Positive Rate', size=20)
+        plt.title(title, size=22)
+        plt.legend(loc="lower right", fontsize=15)
+    else:
+        # ax.plot(fpr, tpr, lw=lw, label=f'{label} (AUROC = {roc_auc:0.2f})')
+        ax.plot(fpr, tpr, lw=lw, label=f'{label}')
+        ax.plot([0, 1], [0, 1], color='k', lw=lw, linestyle='--')
+        ax.set_xlim([0.0, 1.0])
+        ax.set_ylim([0.0, 1.05])
+        ax.set_xlabel('False Positive Rate', size=20)
+        ax.set_ylabel('True Positive Rate', size=20)
+        ax.set_title(title, size=22)
+        # ax.legend(loc="lower right", fontsize=15)
 
     tp = df.query(f'{true}>{threshold} and {pred}>{threshold}').count()[0]
     fn = df.query(f'{true}>{threshold} and {pred}<{threshold}').count()[0]
@@ -1020,7 +1031,7 @@ def radiology_cor_plots(ds, do_cor=True, save_name='test'):
                                     xlim=(0, xmax), ylim=(0, ymax), color='C0', ax=ax[0],
                                     label='Low Stiffness')
     ax[0].plot(df_subj['true'], result.best_fit, label='Best Fit', linewidth=2, c='k')
-    ax[0].set_title('Predicted vs True Stiffness, Subject-wise', size=22)
+    ax[0].set_title('Predicted vs True Average Stiffness', size=22)
     # plt.ylim(-1, df_subj['predict'].max())
     # plt.xlim(-1, df_subj['predict'].max())
     ax[0].set_xlabel('True Stiffness (kPa)', size=20)
@@ -1080,3 +1091,5 @@ def radiology_cor_plots(ds, do_cor=True, save_name='test'):
     print('specificity', tn/(tn+fp))
 
     print('accuracy', (tn+tp)/(tn+fp+tp+fn))
+    print(df_subj.true.mean())
+    print(df_subj.true.std())

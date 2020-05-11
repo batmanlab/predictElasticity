@@ -470,6 +470,7 @@ def default_cfg():
     cfg = {'train_trans': True, 'train_clip': True, 'train_aug': True, 'train_sample': 'shuffle',
            'val_trans': True, 'val_clip': True, 'val_aug': False, 'val_sample': 'shuffle',
            'test_trans': True, 'test_clip': True, 'test_aug': False,
+           'train_num_samples': 200, 'val_num_samples': 100,
            'train_smear': 'gaussian', 'val_smear': False, 'test_smear': False,
            'smear_amt': 3,
            'batch_size': 64, 'model_cap': 16, 'subj': None,
