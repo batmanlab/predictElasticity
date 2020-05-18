@@ -30,6 +30,7 @@ class SlurmMaster:
         random.seed(self.date)
         self.mre_id = random.randint(10000, 90000)
         print('making staging dir')
+        self.staging_dir = f'/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/{self.date}'
         os.mkdir(f'/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/{self.date}')
         shutil.copytree('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/mre',
                         '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/' +
@@ -81,7 +82,8 @@ class SlurmMaster:
             else:
                 arg_string += f' --{i}={conf[i]}'
         # arg_string = ' '.join(f'--{i}={conf[i]}' for i in conf)
-        script_name = f'/tmp/slurm_script_{self.date}_n{number}_subj{subj_name}'
+        # script_name = f'/tmp/slurm_script_{self.date}_n{number}_subj{subj_name}'
+        script_name = self.staging_dir+f'/slurm_script_{self.date}_n{number}_subj{subj_name}'
         script = open(script_name, 'w')
         script.write('#!/bin/bash\n')
         if self.gpu:

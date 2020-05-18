@@ -1,5 +1,6 @@
 #! usr/bin/env python
 import os
+import warnings
 from pathlib import Path
 import re
 from collections import OrderedDict
@@ -18,6 +19,7 @@ from skimage.filters import sobel
 import PIL
 import pdb
 from tqdm import tqdm_notebook
+from medpy.filter.smoothing import anisotropic_diffusion
 # import matplotlib.pyplot as plt
 # import holoviews as hv
 
@@ -762,6 +764,8 @@ class MRETorchDataset(Dataset):
                     # sigma = np.random.randint(10)
                     # sigma = 6
                     sigma = self.smear_amt
+                elif self.smear == 'aniso':
+                    sigma = self.smear_amt
                 else:
                     sigma = 0
             else:
@@ -815,6 +819,8 @@ class MRETorchDataset(Dataset):
                         sigma = np.random.randint(1, 6)
                     else:
                         sigma = self.smear_amt
+                elif self.smear == 'aniso':
+                    sigma = self.smear_amt
                 else:
                     sigma = 0
             else:
@@ -852,6 +858,11 @@ class MRETorchDataset(Dataset):
                     target_tmp = gaussian_filter(target[0][j], sigma=sigma)
                 elif self.smear == 'median':
                     target_tmp = median_filter(target[0][j], size=sigma)
+                elif self.smear == 'aniso':
+                    with warnings.catch_warnings():
+                        warnings.filterwarnings("ignore", message="using a non-tuple sequence")
+                        target_tmp = anisotropic_diffusion(target[0][j], niter=sigma, option=2,
+                                                           kappa=100, gamma=0.1)
                 else:
                     target_tmp = target[0][j]
                 target_list.append(self.affine_transform(target_tmp, rot_angle_xy,

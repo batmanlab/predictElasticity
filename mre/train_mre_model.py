@@ -162,7 +162,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         df_strat = df_strat.drop(index=test_list)
         # mskf = MultilabelStratifiedShuffleSplit(n_splits=1, test_size=30,
         #                                         random_state=cfg['seed'])
-        mskf = StratifiedShuffleSplit(n_splits=1, test_size=30, random_state=cfg['seed'])
+        mskf = StratifiedShuffleSplit(n_splits=1, test_size=40, random_state=cfg['seed'])
         splits = mskf.split(df_strat.index.values, df_strat[['mre_group']].values.flatten())
         train_index, val_index = next(splits)
         val_list = list(df_strat.index.values[val_index])
