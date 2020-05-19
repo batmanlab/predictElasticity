@@ -14,7 +14,7 @@ from scipy import ndimage as ndi
 from scipy.signal import find_peaks
 import SimpleITK as sitk
 import skimage as skim
-from skimage import feature, morphology
+from skimage import feature, morphology, exposure
 from skimage.filters import sobel
 import PIL
 import pdb
@@ -733,7 +733,7 @@ class MRETorchDataset(Dataset):
         mask = self.mask_images[idx].astype(np.float32)
         target = self.target_images[idx]
         if self.clip:
-            image  = np.where(image >= 2000, 2000, image)
+            # image  = np.where(image >= 2000, 2000, image)
             if self.loss == 'l2':
                 with np.errstate(divide='ignore', invalid='ignore'):
                     # target = np.float32(np.where(target > 0, np.sqrt(target), 0))
@@ -835,6 +835,7 @@ class MRETorchDataset(Dataset):
                 sigma = 0
 
             image = self.input_norm(image)
+            # image = image.astype(np.float32)
             img_list = []
             # Iterate over channels
             for i in range(image.shape[0]):
@@ -894,7 +895,7 @@ class MRETorchDataset(Dataset):
         input_slice = transforms.ToPILImage()(input_slice)
         input_slice = TF.affine(input_slice, angle=rot_angle,
                                 translate=list(translations), scale=scale, shear=0,
-                                resample=resample)
+                                resample=resample, fillcolor=input_slice.getextrema()[0])
         input_slice = transforms.ToTensor()(input_slice)
         return input_slice
 
@@ -910,12 +911,20 @@ class MRETorchDataset(Dataset):
             image = np.where(image != image, 0, image)
             image = image.astype(np.float32)
         elif self.dims == 3:
-            image = input_image
-            image = np.where(input_image <= 1e-9, np.nan, input_image)
-            mean = np.nanmean(image, axis=(1, 2, 3))
-            std = np.nanstd(image, axis=(1, 2, 3))
-            image = ((image.T - mean)/std).T
-            image = np.where(image != image, 0, image)
+            image = input_image*1.0
+
+            for i in range(image.shape[0]):
+                v_min, v_max = np.percentile(image[i], (0.5, 99.5))
+                image[i, :] = exposure.rescale_intensity(image[i], in_range=(v_min, v_max),
+                                                         out_range=(-1.0, 1.0))
+                # image[i, :] = exposure.rescale_intensity(image[i], out_range=(-1.0, 1.0))
+                # image[i, :] = exposure.equalize_adapthist(image[i], clip_limit=0.03)
+
+            # image = np.where(input_image <= 1e-9, np.nan, input_image)
+            # mean = np.nanmean(image, axis=(1, 2, 3))
+            # std = np.nanstd(image, axis=(1, 2, 3))
+            # image = ((image.T - mean)/std).T
+            # image = np.where(image != image, 0, image)
             image = image.astype(np.float32)
         return image
 
