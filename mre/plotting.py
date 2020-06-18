@@ -5,6 +5,7 @@ import numpy as np
 from sklearn.metrics import roc_curve, auc
 from sklearn.metrics import roc_auc_score, accuracy_score
 from skimage import morphology
+from scipy import ndimage as ndi
 import pandas as pd
 import xarray as xr
 from lmfit.models import LinearModel
@@ -619,7 +620,7 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
     # return hv_ds_mre_image
 
 
-def miccai_plots(ds, do_cor=True, save_name='test'):
+def miccai_plots(ds, do_cor=True, save_name='test', erode=0):
     true_pixel = []
     pred_pixel = []
     true_subj = []
@@ -630,6 +631,10 @@ def miccai_plots(ds, do_cor=True, save_name='test'):
     #     print(slope, intercept)
     for subj in ds.subject:
         mask = ds.sel(subject=subj, mask_type='combo')['mask_mre'].values
+        if erode != 0:
+            for i in range(mask.shape[-1]):
+                mask[:, :, i] = ndi.binary_erosion(mask[:, :, i],
+                                                   iterations=erode).astype(mask.dtype)
         mask = np.where(mask > 0, mask, np.nan)
         true_mre_region = (ds.sel(subject=subj, mre_type='mre')['image_mre'].values * mask)
         true_mre_region = true_mre_region.flatten()

@@ -8,6 +8,7 @@ import pandas as pd
 from tqdm import tqdm_notebook
 from lmfit.models import LinearModel
 import xarray as xr
+from scipy import ndimage as ndi
 
 import torch
 import torch.nn as nn
@@ -389,14 +390,14 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
 
                 # deep copy the model if is it best
                 if do_val:
-                    if phase == 'val' and epoch_loss < best_loss:
+                    if (phase == 'val') and (epoch_loss < best_loss) and (epoch == 0 or epoch > 50):
                         if verbose:
                             print("updating best model floor")
                             print("saving best model")
                         best_loss = epoch_loss
                         best_model_wts = copy.deepcopy(model.state_dict())
 
-                    elif phase == 'val' and epoch_loss < best_loss*1.01:
+                    elif phase == 'val' and epoch_loss < best_loss*1.01 and epoch > 51:
                         if verbose:
                             print("saving best model (within 1%) ")
                         best_model_wts = copy.deepcopy(model.state_dict())
@@ -541,7 +542,7 @@ def add_predictions(ds, model, model_params, dims=2, inputs=None):
                                      'mre_type': 'mre_pred'}] = (prediction[i, 0].T)*200
 
 
-def get_linear_fit(ds, do_cor=False, make_plot=True, verbose=True, return_df=False):
+def get_linear_fit(ds, do_cor=False, make_plot=True, verbose=True, return_df=False, erode=0):
     '''Generate a linear fit between the average stiffness values for the true and predicted MRE
     values.  Only consider pixels in the mask region.'''
 
@@ -552,11 +553,14 @@ def get_linear_fit(ds, do_cor=False, make_plot=True, verbose=True, return_df=Fal
         intercept = np.mean(ds['val_intercept'].values)
         print(slope, intercept)
     for subj in ds.subject:
-        true_mre_region = (ds.sel(subject=subj, mre_type='mre')['image_mre'].values *
-                           ds.sel(subject=subj, mask_type='combo')['mask_mre'].values)
+        mask = ds.sel(subject=subj, mask_type='combo')['mask_mre'].values
+        if erode != 0:
+            for i in range(mask.shape[-1]):
+                mask[:, :, i] = ndi.binary_erosion(mask[:, :, i],
+                                                   iterations=erode).astype(mask.dtype)
+        true_mre_region = (ds.sel(subject=subj, mre_type='mre')['image_mre'].values * mask)
         true_mre_region = np.where(true_mre_region > 0, true_mre_region, np.nan)
-        pred_mre_region = (ds.sel(subject=subj, mre_type='mre_pred')['image_mre'].values *
-                           ds.sel(subject=subj, mask_type='combo')['mask_mre'].values)
+        pred_mre_region = (ds.sel(subject=subj, mre_type='mre_pred')['image_mre'].values * mask)
         pred_mre_region = np.where(pred_mre_region > 0, pred_mre_region, np.nan)
         if do_cor:
             # slope = np.mean(ds.sel(subject=subj)['val_slope'].values)
@@ -593,7 +597,8 @@ def get_linear_fit(ds, do_cor=False, make_plot=True, verbose=True, return_df=Fal
         return result.params['slope'].value, result.params['intercept'].value
 
 
-def add_val_linear_cor(ds_val, ds_test):
-    slope, intercept = get_linear_fit(ds_val, False, False)
+def add_val_linear_cor(ds_val, ds_test, erode=0):
+    slope, intercept = get_linear_fit(ds_val, False, False, erode=erode)
     ds_test['val_slope'] = (('subject'), np.asarray([slope]*len(ds_test.subject)))
     ds_test['val_intercept'] = (('subject'), np.asarray([intercept]*len(ds_test.subject)))
+    ds_test['erode'] = (('subject'), np.asarray([erode]*len(ds_test.subject)))

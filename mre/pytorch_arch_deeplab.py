@@ -437,15 +437,29 @@ class Decoder(nn.Module):
                                                )
         elif norm == 'gn':
             self.norm = nn.GroupNorm(32, 32)
-            self.last_conv = nn.Sequential(nn.Conv3d(256+32, 128, kernel_size=3, stride=1,
-                                                     padding=1, bias=False),
-                                           nn.GroupNorm(64, 128),
-                                           nn.ReLU(),
-                                           nn.Conv3d(128, 128, kernel_size=3, stride=1,
-                                                     padding=1, bias=False),
-                                           nn.GroupNorm(64, 128),
-                                           nn.ReLU(),
-                                           nn.Conv3d(128, out_channels, kernel_size=1, stride=1))
+            if self.do_clinical:
+                self.last_conv = nn.Sequential(nn.Conv3d(256+32+14, 128, kernel_size=3, stride=1,
+                                                         padding=1, bias=False),
+                                               nn.GroupNorm(64, 128),
+                                               nn.ReLU(),
+                                               nn.Conv3d(128, 128, kernel_size=3, stride=1,
+                                                         padding=1, bias=False),
+                                               nn.GroupNorm(64, 128),
+                                               nn.ReLU(),
+                                               nn.Conv3d(128, out_channels, kernel_size=1,
+                                                         stride=1)
+                                               )
+            else:
+                self.last_conv = nn.Sequential(nn.Conv3d(256+32, 128, kernel_size=3, stride=1,
+                                                         padding=1, bias=False),
+                                               nn.GroupNorm(64, 128),
+                                               nn.ReLU(),
+                                               nn.Conv3d(128, 128, kernel_size=3, stride=1,
+                                                         padding=1, bias=False),
+                                               nn.GroupNorm(64, 128),
+                                               nn.ReLU(),
+                                               nn.Conv3d(128, out_channels,
+                                                         kernel_size=1, stride=1))
         self._init_weight()
 
     def forward(self, x, low_level_feat, clinical=None):

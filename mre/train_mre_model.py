@@ -96,6 +96,29 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         else:
             train_list = list(shuffle_list)
 
+    elif cfg['sampling_breakdown'] == 'smart_LOO':
+        train_subj = ['1550', '1839', '0126', '0890', '1899', '1456', '1851', '0415', '0937',
+                      '1829', '0173', '1083', '1561', '1795', '1033', '1123', '0659', '1504',
+                      '0932', '1417', '1491', '1798', '0693', '0029', '1748', '1287', '2034',
+                      '0655', '0954', '1103', '0491', '1603', '1843', '1791', '0975', '1311',
+                      '1948', '1367', '1979', '1727', '0401', '1667', '0735', '1453', '0006',
+                      '0734', '0898', '1793', '0612', '1940', '1699', '1883', '1526', '0461',
+                      '0747', '1595', '1578', '1893', '1474', '0210', '1574', '1736', '0737',
+                      '1400', '0628', '1106', '0509', '1722', '1530', '1896', '0556', '1435',
+                      '1149', '1554', '1790', '0020', '1110', '0564', '1980', '1786', '0291',
+                      '1144', '0872', '0931', '0344', '1715', '1590', '0704', '0830', '2007',
+                      '1765', '1217', '1819', '1119', '1395', '2029', '0510', '1642', '2046',
+                      '1714', '0235', '1789', '0929', '1045', '1447', '1935', '1541', '1853',
+                      '1072', '1412', '0043']
+        val_subj = ['1720', '1077', '1448', '1329', '1903', '1464', '1967', '1360', '0979', '1337',
+                    '1529', '1341', '1336', '1121', '0860', '1706', '0914', '1679', '1076', '1712',
+                    '0135', '1671', '0904', '1785', '1806', '0748', '1271', '0995', '2001', '1577',
+                    '0234', '1694', '1404', '0940', '0653', '1382', '0492', '0219']
+
+        test_list = cfg['subj']
+        train_list = [subj for subj in train_subj if subj not in test_list]
+        val_list = [subj for subj in val_subj if subj not in test_list]
+
     elif cfg['sampling_breakdown'] == 'smart':
         if cfg['do_older_dataset'] is True:
             # Needs to be hardcoded for now, problem with calc on the fly
@@ -159,14 +182,42 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         test_list = cfg['subj']
         df_strat = pd.read_pickle(
             '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/MRE/df_strat_v0.pkl')
-        df_strat = df_strat.drop(index=test_list)
+        # df_strat = df_strat.drop(index=test_list)
         # mskf = MultilabelStratifiedShuffleSplit(n_splits=1, test_size=30,
         #                                         random_state=cfg['seed'])
-        mskf = StratifiedShuffleSplit(n_splits=1, test_size=40, random_state=cfg['seed'])
-        splits = mskf.split(df_strat.index.values, df_strat[['mre_group']].values.flatten())
+        mskf = StratifiedShuffleSplit(n_splits=1, test_size=28, random_state=cfg['seed'])
+        splits = mskf.split(df_strat.index.values, df_strat[['gender']].values.flatten())
         train_index, val_index = next(splits)
-        val_list = list(df_strat.index.values[val_index])
-        train_list = list(df_strat.index.values[train_index])
+        print(val_index)
+        train_list = df_strat.index[train_index].values
+        val_list = df_strat.index[val_index].values
+        train_list = [i for i in train_list if i not in test_list]
+        val_list = [i for i in val_list if i not in test_list]
+        # train_list = list(df_strat.index.values[train_list])
+        # val_list = list(df_strat.index.values[val_list])
+
+    elif cfg['sampling_breakdown'] == 'stratified_fixed':
+        train_subj = ['1727', '1903', '2034', '1072', '1382', '0830', '0655', '1851', '1980',
+                      '1839', '1554', '0234', '1967', '1149', '0020', '0653', '1935', '1360',
+                      '0043', '1144', '1899', '1694', '1577', '0135', '1574', '1395', '1033',
+                      '0937', '1404', '1578', '1456', '0556', '0126', '1474', '1789', '0219',
+                      '1819', '1679', '1893', '0904', '0659', '1526', '1367', '1217', '1447',
+                      '1504', '1541', '1720', '1529', '1699', '1671', '1714', '1329', '0510',
+                      '0401', '1603', '0929', '0890', '1798', '1793', '1400', '1561', '1722',
+                      '0734', '0693', '1642', '1979', '1795', '1271', '2046', '1948', '0461',
+                      '0210', '0509', '0898', '1435', '0872', '0564', '1123', '0747', '1896',
+                      '1712', '1448', '0006', '0975', '1464', '1336', '0173', '1843', '0932',
+                      '0748', '1736', '1083', '0995', '1667', '1791', '1715', '1412', '0291',
+                      '0704', '1853', '2001', '1341', '0029', '0931', '1790', '1076', '1786',
+                      '1110', '1748', '1829', '1550', '1311', '0415', '0491', '0735', '0914']
+        val_subj = ['2007', '1045', '0612', '1530', '1417', '0628', '0979', '1106', '1765', '1077',
+                    '1806', '0235', '1287', '0492', '0344', '1337', '1883', '1453', '1491', '1785',
+                    '0940', '2029', '1103', '0954', '0737', '0860', '1595', '1121', '1119', '1590',
+                    '1706', '1940']
+
+        test_list = cfg['subj']
+        train_list = [subj for subj in train_subj if subj not in test_list]
+        val_list = [subj for subj in val_subj if subj not in test_list]
 
     train_set = MRETorchDataset(ds.sel(subject=train_list), set_type='train', **cfg)
     cfg['norm_clin_vals'] = train_set.norm_clin_vals
@@ -424,12 +475,13 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         ds_train = ds_mem.sel(subject=train_list)
         if cfg['do_val']:
             ds_val = ds_mem.sel(subject=val_list)
-            add_val_linear_cor(ds_val, ds_test)
+            add_val_linear_cor(ds_val, ds_test, cfg['erode_mask'])
             ds_val_stub = ds_val.sel(mre_type='mre_pred')['image_mre']
             ds_val_stub.to_netcdf(Path(xr_dir, 'val', f'xarray_pred_{subj_group}.nc'))
             ds_val.close()
             ds_val_stub.close()
-        ds_test_stub = ds_test.sel(mre_type='mre_pred')[['image_mre', 'val_slope', 'val_intercept']]
+        ds_test_stub = ds_test.sel(mre_type='mre_pred')[['image_mre', 'val_slope', 'val_intercept',
+                                                         'erode']]
         ds_test_stub.to_netcdf(Path(xr_dir, 'test', f'xarray_pred_{subj_group}.nc'))
         ds_test.close()
         ds_test_stub.close()
