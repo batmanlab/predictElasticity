@@ -820,7 +820,8 @@ def xr_viewer_models(xr_ds, size=250, do_cor=False):
     # return hv_ds_mre_image
 
 
-def roc_curves(df, true='mre', pred='baseline', threshold=4, label=None, title=None, ax=None):
+def roc_curves(df, true='mre', pred='baseline', threshold=4, label=None, title=None, ax=None,
+               plot=True):
     if label is None:
         label = pred
     if title is None:
@@ -832,25 +833,26 @@ def roc_curves(df, true='mre', pred='baseline', threshold=4, label=None, title=N
     fpr, tpr, _ = roc_curve(true_labels, pred_probs)
     roc_auc = auc(fpr, tpr)
     lw = 2
-    if ax is None:
-        plt.plot(fpr, tpr, lw=lw, label=f'{label} (AUROC = {roc_auc:0.2f})')
-        plt.plot([0, 1], [0, 1], color='k', lw=lw, linestyle='--')
-        plt.xlim([0.0, 1.0])
-        plt.ylim([0.0, 1.05])
-        plt.xlabel('False Positive Rate', size=20)
-        plt.ylabel('True Positive Rate', size=20)
-        plt.title(title, size=22)
-        plt.legend(loc="lower right", fontsize=15)
-    else:
-        # ax.plot(fpr, tpr, lw=lw, label=f'{label} (AUROC = {roc_auc:0.2f})')
-        ax.plot(fpr, tpr, lw=lw, label=f'{label}')
-        ax.plot([0, 1], [0, 1], color='k', lw=lw, linestyle='--')
-        ax.set_xlim([0.0, 1.0])
-        ax.set_ylim([0.0, 1.05])
-        ax.set_xlabel('False Positive Rate', size=20)
-        ax.set_ylabel('True Positive Rate', size=20)
-        ax.set_title(title, size=22)
-        # ax.legend(loc="lower right", fontsize=15)
+    if plot:
+        if ax is None:
+            plt.plot(fpr, tpr, lw=lw, label=f'{label} (AUROC = {roc_auc:0.2f})')
+            plt.plot([0, 1], [0, 1], color='k', lw=lw, linestyle='--')
+            plt.xlim([0.0, 1.0])
+            plt.ylim([0.0, 1.05])
+            plt.xlabel('False Positive Rate', size=20)
+            plt.ylabel('True Positive Rate', size=20)
+            plt.title(title, size=22)
+            plt.legend(loc="lower right", fontsize=15)
+        else:
+            # ax.plot(fpr, tpr, lw=lw, label=f'{label} (AUROC = {roc_auc:0.2f})')
+            ax.plot(fpr, tpr, lw=lw, label=f'{label}')
+            ax.plot([0, 1], [0, 1], color='k', lw=lw, linestyle='--')
+            ax.set_xlim([0.0, 1.0])
+            ax.set_ylim([0.0, 1.05])
+            ax.set_xlabel('False Positive Rate', size=20)
+            ax.set_ylabel('True Positive Rate', size=20)
+            ax.set_title(title, size=22)
+            # ax.legend(loc="lower right", fontsize=15)
 
     tp = df.query(f'{true}>{threshold} and {pred}>{threshold}').count()[0]
     fn = df.query(f'{true}>{threshold} and {pred}<{threshold}').count()[0]
@@ -983,7 +985,7 @@ def model_feature_extractor(ds, model_path=None, subj='0219'):
     return hv_image
 
 
-def radiology_cor_plots(ds, do_cor=True, save_name='test'):
+def radiology_cor_plots(ds, do_cor=True, pred='pred', save_name='test', plot=True):
     true_pixel = []
     pred_pixel = []
     true_subj = []
@@ -998,12 +1000,12 @@ def radiology_cor_plots(ds, do_cor=True, save_name='test'):
         true_mre_region = (ds.sel(subject=subj, mre_type='mre')['image_mre'].values * mask)
         true_mre_region = true_mre_region.flatten()
         true_mre_region = true_mre_region[~np.isnan(true_mre_region)]
-        pred_mre_region = (ds.sel(subject=subj, mre_type='pred')['image_mre'].values * mask)
+        pred_mre_region = (ds.sel(subject=subj, mre_type=pred)['image_mre'].values * mask)
         pred_mre_region = pred_mre_region.flatten()
         pred_mre_region = pred_mre_region[~np.isnan(pred_mre_region)]
         if do_cor:
-            slope = np.mean(ds.sel(subject=subj, mre_type='pred')['val_slope'].values)
-            intercept = np.mean(ds.sel(subject=subj, mre_type='pred')['val_intercept'].values)
+            slope = np.mean(ds.sel(subject=subj, mre_type=pred)['val_slope'].values)
+            intercept = np.mean(ds.sel(subject=subj, mre_type=pred)['val_intercept'].values)
             # print(slope, intercept)
             pred_mre_region = (pred_mre_region-intercept)/slope
             pred_mre_region = np.where(pred_mre_region > 0, pred_mre_region, 0)
@@ -1021,80 +1023,85 @@ def radiology_cor_plots(ds, do_cor=True, save_name='test'):
     model = LinearModel()
     params = model.make_params(slope=1, intercept=0)
     result = model.fit(df_subj['predict'], params, x=df_subj['true'])
-    fig, ax = plt.subplots(1, 2, figsize=(20, 10))
-    ymax = df_subj['predict'].max()+1
-    xmax = df_subj['true'].max()+1
-    rect1 = plt.Rectangle((0, 0), 3.77, 3.77, color='grey', alpha=0.3,
-                          label='Correct Classification\n3.77 kPa Threshold')
-    rect2 = plt.Rectangle((3.77, 3.77), xmax-3.77, ymax-3.77, color='grey', alpha=0.3)
-    ax[0].add_patch(rect1)
-    ax[0].add_patch(rect2)
-    df_subj.query('true>3.77').plot(x='true', y='predict', kind='scatter',
-                                    xlim=(0, xmax), ylim=(0, ymax), color='C1', ax=ax[0],
-                                    label='High Stiffness')
-    df_subj.query('true<3.77').plot(x='true', y='predict', kind='scatter',
-                                    xlim=(0, xmax), ylim=(0, ymax), color='C0', ax=ax[0],
-                                    label='Low Stiffness')
-    ax[0].plot(df_subj['true'], result.best_fit, label='Best Fit', linewidth=2, c='k')
-    ax[0].set_title('Predicted vs True Average Stiffness', size=22)
-    # plt.ylim(-1, df_subj['predict'].max())
-    # plt.xlim(-1, df_subj['predict'].max())
-    ax[0].set_xlabel('True Stiffness (kPa)', size=20)
-    ax[0].set_ylabel('Predicted Stiffness (kPa)', size=20)
-    lgnd = ax[0].legend(fontsize=15, frameon=False)
-    for handle in lgnd.legendHandles:
-        try:
-            handle.set_sizes([60])
-        except AttributeError:
-            pass
-    ax[0].tick_params(labelsize=16)
-    # return result
+    if plot:
+        fig, ax = plt.subplots(1, 2, figsize=(20, 10))
+        ymax = df_subj['predict'].max()+1
+        xmax = df_subj['true'].max()+1
+        rect1 = plt.Rectangle((0, 0), 3.77, 3.77, color='grey', alpha=0.3,
+                              label='Correct Classification\n3.77 kPa Threshold')
+        rect2 = plt.Rectangle((3.77, 3.77), xmax-3.77, ymax-3.77, color='grey', alpha=0.3)
+        ax[0].add_patch(rect1)
+        ax[0].add_patch(rect2)
+        df_subj.query('true>3.77').plot(x='true', y='predict', kind='scatter',
+                                        xlim=(0, xmax), ylim=(0, ymax), color='C1', ax=ax[0],
+                                        label='High Stiffness')
+        df_subj.query('true<3.77').plot(x='true', y='predict', kind='scatter',
+                                        xlim=(0, xmax), ylim=(0, ymax), color='C0', ax=ax[0],
+                                        label='Low Stiffness')
+        ax[0].plot(df_subj['true'], result.best_fit, label='Best Fit', linewidth=2, c='k')
+        ax[0].set_title('Predicted vs True Average Stiffness', size=22)
+        # plt.ylim(-1, df_subj['predict'].max())
+        # plt.xlim(-1, df_subj['predict'].max())
+        ax[0].set_xlabel('True Stiffness (kPa)', size=20)
+        ax[0].set_ylabel('Predicted Stiffness (kPa)', size=20)
+        lgnd = ax[0].legend(fontsize=15, frameon=False)
+        for handle in lgnd.legendHandles:
+            try:
+                handle.set_sizes([60])
+            except AttributeError:
+                pass
+        ax[0].tick_params(labelsize=16)
+        plt.savefig(f'../plots/subj_results_{save_name}.pdf', bbox_inches='tight')
 
-    print(result.fit_report())
-    print('R2:', 1 - result.residual.var() / np.var(df_subj['predict']))
-    plt.savefig(f'../plots/subj_results_{save_name}.pdf', bbox_inches='tight')
+        print(result.fit_report())
+    r2_subj = 1 - result.residual.var() / np.var(df_subj['predict'])
+    print('R2 (subj):', r2_subj)
 
     # Pixel Plot
     model = LinearModel()
     params = model.make_params(slope=1, intercept=0)
     result = model.fit(pred_pixel, params, x=true_pixel)
-    # hb = ax[1].hexbin(true_pixel, pred_pixel, bins=[0,10,100,1000,10000], cmap='Blues',
-    #                   extent=(0, 15, 0, 15), gridsize=20)
-    # hb = ax[1].hist2d(true_pixel, pred_pixel, bins=[0, 2.88, 3.54, 3.77, 4.09, 10], cmap='Blues')
-    ax[1].hist(true_pixel-pred_pixel, bins=50)
-    # ax[1].plot(true_pixel, result.best_fit, label='Best Fit', linewidth=2, c='k')
-    # cb = fig.colorbar(hb, ax=ax[1])
-    # cb.set_label('log(# of Pixels)', fontsize=20)
-    # cb.ax.tick_params(labelsize=16)
+    if plot:
+        # hb = ax[1].hexbin(true_pixel, pred_pixel, bins=[0,10,100,1000,10000], cmap='Blues',
+        #                   extent=(0, 15, 0, 15), gridsize=20)
+        # hb = ax[1].hist2d(true_pixel, pred_pixel,
+        #                   bins=[0, 2.88, 3.54, 3.77, 4.09, 10], cmap='Blues')
+        ax[1].hist(true_pixel-pred_pixel, bins=50)
+        # ax[1].plot(true_pixel, result.best_fit, label='Best Fit', linewidth=2, c='k')
+        # cb = fig.colorbar(hb, ax=ax[1])
+        # cb.set_label('log(# of Pixels)', fontsize=20)
+        # cb.ax.tick_params(labelsize=16)
 
-    ax[1].set_title('Pixel-wise Difference', size=22)
-    # ax[1].set_ylim(0, 15)
-    # ax[1].set_xlim(-7, 7)
-    ax[1].set_xlabel('True - Predicted Stiffness (kPa)', size=20)
-    ax[1].set_ylabel('Pixel Count', size=20)
-    ax[1].tick_params(labelsize=16)
-    ax[1].ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
-    ax[1].yaxis.offsetText.set_fontsize(14)
-    # return result
+        ax[1].set_title('Pixel-wise Difference', size=22)
+        # ax[1].set_ylim(0, 15)
+        # ax[1].set_xlim(-7, 7)
+        ax[1].set_xlabel('True - Predicted Stiffness (kPa)', size=20)
+        ax[1].set_ylabel('Pixel Count', size=20)
+        ax[1].tick_params(labelsize=16)
+        ax[1].ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
+        ax[1].yaxis.offsetText.set_fontsize(14)
+        plt.savefig(f'../plots/pixel_results_{save_name}.pdf', bbox_inches='tight')
 
-    print(result.fit_report())
-    print('R2:', 1 - result.residual.var() / np.var(pred_pixel))
-    plt.savefig(f'../plots/pixel_results_{save_name}.pdf', bbox_inches='tight')
+        print(result.fit_report())
+    r2_pixel = 1 - result.residual.var() / np.var(pred_pixel)
+    print('R2:', r2_pixel)
 
-    # Sensitivity S: TP/(TP+FN)
-    tp = df_subj.query('true>3.77 and predict>3.77').count()[0]
-    fn = df_subj.query('true>3.77 and predict<3.77').count()[0]
-    print('tp', tp)
-    print('fn', fn)
-    print('sensitivity', tp/(tp+fn))
+    if plot:
+        # Sensitivity S: TP/(TP+FN)
+        tp = df_subj.query('true>3.77 and predict>3.77').count()[0]
+        fn = df_subj.query('true>3.77 and predict<3.77').count()[0]
+        print('tp', tp)
+        print('fn', fn)
+        print('sensitivity', tp/(tp+fn))
 
-    # Specificity: TN/(TN+FP)
-    tn = df_subj.query('true<3.77 and predict<3.77').count()[0]
-    fp = df_subj.query('true<3.77 and predict>3.77').count()[0]
-    print('tn', tn)
-    print('fp', fp)
-    print('specificity', tn/(tn+fp))
+        # Specificity: TN/(TN+FP)
+        tn = df_subj.query('true<3.77 and predict<3.77').count()[0]
+        fp = df_subj.query('true<3.77 and predict>3.77').count()[0]
+        print('tn', tn)
+        print('fp', fp)
+        print('specificity', tn/(tn+fp))
 
-    print('accuracy', (tn+tp)/(tn+fp+tp+fn))
-    print(df_subj.true.mean())
-    print(df_subj.true.std())
+        print('accuracy', (tn+tp)/(tn+fp+tp+fn))
+        print(df_subj.true.mean())
+        print(df_subj.true.std())
+    return r2_subj, r2_pixel

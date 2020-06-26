@@ -1174,7 +1174,7 @@ class ModelComparePandas:
                 for i in range(mask.shape[2]):
                     if mask[:, :, i].mean() > 0:
                         mask[:, :, i] = ndi.binary_erosion(
-                            mask[:, :, i], iterations=5).astype(mask.dtype)
+                            mask[:, :, i], iterations=2).astype(mask.dtype)
             mask = np.where(mask > 0, mask, np.nan)
             # print(mask.nanmean())
             for pred in pred_names:
