@@ -135,6 +135,7 @@ class SlurmMaster:
         sections = config.sections()
         self.config_dict = {}
         self.subj_list = []
+        self.only_group = []
         self.project = None
 
         if 'Project' in sections:
@@ -162,6 +163,8 @@ class SlurmMaster:
                     self.subj_list.append(val)
             elif c == 'subj_group':
                 self.subj_list = val
+            elif c == 'only_group':
+                self.only_group = val
             else:
                 if type(val) == list:
                     self.config_dict[c] = val
@@ -169,6 +172,8 @@ class SlurmMaster:
                     self.config_dict[c] = [val]
         if len(self.subj_list) == 0:
             self.subj_list.append('162')
+        if len(self.only_group) == 0:
+            self.only_group = list(range(len(self.subj_list)))
 
         # Make every possible combo of config items
         if self.project != 'XR':
@@ -177,13 +182,17 @@ class SlurmMaster:
     def submit_scripts(self):
         if self.project != 'XR':
             for i, conf in enumerate(self.config_combos):
-                for j, subj in enumerate(self.subj_list):
+                # for j, subj in enumerate(self.subj_list):
+                for j in self.only_group:
+                    subj = self.subj_list[j]
                     script_name = self.generate_slurm_script(i, conf, subj, j, self.date,
                                                              self.project)
                     print(script_name)
                     subprocess.call(f'sbatch {script_name}', shell=True)
         else:
-            for j, subj in enumerate(self.subj_list):
+            # for j, subj in enumerate(self.subj_list):
+            for j in self.only_group:
+                subj = self.subj_list[j]
                 script_name = self.generate_slurm_script(0, self.config_dict, subj, j, self.date,
                                                          self.project)
                 print(script_name)

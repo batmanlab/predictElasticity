@@ -73,6 +73,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
     use_sls = False
     if cfg['lr_scheduler'] == 'sls':
         use_sls = True
+    in_channels = len(cfg['inputs'])
 
     # Start filling dataloaders
     dataloaders = {}
@@ -282,18 +283,18 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         model = pytorch_arch_2d.PretrainedModel('name').to(device)
     elif cfg['model_arch'] == 'modular':
         if cfg['dims'] == 2:
-            model = pytorch_arch_2d.GeneralUNet2D(cfg['n_layers'], cfg['in_channels'],
+            model = pytorch_arch_2d.GeneralUNet2D(cfg['n_layers'], in_channels,
                                                   cfg['model_cap'], cfg['out_channels_final'],
                                                   cfg['channel_growth'], cfg['coord_conv'],
                                                   cfg['transfer_layer']).to(device)
         elif cfg['dims'] == 3:
-            model = pytorch_arch_3d.GeneralUNet3D(cfg['n_layers'], cfg['in_channels'],
+            model = pytorch_arch_3d.GeneralUNet3D(cfg['n_layers'], in_channels,
                                                   cfg['model_cap'], cfg['out_channels_final'],
                                                   cfg['channel_growth'], cfg['coord_conv'],
                                                   cfg['transfer_layer'], cfg['depth']).to(device)
     elif cfg['model_arch'] == 'deeplab':
         # model = DeepLabV3_3D(num_classes=cfg['out_channels_final'],
-        #                      input_channels=cfg['in_channels'], resnet='resnet34_os8',
+        #                      input_channels=in_channels, resnet='resnet34_os8',
         #                      last_activation=None)
         if cfg['loss'] == 'ordinal':
             do_ord = True
@@ -301,7 +302,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
             do_ord = False
 
         print(cfg['norm'])
-        model = DeepLab(in_channels=cfg['in_channels'], out_channels=cfg['out_channels_final'],
+        model = DeepLab(in_channels=in_channels, out_channels=cfg['out_channels_final'],
                         output_stride=8, do_ord=do_ord, norm=cfg['norm'],
                         do_clinical=cfg['do_clinical'])
         if cfg['transfer']:
@@ -336,7 +337,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
             #             (param.data.shape == pretrained_dict[name].shape)):
             #         param.requires_grad = False
     elif cfg['model_arch'] == 'debug':
-        model = Debug(in_channels=cfg['in_channels'], out_channels=cfg['out_channels_final'])
+        model = Debug(in_channels=in_channels, out_channels=cfg['out_channels_final'])
 
     # Set up adaptive loss if selected
     loss_func = None
@@ -391,10 +392,10 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
 
         print('Model Summary:')
         if cfg['do_clinical']:
-            summary(model, input_size=[(cfg['in_channels'], 32, 256, 256), clinical.shape[1:]])
+            summary(model, input_size=[(in_channels, 32, 256, 256), clinical.shape[1:]])
             return inputs, targets, masks, names, clinical, None
         else:
-            summary(model, input_size=(cfg['in_channels'], 32, 256, 256))
+            summary(model, input_size=(in_channels, 32, 256, 256))
             return inputs, targets, masks, names, None
 
     else:
@@ -528,7 +529,7 @@ def default_cfg():
            'batch_size': 64, 'model_cap': 16, 'subj': None,
            'gamma': 0.1, 'num_epochs': 40, 'dry_run': False, 'coord_conv': False, 'loss': 'l2',
            'mask_trimmer': False, 'mask_mixer': 'mixed', 'target_max': None, 'target_bins': 100,
-           'model_arch': 'modular', 'n_layers': 7, 'in_channels': 5, 'out_channels_final': 1,
+           'model_arch': 'modular', 'n_layers': 7, 'out_channels_final': 1,
            'channel_growth': False, 'transfer_layer': False, 'seed': 100,
            'worker_init_fn': 'rand_epoch',
            'resize': False, 'patient_list': False, 'num_workers': 0, 'lr_scheduler': 'step',
