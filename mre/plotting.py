@@ -986,6 +986,10 @@ def model_feature_extractor(ds, model_path=None, subj='0219'):
 
 
 def radiology_cor_plots(ds, do_cor=True, pred='pred', save_name='test', plot=True):
+    import seaborn as sns
+    sns.set()
+    sns.set_palette(sns.color_palette('colorblind'))
+
     true_pixel = []
     pred_pixel = []
     true_subj = []
@@ -1051,6 +1055,10 @@ def radiology_cor_plots(ds, do_cor=True, pred='pred', save_name='test', plot=Tru
             except AttributeError:
                 pass
         ax[0].tick_params(labelsize=16)
+        ax[0].annotate('True Positive', (8, 8), size=15, weight='bold')
+        ax[0].annotate('True Negative', (1, 1), size=15, weight='bold')
+        ax[0].annotate('False Negative', (8, 3), size=15, weight='bold')
+        ax[0].annotate('False Postive', (1, 7), size=15, weight='bold')
         plt.savefig(f'../plots/subj_results_{save_name}.pdf', bbox_inches='tight')
 
         print(result.fit_report())
