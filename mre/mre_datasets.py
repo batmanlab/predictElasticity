@@ -1167,7 +1167,7 @@ class ModelComparePandas:
         pred_dict = {}
 
         for subj in ds.subject:
-            mask = ds.sel(subject=subj, mask_type='combo')['mask_mre'].values
+            mask = ds.sel(subject=subj, mask_type='combo')['mask_mri'].values.copy()
             # print(mask.shape)
             # print(mask.mean())
             if do_aug:
@@ -1176,7 +1176,7 @@ class ModelComparePandas:
                         mask[:, :, i] = ndi.binary_erosion(
                             mask[:, :, i], iterations=2).astype(mask.dtype)
             mask = np.where(mask > 0, mask, np.nan)
-            # print(mask.nanmean())
+            # print(mask.shape)
             for pred in pred_names:
                 if pred not in pred_dict:
                     pred_dict[pred] = []
@@ -1194,6 +1194,56 @@ class ModelComparePandas:
                 pred_dict[pred].append(mean_pred)
 
         self.df = pd.DataFrame(pred_dict, index=ds.subject.values)
+
+
+class ModelCompareDice:
+    '''
+    Simple Class for converting the model compare xarray to a slim version for Dice score calc.
+    Assumes input is the ModelCompare Xarray
+    '''
+
+    def __init__(self, base_ds, do_cor=True, do_aug=True, pred='best_4'):
+        self.ds = xr.Dataset(
+            {'image_mre': (['subject', 'mre_type', 'x', 'y', 'z'],
+                           np.empty((len(base_ds.subject), 2,
+                                     len(base_ds.x), len(base_ds.y), 4),
+                                    dtype=np.float)),
+             },
+
+            coords={'subject': base_ds.subject,
+                    'mre_type': ['true', 'pred'],
+                    'x': base_ds.x,
+                    'y': base_ds.y,
+                    'z': [0, 1, 2, 3]
+                    }
+        )
+
+        self.ds['image_mre'][:] = np.nan
+        for subj in base_ds.subject:
+            mask = base_ds.sel(subject=subj, mask_type='combo')['mask_mri'].values.copy()
+            # print(mask.mean())
+            if do_aug:
+                for i in range(mask.shape[2]):
+                    if mask[:, :, i].mean() > 0:
+                        mask[:, :, i] = ndi.binary_erosion(
+                            mask[:, :, i], iterations=2).astype(mask.dtype)
+            mask = np.where(mask > 0, mask, np.nan)
+            for i, z in enumerate(base_ds.sel(subject=subj)['mri_to_mre_idx'].values):
+                mask_slice = mask[:, :, z]
+                true_mre_slice = base_ds['image_mre'].sel(
+                    subject=subj, mre_type='mre', z=z) * mask_slice
+                pred_mre_slice = base_ds['image_mre'].sel(
+                    subject=subj, mre_type=pred, z=z) * mask_slice
+                if do_cor:
+                    slope = base_ds.sel(subject=subj, mre_type=pred)['val_slope'].values
+                    intercept = base_ds.sel(subject=subj, mre_type=pred)['val_intercept'].values
+                    pred_mre_slice = (pred_mre_slice-intercept)/slope
+                    pred_mre_slice = np.where(pred_mre_slice <= 0, 0, pred_mre_slice)
+
+                self.ds['image_mre'].loc[{'subject': subj,
+                                          'mre_type': 'true', 'z': i}] = true_mre_slice
+                self.ds['image_mre'].loc[{'subject': subj,
+                                          'mre_type': 'pred', 'z': i}] = pred_mre_slice
 
 
 def clinical_df_maker():

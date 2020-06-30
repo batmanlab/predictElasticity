@@ -999,7 +999,7 @@ def radiology_cor_plots(ds, do_cor=True, pred='pred', save_name='test', plot=Tru
     #     intercept = np.mean(ds['val_intercept'].values)
     #     print(slope, intercept)
     for subj in ds.subject:
-        mask = ds.sel(subject=subj, mask_type='combo')['mask_mre'].values
+        mask = ds.sel(subject=subj, mask_type='combo')['mask_mri'].values
         mask = np.where(mask > 0, mask, np.nan)
         true_mre_region = (ds.sel(subject=subj, mre_type='mre')['image_mre'].values * mask)
         true_mre_region = true_mre_region.flatten()
