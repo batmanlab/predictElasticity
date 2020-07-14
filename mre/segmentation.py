@@ -16,6 +16,8 @@ from datetime import datetime
 from tqdm import tqdm_notebook
 from tensorboardX import SummaryWriter
 import PIL
+from skimage import feature, morphology, exposure
+import bezier
 
 
 # need data to be ordered thusly:
@@ -25,7 +27,7 @@ import PIL
 class ChaosDataset(Dataset):
     def __init__(self, xr_ds, set_type='train', transform=None, clip=False, seed=100,
                  test_subj='001', aug=True, sequence_mode='all', resize=False,
-                 val_split=0.2, model_arch='3D', verbose=False):
+                 val_split=0.2, model_arch='3D', verbose=False, val_subj=None, color_aug=False):
 
         self.verbose = verbose
         self.model_arch = model_arch
@@ -34,6 +36,8 @@ class ChaosDataset(Dataset):
         if type(test_subj) is not list:
             test_subj = [test_subj]
         self.test_subj = test_subj
+        if val_subj is None:
+            val_subj = ['002', '003', '101', '102']
         xr_ds_test = xr_ds.sel(subject=self.test_subj)
         xr_ds = xr_ds.drop(self.test_subj, dim='subject')
 
@@ -41,12 +45,12 @@ class ChaosDataset(Dataset):
         np.random.seed(seed)
 
         if set_type == 'test':
-            input_set = ['001']
+            input_set = self.test_subj
         elif set_type == 'val':
-            input_set = [i for i in xr_ds.subject.values if i in ['002', '003', '101', '102']]
+            input_set = val_subj
         elif set_type == 'train':
-            input_set = [i for i in xr_ds.subject.values if i not in
-                         ['001', '002', '003', '101', '102']]
+            input_set = [i for i in xr_ds.subject.values if i not in val_subj]
+
         else:
             raise AttributeError('Must choose one of ["train", "val", "test"] for `set_type`.')
         self.my_subjects = input_set
@@ -94,26 +98,26 @@ class ChaosDataset(Dataset):
                 self.names = ['_'.join((subj, seq)) for subj in mr_xr_ds.subject.values for seq in
                               mr_xr_ds.sequence.values]
 
-                if set_type != 'test':
-                    ct_xr_ds = xr_ds.where(xr_ds.mr_ct_id == 2, drop=True)
-                    ct_xr_ds = ct_xr_ds.sel(sequence=['ct'])
-                    print(ct_xr_ds)
-                    n_subj = len(ct_xr_ds.subject)
-                    n_seq = 1
-                    z = len(ct_xr_ds.z)
-                    y = len(ct_xr_ds.y)
-                    x = len(ct_xr_ds.x)
+                # if set_type != 'test':
+                ct_xr_ds = xr_ds.where(xr_ds.mr_ct_id == 2, drop=True)
+                ct_xr_ds = ct_xr_ds.sel(sequence=['ct'])
+                print(ct_xr_ds)
+                n_subj = len(ct_xr_ds.subject)
+                n_seq = 1
+                z = len(ct_xr_ds.z)
+                y = len(ct_xr_ds.y)
+                x = len(ct_xr_ds.x)
 
-                    ct_input_images = ct_xr_ds['image'].transpose(
-                        'subject', 'sequence', 'z', 'y', 'x').values.reshape(
-                            n_subj*n_seq, 1, z, y, x)
-                    ct_target_images = ct_xr_ds['mask'].transpose(
-                        'subject', 'sequence', 'z', 'y', 'x').values.reshape(
-                            n_subj*n_seq, 1, z, y, x)
-                    self.input_images = np.concatenate((self.input_images, ct_input_images))
-                    self.target_images = np.concatenate((self.target_images, ct_target_images))
-                    self.names += ['_'.join((subj, seq)) for subj in ct_xr_ds.subject.values for seq
-                                   in ct_xr_ds.sequence.values]
+                ct_input_images = ct_xr_ds['image'].transpose(
+                    'subject', 'sequence', 'z', 'y', 'x').values.reshape(
+                        n_subj*n_seq, 1, z, y, x)
+                ct_target_images = ct_xr_ds['mask'].transpose(
+                    'subject', 'sequence', 'z', 'y', 'x').values.reshape(
+                        n_subj*n_seq, 1, z, y, x)
+                self.input_images = np.concatenate((self.input_images, ct_input_images))
+                self.target_images = np.concatenate((self.target_images, ct_target_images))
+                self.names += ['_'.join((subj, seq)) for subj in ct_xr_ds.subject.values for seq
+                               in ct_xr_ds.sequence.values]
 
             self.input_images = self.input_images.astype(np.float32)
             self.target_images = self.target_images.astype(np.int32)
@@ -123,6 +127,7 @@ class ChaosDataset(Dataset):
         self.aug = aug
         self.clip = clip
         self.resize = resize
+        self.color_aug = color_aug
 
     def __len__(self):
         return len(self.input_images)
@@ -212,17 +217,47 @@ class ChaosDataset(Dataset):
     def input_transform_3d(self, input_image, rot_angle=0, translations=0, scale=1, restack=0,
                            flip=0, resample=None):
         # normalize and offset image
-        image = input_image
-        # image = np.where(input_image <= 1e-9, np.nan, input_image)
-        mean = np.nanmean(image)
-        std = np.nanstd(image)
-        # image = ((image - mean)/std) + 4
-        image = ((image - mean)/std)
-        image = np.where(image != image, 0, image)
+        # image = input_image
+        # # image = np.where(input_image <= 1e-9, np.nan, input_image)
+        # mean = np.nanmean(image)
+        # std = np.nanstd(image)
+        # # image = ((image - mean)/std) + 4
+        # image = ((image - mean)/std)
+        # image = np.where(image != image, 0, image)
+
+        image = input_image*1.0
+
+        v_min, v_max = np.percentile(image, (0.5, 99.5))
+        # v_min = max(v_min, 1e-6)
+        for i in range(image.shape[0]):
+            # v_min, v_max = np.percentile(image[i], (0.5, 99.5))
+            image[i, :] = exposure.rescale_intensity(image[i], in_range=(v_min, v_max),
+                                                     out_range=(-1.0, 1.0))
+            # image[i, :] = exposure.rescale_intensity(image[i], out_range=(-1.0, 1.0))
+            # image[i, :] = exposure.equalize_adapthist(image[i], clip_limit=0.03)
+
+            # image = np.where(input_image <= 1e-9, np.nan, input_image)
+            # mean = np.nanmean(image, axis=(1, 2, 3))
+            # std = np.nanstd(image, axis=(1, 2, 3))
+            # image = ((image.T - mean)/std).T
+            # image = np.where(image != image, 0, image)
+        if self.color_aug:
+            nodes = np.asfortranarray([
+                [-1, np.random.uniform(-1, 1.0), np.random.uniform(-1, 1.0), 1.0],
+                [-1, np.random.uniform(-1, 1.0), np.random.uniform(-1, 1.0), 1.0]])
+            curve = bezier.Curve(nodes, degree=3)
+            points = curve.evaluate_multi(np.linspace(-1, 1.0, 1000))
+            xvals = np.sort(points[0])
+            yvals = np.sort(points[1])
+            if np.random.rand() > 0.5:
+                yvals = yvals[::-1]
+            image = np.interp(np.ravel(image), xvals, yvals).reshape(image.shape)
+        image = image.astype(np.float32)
 
         # perform affine transfomrations
         image = self.affine_transform_3d(image, rot_angle, translations, scale, restack, flip,
                                          resample=resample)
+
         return image
 
     def input_transform_2d(self, input_image, rot_angle=0, translations=0, scale=1,

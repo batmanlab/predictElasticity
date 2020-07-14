@@ -69,18 +69,21 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
                              clip=cfg['train_clip'], aug=cfg['train_aug'],
                              sequence_mode=cfg['train_seq_mode'],
                              resize=cfg['resize'], model_arch=cfg['model_arch'],
+                             color_aug=cfg['train_color_aug'],
                              test_subj=subj, seed=cfg['seed'], verbose=cfg['dry_run'])
     print('val')
     val_set = ChaosDataset(ds, set_type='val', transform=cfg['val_trans'],
                            clip=cfg['val_clip'], aug=cfg['val_aug'],
                            sequence_mode=cfg['val_seq_mode'],
                            resize=cfg['resize'], model_arch=cfg['model_arch'],
+                           color_aug=cfg['val_color_aug'],
                            test_subj=subj, seed=cfg['seed'], verbose=cfg['dry_run'])
     print('test')
     test_set = ChaosDataset(ds, set_type='test', transform=cfg['test_trans'],
                             clip=cfg['test_clip'], aug=cfg['test_aug'],
                             sequence_mode=cfg['test_seq_mode'],
                             resize=cfg['resize'], model_arch=cfg['model_arch'],
+                            color_aug=cfg['test_color_aug'],
                             test_subj=subj, seed=cfg['seed'], verbose=cfg['dry_run'])
     if verbose:
         print('train: ', len(train_set))
@@ -133,7 +136,7 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
         #                                        cfg['out_channels_final'], cfg['channel_growth'],
         #                                        cfg['coord_conv'], cfg['transfer_layer'])
         model = DeepLab(in_channels=cfg['in_channels'], out_channels=cfg['out_channels_final'],
-                        output_stride=8, do_ord=False)
+                        output_stride=8, do_ord=False, norm='bn', do_clinical=False)
     elif cfg['model_arch'] == '2D':
         model = pytorch_arch_old.GeneralUNet2D(cfg['n_layers'], cfg['in_channels'],
                                                cfg['model_cap'],
@@ -151,8 +154,9 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
     exp_lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=cfg['step_size'],
                                                  gamma=cfg['gamma'])
 
-    if torch.cuda.device_count() > 1:
+    if torch.cuda.device_count() > 1 and not cfg['dry_run']:
         print("Let's use", torch.cuda.device_count(), "GPUs!")
+        # print("Let's use", 2, "GPUs!")
         model = nn.DataParallel(model)
 
     model.to(device)
@@ -169,7 +173,7 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
         dry_size = list(inputs.shape[1:])
         # dry_size[0] = 1
         print(dry_size)
-        summary(model, input_size=tuple(dry_size))
+        summary(model, input_size=(1, 32, 256, 256))
         # return inputs, targets, names, None
         return [dataloaders]
 
@@ -268,7 +272,8 @@ def default_cfg():
            'gamma': 0.1, 'num_epochs': 40, 'dry_run': False, 'coord_conv': False, 'loss': 'dice',
            'model_arch': 'modular', 'n_layers': 3, 'in_channels': 1, 'out_channels_final': 1,
            'channel_growth': False, 'transfer_layer': False, 'bce_weight': 0.5,
-           'resize': False}
+           'resize': False,
+           'train_color_aug': False, 'val_color_aug': False, 'test_color_aug': False}
     return cfg
 
 

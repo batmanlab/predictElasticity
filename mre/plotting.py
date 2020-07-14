@@ -151,7 +151,7 @@ def hv_dl_vis_chaos(inputs, targets, names, seq_names=None, predictions=None):
 
     hv_inputs = hv_ds_inputs.to(
         hv.Image, ['x', 'y'], groupby=group_dims, dynamic=True).redim.range(
-            inputs=(0, 9)).opts(cmap='viridis', title=f'Input')
+            inputs=(-1, 1)).opts(cmap='viridis', title=f'Input')
 
     if predictions is not None:
         predictions = predictions.data.cpu().numpy()
@@ -620,6 +620,63 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
     # return hv_ds_mre_image
 
 
+def xr_viewer_chaos(xr_ds, grid_coords=None, group_coords=None,
+                    overlay_data='default', selection=None, size=400, prediction=False,
+                    torch=False):
+    '''generic xr ds viewer for pollack-format image holders, this time with support for the
+    3d chaos-style xarrays.  Some argument customization will be sacrificed for consistency and ease
+    of use. Maybe.
+
+    Valid vdims: image, mask,
+    Valis kdims: subject, sequence, x, y, z
+    '''
+    opts.defaults(
+        opts.GridSpace(shared_xaxis=True, shared_yaxis=True,
+                       fontsize={'title': 16, 'labels': 16, 'xticks': 12, 'yticks': 12},
+                       plot_size=size),
+        opts.Layout(fontsize={'title': 16, 'labels': 16, 'xticks': 12, 'yticks': 12}),
+        opts.Image(cmap='gray', width=size, height=size, xaxis=None,
+                   yaxis=None),
+        opts.Labels(text_color='white', text_font_size='20pt', text_align='left',
+                    text_baseline='bottom'),
+        opts.Path(color='white'),
+        opts.Spread(width=600),
+        opts.NdOverlay(show_legend=True, border_muted_alpha=0.1)
+    )
+
+    # Make holoviews dataset from xarray
+    # xr_ds = xr_ds.sel(subject=['0006', '0384'])
+    hv_ds = hv.Dataset(xr_ds[['image', 'mask']])
+
+    hv_ds_image = hv_ds.to(hv.Image, kdims=['x', 'y'], vdims='image', dynamic=True)
+    hv_ds_mask = hv_ds.to(hv.Image, kdims=['x', 'y'], vdims='mask',
+                          dynamic=True).opts(tools=[])
+
+    slider = pn.widgets.FloatSlider(start=0, end=1, value=0.7, name='mask transparency')
+
+    cslider = pn.widgets.RangeSlider(start=0, end=2000, value=(0, 1000), name='contrast')
+
+    redim_image = {'image': (0, 1200)}
+    hv_ds_image = hv_ds_image.redim.range(**redim_image).opts(tools=['hover'])
+    hv_ds_image = hv_ds_image.apply.opts(clim=cslider.param.value)
+    redim_mask = {'mask': (0.1, 2)}
+    hv_ds_mask = hv_ds_mask.opts(cmap='Category10', clipping_colors={'min': 'transparent'},
+                                 color_levels=10)
+    hv_ds_mask = hv_ds_mask.redim.range(**redim_mask)
+    hv_ds_mask = hv_ds_mask.apply.opts(alpha=slider.param.value)
+
+    layout = (hv_ds_image * hv_ds_mask).grid('sequence')
+    pn_layout = pn.pane.HoloViews(layout)
+    wb = pn_layout.widget_box
+    wb.append(slider)
+    wb.append(cslider)
+
+    # return pn.Column(slider, cslider2, layout, cslider)
+    return pn.Column(wb, pn_layout)
+    # return hv_ds_mri_image
+    # return hv_ds_mre_image
+
+
 def miccai_plots(ds, do_cor=True, save_name='test', erode=0):
     true_pixel = []
     pred_pixel = []
@@ -844,15 +901,15 @@ def roc_curves(df, true='mre', pred='baseline', threshold=4, label=None, title=N
             plt.title(title, size=22)
             plt.legend(loc="lower right", fontsize=15)
         else:
-            # ax.plot(fpr, tpr, lw=lw, label=f'{label} (AUROC = {roc_auc:0.2f})')
-            ax.plot(fpr, tpr, lw=lw, label=f'{label}')
+            ax.plot(fpr, tpr, lw=lw, label=f'{label} (AUROC = {roc_auc:0.2f})')
+            # ax.plot(fpr, tpr, lw=lw, label=f'{label}')
             ax.plot([0, 1], [0, 1], color='k', lw=lw, linestyle='--')
             ax.set_xlim([0.0, 1.0])
             ax.set_ylim([0.0, 1.05])
             ax.set_xlabel('False Positive Rate', size=20)
             ax.set_ylabel('True Positive Rate', size=20)
             ax.set_title(title, size=22)
-            # ax.legend(loc="lower right", fontsize=15)
+            ax.legend(loc="lower right", fontsize=15)
 
     tp = df.query(f'{true}>{threshold} and {pred}>{threshold}').count()[0]
     fn = df.query(f'{true}>{threshold} and {pred}<{threshold}').count()[0]
@@ -985,7 +1042,8 @@ def model_feature_extractor(ds, model_path=None, subj='0219'):
     return hv_image
 
 
-def radiology_cor_plots(ds, do_cor=True, pred='pred', save_name='test', plot=True):
+def radiology_cor_plots(ds, df=None, do_aug=True, do_cor=True,
+                        pred='pred', save_name='test', plot=True):
     import seaborn as sns
     sns.set()
     sns.set_palette(sns.color_palette('colorblind'))
@@ -999,7 +1057,14 @@ def radiology_cor_plots(ds, do_cor=True, pred='pred', save_name='test', plot=Tru
     #     intercept = np.mean(ds['val_intercept'].values)
     #     print(slope, intercept)
     for subj in ds.subject:
-        mask = ds.sel(subject=subj, mask_type='combo')['mask_mri'].values
+        mask = ds.sel(subject=subj, mask_type='combo')['mask_mri'].values.copy()
+        # print(mask.shape)
+        # print(mask.mean())
+        if do_aug:
+            for i in range(mask.shape[2]):
+                if mask[:, :, i].mean() > 0:
+                    mask[:, :, i] = ndi.binary_erosion(
+                        mask[:, :, i], iterations=2).astype(mask.dtype)
         mask = np.where(mask > 0, mask, np.nan)
         true_mre_region = (ds.sel(subject=subj, mre_type='mre')['image_mre'].values * mask)
         true_mre_region = true_mre_region.flatten()
@@ -1044,8 +1109,8 @@ def radiology_cor_plots(ds, do_cor=True, pred='pred', save_name='test', plot=Tru
                                         label='Low Stiffness')
         ax[0].plot(df_subj['true'], result.best_fit, label='Best Fit', linewidth=2, c='k')
         ax[0].set_title('Predicted vs True Average Stiffness', size=22)
-        # plt.ylim(-1, df_subj['predict'].max())
-        # plt.xlim(-1, df_subj['predict'].max())
+        # plt.ylim(-1, df_subj['predict'].max[0]())
+        # plt.xlim(-1, df_subj['predict'].max[0]())
         ax[0].set_xlabel('True Stiffness (kPa)', size=20)
         ax[0].set_ylabel('Predicted Stiffness (kPa)', size=20)
         lgnd = ax[0].legend(fontsize=15, frameon=False)
@@ -1056,10 +1121,10 @@ def radiology_cor_plots(ds, do_cor=True, pred='pred', save_name='test', plot=Tru
                 pass
         ax[0].tick_params(labelsize=16)
         ax[0].annotate('True Positive', (8, 8), size=15, weight='bold')
-        ax[0].annotate('True Negative', (1, 1), size=15, weight='bold')
+        ax[0].annotate('True\nNegative', (0.3, 2), size=15, weight='bold')
         ax[0].annotate('False Negative', (8, 3), size=15, weight='bold')
         ax[0].annotate('False Postive', (1, 7), size=15, weight='bold')
-        plt.savefig(f'../plots/subj_results_{save_name}.pdf', bbox_inches='tight')
+        # plt.savefig(f'../plots/subj_results_{save_name}.pdf', bbox_inches='tight')
 
         print(result.fit_report())
     r2_subj = 1 - result.residual.var() / np.var(df_subj['predict'])
@@ -1070,25 +1135,32 @@ def radiology_cor_plots(ds, do_cor=True, pred='pred', save_name='test', plot=Tru
     params = model.make_params(slope=1, intercept=0)
     result = model.fit(pred_pixel, params, x=true_pixel)
     if plot:
+        thresholds = ['2.88', '3.54', '3.77', '4.09']
+
+        for i, thresh in enumerate(thresholds):
+            _ = roc_curves(df, pred='pred', label=thresh, threshold=float(thresh), ax=ax[1])
+            ax[1].set_title('ROC Curves', size=22)
+            leg = ax[1].get_legend()
+            leg.set_title('Stiffness Threshold (kPa)', prop={'size': 15})
         # hb = ax[1].hexbin(true_pixel, pred_pixel, bins=[0,10,100,1000,10000], cmap='Blues',
         #                   extent=(0, 15, 0, 15), gridsize=20)
         # hb = ax[1].hist2d(true_pixel, pred_pixel,
         #                   bins=[0, 2.88, 3.54, 3.77, 4.09, 10], cmap='Blues')
-        ax[1].hist(true_pixel-pred_pixel, bins=50)
+        # ax[1].hist(true_pixel-pred_pixel, bins=50)
         # ax[1].plot(true_pixel, result.best_fit, label='Best Fit', linewidth=2, c='k')
         # cb = fig.colorbar(hb, ax=ax[1])
         # cb.set_label('log(# of Pixels)', fontsize=20)
         # cb.ax.tick_params(labelsize=16)
 
-        ax[1].set_title('Pixel-wise Difference', size=22)
+        # ax[1].set_title('Pixel-wise Difference', size=22)
         # ax[1].set_ylim(0, 15)
         # ax[1].set_xlim(-7, 7)
-        ax[1].set_xlabel('True - Predicted Stiffness (kPa)', size=20)
-        ax[1].set_ylabel('Pixel Count', size=20)
-        ax[1].tick_params(labelsize=16)
-        ax[1].ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
-        ax[1].yaxis.offsetText.set_fontsize(14)
-        plt.savefig(f'../plots/pixel_results_{save_name}.pdf', bbox_inches='tight')
+        # ax[1].set_xlabel('True - Predicted Stiffness (kPa)', size=20)
+        # ax[1].set_ylabel('Pixel Count', size=20)
+        # ax[1].tick_params(labelsize=16)
+        # ax[1].ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
+        # ax[1].yaxis.offsetText.set_fontsize(14)
+        # plt.savefig(f'../plots/pixel_results_{save_name}.pdf', bbox_inches='tight')
 
         print(result.fit_report())
     r2_pixel = 1 - result.residual.var() / np.var(pred_pixel)
