@@ -268,7 +268,8 @@ def default_cfg():
            'train_seq_mode': None, 'val_seq_mode': None, 'test_seq_mode': 'all', 'def_seq_mode':
            'random', 'seed': 100,
            'worker_init_fn': 'default',
-           'subj': '01', 'batch_size': 50, 'model_cap': 16, 'lr': 1e-2, 'step_size': 20,
+           'subj': '01', 'val': ['002', '003', '101', '102'],
+           'batch_size': 50, 'model_cap': 16, 'lr': 1e-2, 'step_size': 20,
            'gamma': 0.1, 'num_epochs': 40, 'dry_run': False, 'coord_conv': False, 'loss': 'dice',
            'model_arch': 'modular', 'n_layers': 3, 'in_channels': 1, 'out_channels_final': 1,
            'channel_growth': False, 'transfer_layer': False, 'bce_weight': 0.5,

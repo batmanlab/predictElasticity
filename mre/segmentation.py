@@ -19,7 +19,6 @@ import PIL
 from skimage import feature, morphology, exposure
 import bezier
 
-
 # need data to be ordered thusly:
 # image_sequence,width,hight,depth
 
