@@ -35,6 +35,7 @@ class ChaosDataset(Dataset):
         if type(test_subj) is not list:
             test_subj = [test_subj]
         self.test_subj = test_subj
+        print(self.test_subj)
         if val_subj is None:
             val_subj = ['002', '003', '101', '102']
         xr_ds_test = xr_ds.sel(subject=self.test_subj)

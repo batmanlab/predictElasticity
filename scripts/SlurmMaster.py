@@ -87,7 +87,10 @@ class SlurmMaster:
         script = open(script_name, 'w')
         script.write('#!/bin/bash\n')
         if self.gpu:
-            arg_string += f' --subj {subj} --subj_group={subj_name}'
+            if project == 'MRE':
+                arg_string += f' --subj {subj} --subj_group={subj_name}'
+            else:
+                arg_string += f' --subj {subj}'
             arg_string += f' --model_version={date}_n{number}'
             # script.write('#SBATCH -D /pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging')
             script.write('#SBATCH -A ac5616p\n')

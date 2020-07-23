@@ -100,7 +100,7 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
     if cfg['train_sample'] == 'shuffle':
         dataloaders['train'] = DataLoader(train_set, batch_size=batch_size, shuffle=True,
                                           num_workers=2,
-                                          worker_init_fn=worker_init_fn)
+                                          worker_init_fn=worker_init_fn, drop_last=True)
     elif cfg['train_sample'] == 'resample':
         dataloaders['train'] = DataLoader(train_set, batch_size=batch_size, shuffle=False,
                                           sampler=RandomSampler(
@@ -111,7 +111,7 @@ def train_seg_model(data_path: str, data_file: str, output_path: str, model_vers
     if cfg['val_sample'] == 'shuffle':
         dataloaders['val'] = DataLoader(val_set, batch_size=batch_size, shuffle=True,
                                         num_workers=2,
-                                        worker_init_fn=worker_init_fn)
+                                        worker_init_fn=worker_init_fn, drop_last=True)
     elif cfg['val_sample'] == 'resample':
         dataloaders['val'] = DataLoader(val_set, batch_size=batch_size, shuffle=False,
                                         sampler=RandomSampler(
@@ -273,7 +273,7 @@ def default_cfg():
            'gamma': 0.1, 'num_epochs': 40, 'dry_run': False, 'coord_conv': False, 'loss': 'dice',
            'model_arch': 'modular', 'n_layers': 3, 'in_channels': 1, 'out_channels_final': 1,
            'channel_growth': False, 'transfer_layer': False, 'bce_weight': 0.5,
-           'resize': False,
+           'resize': False, 'transform': False,
            'train_color_aug': False, 'val_color_aug': False, 'test_color_aug': False}
     return cfg
 
