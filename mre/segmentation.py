@@ -150,6 +150,7 @@ class ChaosDataset(Dataset):
         '''get data (image and target), and apply augmentations if indicated'''
         image = self.input_images[idx]
         target = self.target_images[idx]
+        target = np.where(target > 0, 1, 0).astype(np.int32)
 
         if self.clip:
             # t1 image clip
@@ -159,7 +160,6 @@ class ChaosDataset(Dataset):
             # t2 image clip
             else:
                 image = np.where(image >= 2000, 2000, image)
-            target = np.where(target > 0, 1, 0).astype(np.int32)
 
         if self.transform:
             if self.aug:
@@ -167,7 +167,8 @@ class ChaosDataset(Dataset):
                 translations = np.random.uniform(-5, 5, 2)
                 scale = np.random.uniform(0.90, 1.10, 1)
                 restack = np.random.randint(-5, 6)
-                flip = np.random.randint(0, 2)
+                # flip = np.random.randint(0, 2)
+                flip = 0
             else:
                 rot_angle = 0
                 translations = (0, 0)
@@ -186,6 +187,7 @@ class ChaosDataset(Dataset):
         '''get data (image and target), and apply augmentations if indicated'''
         image = self.input_images[idx]
         target = self.target_images[idx]
+        target = np.where(target > 0, 1, 0).astype(np.int32)
 
         if self.clip:
             for i, seq in enumerate(self.my_sequence):
@@ -193,7 +195,6 @@ class ChaosDataset(Dataset):
                     image[i, :] = np.where(image[i, :] >= 1500, 1500, image[i, :])
                 else:
                     image[i, :] = np.where(image[i, :] >= 2000, 2000, image[i, :])
-            target = np.where(target > 0, 1, 0).astype(np.int32)
 
         if self.transform:
             if self.aug:
