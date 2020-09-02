@@ -887,8 +887,18 @@ def roc_curves(df, true='mre', pred='baseline', threshold=4, label=None, title=N
     pred_probs = torch.sigmoid(
         torch.Tensor((df[f'{pred}'].values)-threshold)/df[f'{pred}'].std()).numpy()
     true_labels = (df[f'{true}'] >= threshold).values.astype(int)
-    fpr, tpr, _ = roc_curve(true_labels, pred_probs)
+    df_labels = pd.DataFrame({'true_labels': true_labels, 'pred_probs': pred_probs})
+    fpr, tpr, _ = roc_curve(df_labels.true_labels, df_labels.pred_probs)
     roc_auc = auc(fpr, tpr)
+    # print('true_auc:', roc_auc)
+    auc_std = []
+    for i in range(100):
+        df_labels_boot = df_labels.sample(n=len(df_labels), replace=True)
+        fpr_boot, tpr_boot, _ = roc_curve(df_labels_boot.true_labels, df_labels_boot.pred_probs)
+        roc_auc_boot = auc(fpr_boot, tpr_boot)
+        auc_std.append(roc_auc_boot)
+        # print('boot_auc:', roc_auc_boot)
+    auc_std = np.std(auc_std)
     lw = 2
     if plot:
         if ax is None:
@@ -927,8 +937,40 @@ def roc_curves(df, true='mre', pred='baseline', threshold=4, label=None, title=N
     # print('specificity', spec)
 
     acc = (tn+tp)/(tn+fp+tp+fn)
+    sens_std = []
+    spec_std = []
+    acc_std = []
+
     # print('accuracy', acc)
-    return sens, spec, acc, roc_auc
+    for i in range(100):
+        df_boot = df.sample(n=len(df), replace=True)
+        tp_boot = df_boot.query(f'{true}>{threshold} and {pred}>{threshold}').count()[0]
+        fn_boot = df_boot.query(f'{true}>{threshold} and {pred}<{threshold}').count()[0]
+        sens_boot = tp_boot/(tp_boot+fn_boot)
+        # print('tp', tp)
+        # print('fn', fn)
+        # print('sensitivity', tp/(tp+fn))
+
+        # Specificity: TN/(TN+FP)
+        tn_boot = df_boot.query(f'{true}<{threshold} and {pred}<{threshold}').count()[0]
+        fp_boot = df_boot.query(f'{true}<{threshold} and {pred}>{threshold}').count()[0]
+        spec_boot = tn_boot/(tn_boot+fp_boot)
+        # print('tn', tn)
+        # print('fp', fp)
+        # print('specificity', spec)
+
+        acc_boot = (tn_boot+tp_boot)/(tn_boot+fp_boot+tp_boot+fn_boot)
+        # print('acc boot', acc_boot)
+
+        sens_std.append(sens_boot)
+        spec_std.append(spec_boot)
+        acc_std.append(acc_boot)
+
+    sens_std = np.std(sens_std)
+    spec_std = np.std(spec_std)
+    acc_std = np.std(acc_std)
+
+    return sens, sens_std, spec, spec_std, acc, acc_std, roc_auc, auc_std
 
 
 def example_images(ds, subj='0219', z=18):
@@ -936,31 +978,32 @@ def example_images(ds, subj='0219', z=18):
     from matplotlib.colors import ListedColormap
     mask_map = ListedColormap(['black', 'powderblue'])
 
-    ds = ds.sel(subject=subj, z=z)
+    ds_other = ds.sel(subject=subj, z=z)
+    ds_mri = ds.sel(subject=subj, z=20)
     fig, ax = plt.subplots(2, 3, sharex=True, sharey=True, figsize=(14, 10))
     fig.patch.set_alpha(1)
-    mri = ds.sel(sequence='t1_pre_water')['image_mri']
+    mri = ds_mri.sel(sequence='t1_pre_water')['image_mri']
     ax[0][0].imshow(mri.T, cmap='gray', vmin=0, vmax=700)
     ax[0][0].axis('off')
     ax[0][0].set_title('MRI (Input Image)', size=18)
     ax[0][0].set_ylim(235, 15)
     ax[0][0].set_xlim(15, 235)
 
-    mre = ds.sel(mre_type='mre_mask')['image_mre']/1000
+    mre = ds_other.sel(mre_type='mre_mask')['image_mre']/1000
     mre_cb = ax[0][1].imshow(mre.T, cmap='magma', vmin=0, vmax=7.800)
     ax[0][1].axis('off')
     ax[0][1].set_title('MRE (Hatched)', size=18)
     ax[0][1].set_ylim(235, 15)
     ax[0][1].set_xlim(15, 235)
 
-    mre_pred = ds.sel(mre_type='pred')['image_mre']/1000
+    mre_pred = ds_other.sel(mre_type='pred')['image_mre']/1000
     ax[0][2].imshow(mre_pred.T, cmap='magma', vmin=0, vmax=7.800)
     ax[0][2].axis('off')
     ax[0][2].set_title('MRE (Predicted)', size=18)
     ax[0][2].set_ylim(235, 15)
     ax[0][2].set_xlim(15, 235)
 
-    liver_mask = ds.sel(mask_type='liver')['mask_mri']
+    liver_mask = ds_other.sel(mask_type='liver')['mask_mri']
     liver_mask = morphology.remove_small_objects(liver_mask.values.astype(bool), min_size=1000)
     ax[1][0].imshow(liver_mask.T, cmap=mask_map)
     ax[1][0].axis('off')
@@ -968,14 +1011,14 @@ def example_images(ds, subj='0219', z=18):
     ax[1][0].set_ylim(235, 15)
     ax[1][0].set_xlim(15, 235)
 
-    mre_mask = ds.sel(mask_type='mre')['mask_mre']
+    mre_mask = ds_other.sel(mask_type='mre')['mask_mre']
     ax[1][1].imshow(mre_mask.T, cmap=mask_map)
     ax[1][1].axis('off')
     ax[1][1].set_title('MRE Segmentation', size=18)
     ax[1][1].set_ylim(235, 15)
     ax[1][1].set_xlim(15, 235)
 
-    combo_mask = ds.sel(mask_type='combo')['mask_mre']
+    combo_mask = ds_other.sel(mask_type='combo')['mask_mre']
     ax[1][2].imshow(combo_mask.T, cmap=mask_map)
     ax[1][2].axis('off')
     ax[1][2].set_title('ROI', size=18)
@@ -1092,6 +1135,15 @@ def radiology_cor_plots(ds, df=None, do_aug=True, do_cor=True,
     model = LinearModel()
     params = model.make_params(slope=1, intercept=0)
     result = model.fit(df_subj['predict'], params, x=df_subj['true'])
+    r2_subj_std = []
+    for i in range(100):
+        df_subj_boot = df_subj.sample(n=len(df_subj), replace=True)
+        model_boot = LinearModel()
+        params_boot = model.make_params(slope=1, intercept=0)
+        result_boot = model_boot.fit(df_subj_boot['predict'], params_boot, x=df_subj_boot['true'])
+        r2_subj_boot = 1 - result_boot.residual.var() / np.var(df_subj_boot['predict'])
+        r2_subj_std.append(r2_subj_boot)
+
     if plot:
         fig, ax = plt.subplots(1, 2, figsize=(20, 10))
         ymax = df_subj['predict'].max()+1
@@ -1134,6 +1186,16 @@ def radiology_cor_plots(ds, df=None, do_aug=True, do_cor=True,
     model = LinearModel()
     params = model.make_params(slope=1, intercept=0)
     result = model.fit(pred_pixel, params, x=true_pixel)
+    r2_pixel_std = []
+    for i in range(100):
+        idx = np.random.choice(np.arange(len(true_pixel)), 1000, replace=True)
+        pred_pixel_boot = pred_pixel[idx]
+        true_pixel_boot = true_pixel[idx]
+        model_boot = LinearModel()
+        params_boot = model.make_params(slope=1, intercept=0)
+        result_boot = model_boot.fit(pred_pixel_boot, params_boot, x=true_pixel_boot)
+        r2_pixel_boot = 1 - result_boot.residual.var() / np.var(pred_pixel_boot)
+        r2_pixel_std.append(r2_pixel_boot)
     if plot:
         thresholds = ['2.88', '3.54', '3.77', '4.09']
 
@@ -1184,4 +1246,7 @@ def radiology_cor_plots(ds, df=None, do_aug=True, do_cor=True,
         print('accuracy', (tn+tp)/(tn+fp+tp+fn))
         print(df_subj.true.mean())
         print(df_subj.true.std())
-    return r2_subj, r2_pixel
+    r2_subj_std = np.std(r2_subj_std)
+    r2_pixel_std = np.std(r2_pixel_std)
+
+    return r2_subj, r2_subj_std, r2_pixel, r2_pixel_std
