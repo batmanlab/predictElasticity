@@ -640,7 +640,13 @@ class MRETorchDataset(Dataset):
                                             't1_pos_160_water', 't1_pos_300_water'])
         if type(self.inputs) is str:
             self.inputs = [self.inputs]
-        self.target = kwargs.get('target', 'mre')
+        self.wave = kwargs.get('wave', False)
+        if self.wave:
+            self.target = kwargs.get('target', ['mre', 'mre_wave'])
+        else:
+            self.target = kwargs.get('target', 'mre')
+        if type(self.target) is str:
+            self.target = [self.target]
         self.mask = kwargs.get('mask', 'combo')
         self.clip = kwargs.get(f'{set_type}_clip', True)
         self.transform = kwargs.get(f'{set_type}_transform', True)
@@ -675,7 +681,7 @@ class MRETorchDataset(Dataset):
 
             self.input_images = self.xa_ds.sel(sequence=self.inputs).image_mri.transpose(
                 'subject_2d', 'sequence', 'y', 'x').values
-            self.target_images = self.xa_ds.sel(mre_type=[self.target]).image_mre.transpose(
+            self.target_images = self.xa_ds.sel(mre_type=self.target).image_mre.transpose(
                 'subject_2d', 'mre_type', 'y', 'x').values
             self.mask_images = self.xa_ds.sel(mask_type=[self.mask]).mask_mre.transpose(
                 'subject_2d', 'mask_type', 'y', 'x').values
@@ -715,7 +721,7 @@ class MRETorchDataset(Dataset):
                 self.xa_ds = self.xa_ds[['image_mri', 'image_mre', 'mask_mre']]
             self.input_images = self.xa_ds.sel(sequence=self.inputs).image_mri.transpose(
                 'subject', 'sequence', 'z', 'y', 'x').values
-            self.target_images = self.xa_ds.sel(mre_type=[self.target]).image_mre.transpose(
+            self.target_images = self.xa_ds.sel(mre_type=self.target).image_mre.transpose(
                 'subject', 'mre_type', 'z', 'y', 'x').values
             self.mask_images = self.xa_ds.sel(mask_type=[self.mask]).mask_mre.transpose(
                 'subject', 'mask_type', 'z', 'y', 'x').values
