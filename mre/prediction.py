@@ -72,6 +72,17 @@ def masked_mse(pred, target, mask):
     return masked_mse
 
 
+def full_mse(pred, target):
+    pred = pred.contiguous()
+    target = target.contiguous()
+    mse = ((pred - target)**2).sum()/torch.numel(pred)
+    # masked_mse = ((pred - target)**2).sum()/S
+    # print('ceil sum:', mask.ceil().sum())
+    # print('sum:', mask.sum())
+
+    return mse
+
+
 def masked_mse_subj(pred, target, mask):
     pred = pred.contiguous()
     target = target.contiguous()
@@ -263,20 +274,23 @@ class OrdLoss(nn.Module):
         return self.loss
 
 
-def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.05, widths=None):
+def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.05, widths=None,
+              wave=False):
 
-    if loss_func is None or loss_func == 'l2':
+    if not wave and (loss_func is None or loss_func == 'l2'):
         pixel_loss = masked_mse(pred, target, mask)
-        # slice_loss = masked_mse_slice(pred, target, mask)
         subj_loss = masked_mse_subj(pred, target, mask)
-        # loss = pixel_loss + subj_loss + slice_loss
         loss = pixel_weight*pixel_loss + (1-pixel_weight)*subj_loss
-        # loss = pixel_loss + subj_loss
-        # print('pixel_loss', pixel_loss)
-        # print('subj_loss', subj_loss)
-        # print('loss', loss)
         metrics['pixel_loss'] += pixel_loss.data.cpu().numpy() * target.size(0)
         metrics['subj_loss'] += subj_loss.data.cpu().numpy() * target.size(0)
+    elif wave:
+        # do stiffness
+        pixel_loss_stiff = masked_mse(pred[:, 0:1, :], target[:, 0:1, :], mask)
+        pixel_loss_wave = full_mse(pred[:, 1:2, :], target[:, 1:2, :])
+        loss = 0.5*pixel_loss_stiff + 0.5*pixel_loss_wave
+        metrics['pixel_loss_stiff'] += pixel_loss_stiff.data.cpu().numpy() * target.size(0)
+        metrics['pixel_loss_wave'] += pixel_loss_wave.data.cpu().numpy() * target.size(0)
+
     elif loss_func == 'ordinal':
         ord_loss = OrdLoss()
         # print('requires_grad', pred[0].requires_grad)
@@ -309,7 +323,7 @@ def print_metrics(metrics, epoch_samples, phase):
 
 def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25, tb_writer=None,
                 verbose=True, loss_func=None, sls=False, pixel_weight=1, do_val=True, ds=None,
-                bins=None, nbins=0, do_clinical=False):
+                bins=None, nbins=0, do_clinical=False, wave=False):
     widths = centers = 0
     if loss_func is None:
         loss_func = 'l2'
@@ -365,7 +379,7 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                             if not sls:
                                 with torch.autograd.detect_anomaly():
                                     loss = calc_loss(outputs, labels, masks, metrics, loss_func,
-                                                     pixel_weight, widths=widths)
+                                                     pixel_weight, widths=widths, wave=wave)
                                     loss.backward()
                                     optimizer.step()
                             else:
@@ -376,7 +390,7 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                                 optimizer.step(closure)
                         else:
                             loss = calc_loss(outputs, labels, masks, metrics, loss_func,
-                                             pixel_weight, widths=widths)
+                                             pixel_weight, widths=widths, wave=wave)
                     # accrue total number of samples
                     epoch_samples += inputs.size(0)
 
@@ -410,7 +424,12 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
 
                 if tb_writer:
                     tb_writer.add_scalar(f'loss_{phase}', epoch_loss, epoch)
-                    if loss_func != 'ordinal':
+                    if wave:
+                        tb_writer.add_scalar(f'pixel_loss_stiff{phase}',
+                                             metrics['pixel_loss_stiff']/epoch_samples, epoch)
+                        tb_writer.add_scalar(f'pixel_loss_wave_{phase}',
+                                             metrics['pixel_loss_wave']/epoch_samples, epoch)
+                    elif loss_func != 'ordinal':
                         tb_writer.add_scalar(f'pixel_loss_{phase}',
                                              metrics['pixel_loss']/epoch_samples, epoch)
                         tb_writer.add_scalar(f'subj_loss_{phase}',
@@ -441,23 +460,42 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
     if ds:
         print('converting prediction to correct units')
 
-        ds_mem = xr.Dataset(
-            {'image_mre': (['subject', 'mre_type', 'x', 'y', 'z'],
-                           np.zeros((ds.subject.size, 2, ds.x.size, ds.y.size,
-                                     ds.z.size), dtype=np.int16)),
-             'mask_mre': (['subject', 'mask_type', 'x', 'y', 'z'],
-                          np.zeros((ds.subject.size, 1, ds.x.size, ds.y.size,
-                                    ds.z.size), dtype=np.int16)),
-             },
+        if wave:
+            ds_mem = xr.Dataset(
+                {'image_mre': (['subject', 'mre_type', 'x', 'y', 'z'],
+                               np.zeros((ds.subject.size, 3, ds.x.size, ds.y.size,
+                                         ds.z.size), dtype=np.int16)),
+                 'mask_mre': (['subject', 'mask_type', 'x', 'y', 'z'],
+                              np.zeros((ds.subject.size, 1, ds.x.size, ds.y.size,
+                                        ds.z.size), dtype=np.int16)),
+                 },
 
-            coords={'subject': ds.subject,
-                    'mask_type': ['combo'],
-                    'mre_type': ['mre', 'mre_pred'],
-                    'x': ds.x,
-                    'y': ds.y,
-                    'z': ds.z
-                    }
-        )
+                coords={'subject': ds.subject,
+                        'mask_type': ['combo'],
+                        'mre_type': ['mre', 'mre_pred', 'wave_pred'],
+                        'x': ds.x,
+                        'y': ds.y,
+                        'z': ds.z
+                        }
+            )
+        else:
+            ds_mem = xr.Dataset(
+                {'image_mre': (['subject', 'mre_type', 'x', 'y', 'z'],
+                               np.zeros((ds.subject.size, 2, ds.x.size, ds.y.size,
+                                         ds.z.size), dtype=np.int16)),
+                 'mask_mre': (['subject', 'mask_type', 'x', 'y', 'z'],
+                              np.zeros((ds.subject.size, 1, ds.x.size, ds.y.size,
+                                        ds.z.size), dtype=np.int16)),
+                 },
+
+                coords={'subject': ds.subject,
+                        'mask_type': ['combo'],
+                        'mre_type': ['mre', 'mre_pred'],
+                        'x': ds.x,
+                        'y': ds.y,
+                        'z': ds.z
+                        }
+            )
         print(ds_mem)
         # ds_mem = ds_mem.load()
         print('loaded data to mem')
@@ -487,10 +525,17 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                     # ds['image_mre'].loc[{'subject': name,
                     #                      'mre_type': 'mre_pred'}] = (prediction[i, 0].T)**2
                     if loss_func == 'l2':
-                        # ds['image_mre'].loc[{'subject': name,
-                        #                      'mre_type': 'mre_pred'}] = (prediction[i, 0].T)**2
-                        ds_mem['image_mre'].loc[{'subject': name,
-                                                 'mre_type': 'mre_pred'}] = (prediction[0, 0].T)*100
+                        if wave:
+                            ds_mem['image_mre'].loc[{
+                                'subject': name,
+                                'mre_type': 'mre_pred'}] = (prediction[0, 0].T)*100
+                            ds_mem['image_mre'].loc[{
+                                'subject': name,
+                                'mre_type': 'wave_pred'}] = (prediction[0, 1].T)*100
+                        else:
+                            ds_mem['image_mre'].loc[{
+                                'subject': name,
+                                'mre_type': 'mre_pred'}] = (prediction[0, 0].T)*100
                     elif loss_func == 'ordinal':
                         subj_pred = prediction[0, 0].T.astype(int)
                         pred_transform = np.ones_like(subj_pred)

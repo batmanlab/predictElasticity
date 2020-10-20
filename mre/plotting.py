@@ -536,16 +536,21 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
 
     # Make holoviews dataset from xarray
     # xr_ds = xr_ds.sel(subject=['0006', '0384'])
+    wave = True
     hv_ds_mri = hv.Dataset(xr_ds[['image_mri', 'mask_mri']])
     hv_ds_mre = hv.Dataset(xr_ds[['image_mre', 'mask_mre']])
     if prediction:
         hv_ds_mre_1 = hv_ds_mre.select(mre_type=['mre', 'mre_mask', 'mre_pred'])
-        hv_ds_mre_2 = hv_ds_mre.select(mre_type=['mre_raw', 'mre_wave'])
+        hv_ds_mre_2 = hv_ds_mre.select(mre_type=['mre_wave', 'wave_pred'])
     elif not torch:
         hv_ds_mre_1 = hv_ds_mre.select(mre_type=['mre', 'mre_mask'])
         hv_ds_mre_2 = hv_ds_mre.select(mre_type=['mre_raw', 'mre_wave'])
+    elif torch and (len(xr_ds.mre_type) == 1):
+        hv_ds_mre_1 = hv_ds_mre.select(mre_type=['mre'])
+        wave = False
     else:
         hv_ds_mre_1 = hv_ds_mre.select(mre_type=['mre'])
+        hv_ds_mre_2 = hv_ds_mre.select(mre_type=['mre_wave'])
     print(hv_ds_mri)
     print(hv_ds_mre)
 
@@ -557,7 +562,7 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
                                        dynamic=True).opts(cmap='viridis')
     hv_ds_mre_mask_1 = hv_ds_mre_1.to(hv.Image, kdims=['x', 'y'], vdims='mask_mre',
                                       dynamic=True).opts(tools=[])
-    if not torch:
+    if wave:
         hv_ds_mre_image_2 = hv_ds_mre_2.to(hv.Image, kdims=['x', 'y'], vdims='image_mre',
                                            dynamic=True).opts(cmap='viridis')
         hv_ds_mre_mask_2 = hv_ds_mre_2.to(hv.Image, kdims=['x', 'y'], vdims='mask_mre',
@@ -565,8 +570,8 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
 
     slider = pn.widgets.FloatSlider(start=0, end=1, value=0.7, name='mask transparency')
     if torch:
-        cslider = pn.widgets.RangeSlider(start=-100, end=5000, value=(-2, 2), name='contrast')
-        cslider2 = pn.widgets.RangeSlider(start=0, end=12000, value=(0, 100), name='mre contrast')
+        cslider = pn.widgets.RangeSlider(start=-2, end=2, value=(-1, 1), name='contrast')
+        cslider2 = pn.widgets.RangeSlider(start=0, end=120, value=(0, 100), name='mre contrast')
     else:
         cslider = pn.widgets.RangeSlider(start=0, end=2000, value=(0, 1000), name='contrast')
         cslider2 = pn.widgets.RangeSlider(start=0, end=12000, value=(0, 10000), name='mre contrast')
@@ -591,8 +596,16 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
     hv_ds_mre_mask_1 = hv_ds_mre_mask_1.redim.range(**redim_mask_mre)
     hv_ds_mre_mask_1 = hv_ds_mre_mask_1.apply.opts(alpha=slider.param.value)
 
-    if not torch:
-        redim_image_mre_2 = {'image_mre': (-200, 200)}
+    if wave:
+        if torch:
+            redim_image_mre_2 = {'image_mre': (-10, 10)}
+            cslider3 = pn.widgets.RangeSlider(start=-20, end=20, value=(-10, 10),
+                                              name='wave contrast')
+        else:
+            redim_image_mre_2 = {'image_mre': (-200, 200)}
+            cslider3 = pn.widgets.RangeSlider(start=-2000, end=2000, value=(-200, 200),
+                                              name='wave contrast')
+        hv_ds_mre_image_2 = hv_ds_mre_image_2.apply.opts(clim=cslider3.param.value)
         hv_ds_mre_image_2 = hv_ds_mre_image_2.redim.range(**redim_image_mre_2).opts(tools=['hover'])
         redim_mask_mre = {'mask_mre': (0.1, 2)}
         hv_ds_mre_mask_2 = hv_ds_mre_mask_2.opts(cmap='Category10',
@@ -613,6 +626,8 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
     wb.append(slider)
     wb.append(cslider)
     wb.append(cslider2)
+    if wave:
+        wb.append(cslider3)
 
     # return pn.Column(slider, cslider2, layout, cslider)
     return pn.Column(wb, pn_layout)

@@ -827,10 +827,12 @@ class MRETorchDataset(Dataset):
         if erode_mask != 0:
             input_slice = ndi.binary_erosion(
                 input_slice, iterations=erode_mask).astype(input_slice.dtype)
+        outer_pixel_val = np.concatenate([input_slice[0, :], input_slice[-1, :], input_slice[:, 0],
+                                          input_slice[:, -1]]).mean()
         input_slice = transforms.ToPILImage()(input_slice)
         input_slice = TF.affine(input_slice, angle=rot_angle,
                                 translate=list(translations), scale=scale, shear=0,
-                                resample=resample, fillcolor=input_slice.getextrema()[0])
+                                resample=resample, fillcolor=outer_pixel_val)
         input_slice = transforms.ToTensor()(input_slice)
         return input_slice
 
@@ -865,9 +867,12 @@ class MRETorchDataset(Dataset):
         # Wave images
         if target.shape[0] > 1:
             for i in range(1, target.shape[0]):
-                v_min, v_max = np.percentile(target[i], (0.5, 99.5))
-                target[i, :] = exposure.rescale_intensity(target[i], in_range=(v_min, v_max),
-                                                          out_range=(-1.0, 1.0))
+                # v_min, v_max = np.percentile(target[i], (5, 95))
+                # v_min, v_max = np.min(target[i]), np.max(target[i])
+                # target[i, :] = exposure.rescale_intensity(target[i], in_range=(v_min, v_max),
+                #                                           out_range=(-1.0, 1.0))
+                # target[i, :] = exposure.rescale_intensity(target[i], out_range=(-1.0, 1.0))
+                target[i, :] = np.float32(target[i]/100.0)
 
         target = target.astype(np.float32)
         return target
@@ -915,6 +920,7 @@ class TorchToXr:
             self.nx = images.shape[3]
             self.ny = images.shape[2]
         self.nseq = images.shape[1]
+        self.nmre = targets.shape[1]
         self.nsub = len(names)
         self.names = list(names)
 
@@ -923,6 +929,13 @@ class TorchToXr:
                                                   't1_pre_fat', 't2', 't1_pos_0_water',
                                                   't1_pos_70_water', 't1_pos_160_water',
                                                   't1_pos_300_water'])
+        if self.nmre == 1:
+            self.mre_types = kwargs.get('mre_types', ['mre'])
+        elif self.nmre == 2:
+            self.mre_types = kwargs.get('mre_types', ['mre', 'mre_wave'])
+        else:
+            self.mre_types = kwargs.get('mre_types', [f'mre_type_{i}' for i in range(self.nmre)])
+
         self.init_new_ds()
         if self.dims == 3:
             self.ds['image_mri'] = (('subject', 'sequence', 'z', 'y', 'x'), images)
@@ -944,7 +957,7 @@ class TorchToXr:
                                np.zeros((self.nsub, self.nseq, self.nz, self.ny,
                                          self.nx), dtype=np.float32)),
                  'image_mre': (['subject', 'mre_type', 'z', 'y', 'x'],
-                               np.zeros((self.nsub, 1, self.nz, self.ny,
+                               np.zeros((self.nsub, self.nmre, self.nz, self.ny,
                                          self.nx), dtype=np.float32)),
                  'mask_mre': (['subject', 'mask_type', 'z', 'y', 'x'],
                               np.zeros((self.nsub, 1, self.nz, self.ny,
@@ -957,7 +970,7 @@ class TorchToXr:
                 coords={'subject': self.names,
                         'sequence': self.sequences,
                         'mask_type': ['combo'],
-                        'mre_type': ['mre'],
+                        'mre_type': self.mre_types,
                         'x': range(self.nx),
                         'y': range(self.ny)[::-1],
                         'z': range(self.nz),
@@ -973,7 +986,7 @@ class TorchToXr:
                                np.zeros((self.nsub, 1, self.ny,
                                          self.nx), dtype=np.float32)),
                  'mask_mre': (['subject', 'mask_type', 'y', 'x'],
-                              np.zeros((self.nsub, 1, self.ny,
+                              np.zeros((self.nsub, self.nmre, self.ny,
                                         self.nx), dtype=np.float32)),
                  'mask_mri': (['subject', 'mask_type', 'y', 'x'],
                               np.zeros((self.nsub, 1, self.ny,
@@ -983,7 +996,7 @@ class TorchToXr:
                 coords={'subject': self.names,
                         'sequence': self.sequences,
                         'mask_type': ['combo'],
-                        'mre_type': ['mre'],
+                        'mre_type': self.mre_types,
                         'x': range(self.nx),
                         'y': range(self.ny)[::-1],
                         }

@@ -425,7 +425,8 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
                                                pixel_weight=cfg['pixel_weight'],
                                                do_val=cfg['do_val'], ds=ds, bins=cfg['bins'],
                                                nbins=cfg['out_channels_final'],
-                                               do_clinical=cfg['do_clinical'])
+                                               do_clinical=cfg['do_clinical'],
+                                               wave=cfg['wave'])
         print('model trained, handed off new mem_ds')
 
         # Write outputs and save model
@@ -477,16 +478,26 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         if cfg['do_val']:
             ds_val = ds_mem.sel(subject=val_list)
             add_val_linear_cor(ds_val, ds_test, cfg['erode_mask'])
-            ds_val_stub = ds_val.sel(mre_type='mre_pred')['image_mre']
+            if cfg['wave']:
+                ds_val_stub = ds_val.sel(mre_type=['mre_pred', 'wave_pred'])['image_mre']
+            else:
+                ds_val_stub = ds_val.sel(mre_type='mre_pred')['image_mre']
             ds_val_stub.to_netcdf(Path(xr_dir, 'val', f'xarray_pred_{subj_group}.nc'))
             ds_val.close()
             ds_val_stub.close()
-        ds_test_stub = ds_test.sel(mre_type='mre_pred')[['image_mre', 'val_slope', 'val_intercept',
-                                                         'erode']]
+        if cfg['wave']:
+            ds_test_stub = ds_test.sel(mre_type=['mre_pred', 'wave_pred'])[
+                ['image_mre', 'val_slope', 'val_intercept', 'erode']]
+        else:
+            ds_test_stub = ds_test.sel(mre_type='mre_pred')[
+                ['image_mre', 'val_slope', 'val_intercept', 'erode']]
         ds_test_stub.to_netcdf(Path(xr_dir, 'test', f'xarray_pred_{subj_group}.nc'))
         ds_test.close()
         ds_test_stub.close()
-        ds_train_stub = ds_train.sel(mre_type='mre_pred')['image_mre']
+        if cfg['wave']:
+            ds_train_stub = ds_train.sel(mre_type=['mre_pred', 'wave_pred'])['image_mre']
+        else:
+            ds_train_stub = ds_train.sel(mre_type='mre_pred')['image_mre']
         ds_train_stub.to_netcdf(Path(xr_dir, 'train', f'xarray_pred_{subj_group}.nc'))
         ds_train.close()
         ds_train_stub.close()
