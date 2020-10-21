@@ -91,16 +91,17 @@ class MREtoXr:
                     print(self.ds.subject.values)
                     self.ds = self.ds.sel(subject=ds_pred.subject.values)
                     self.ds = self.ds.load()
-                    self.ds['image_mre'].loc[
-                        dict(mre_type='mre_pred', subject=ds_pred.subject)] = ds_pred['image_mre']
+                    self.ds = ds_pred.combine_first(self.ds)
+                    # self.ds['image_mre'].loc[
+                    #     dict(mre_type='mre_pred', subject=ds_pred.subject)] = ds_pred['image_mre']
 
-                    if 'val_slope' in ds_pred and 'val_intercept' in ds_pred:
-                        self.ds['val_slope'] = (('subject', np.zeros(len(self.ds.subject))))
-                        self.ds['val_slope'].loc[
-                            dict(subject=ds_pred.subject)] = ds_pred['val_slope']
-                        self.ds['val_intercept'] = (('subject', np.zeros(len(self.ds.subject))))
-                        self.ds['val_intercept'].loc[
-                            dict(subject=ds_pred.subject)] = ds_pred['val_intercept']
+                    # if 'val_slope' in ds_pred and 'val_intercept' in ds_pred:
+                    #     self.ds['val_slope'] = (('subject', np.zeros(len(self.ds.subject))))
+                    #     self.ds['val_slope'].loc[
+                    #         dict(subject=ds_pred.subject)] = ds_pred['val_slope']
+                    #     self.ds['val_intercept'] = (('subject', np.zeros(len(self.ds.subject))))
+                    #     self.ds['val_intercept'].loc[
+                    #         dict(subject=ds_pred.subject)] = ds_pred['val_intercept']
 
             return None
 

@@ -287,7 +287,7 @@ def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.05, wi
         # do stiffness
         pixel_loss_stiff = masked_mse(pred[:, 0:1, :], target[:, 0:1, :], mask)
         pixel_loss_wave = full_mse(pred[:, 1:2, :], target[:, 1:2, :])
-        loss = 0.5*pixel_loss_stiff + 0.5*pixel_loss_wave
+        loss = 0.005*pixel_loss_stiff + 0.5*pixel_loss_wave
         metrics['pixel_loss_stiff'] += pixel_loss_stiff.data.cpu().numpy() * target.size(0)
         metrics['pixel_loss_wave'] += pixel_loss_wave.data.cpu().numpy() * target.size(0)
 
