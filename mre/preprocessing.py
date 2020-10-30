@@ -625,7 +625,7 @@ def dicom_to_pandas(data_path, subdirs):
     return df
 
 
-def dicom_to_nifti(data_path, subdirs):
+def dicom_to_nifti(data_path, subdirs, wave_only=False):
     '''Code for determining which dicom to keep, and then save it as a nifti.'''
 
     for subdir in tqdm_notebook(subdirs, desc='subdir'):
@@ -653,7 +653,8 @@ def dicom_to_nifti(data_path, subdirs):
                             dwi=False,
                             mre_raw=False,
                             mre=False,
-                            mre_mask=False)
+                            mre_mask=False,
+                            wave=False)
 
             for i, img_files in enumerate(img_folders):
                 dicom_names = reader.GetGDCMSeriesFileNames(str(img_files))
@@ -679,6 +680,9 @@ def dicom_to_nifti(data_path, subdirs):
 
                 name = select_image(img, desc, sel_dict)
                 if name:
+                    if wave_only:
+                        if 'wave' not in name:
+                            continue
                     if 'art' in name:
                         name_map = ['0', '70', '160']
                         img_list = dicom_split_sort(dicom_names, 'art')
@@ -693,12 +697,17 @@ def dicom_to_nifti(data_path, subdirs):
                                     name.replace('art', 'extra_art') + '.nii')
 
                     elif 'raw' in name:
-                        img_wave, img_raw = split_image(img, reader, 'mre')
+                        img_phase, img_raw = split_image(img, reader, 'mre')
                         sitk.WriteImage(
-                            img_wave, str(patient_path) +
-                            '/' + name.replace('raw', 'wave') + '.nii')
+                            img_phase, str(patient_path) +
+                            '/' + name.replace('raw', 'phase') + '.nii')
                         sitk.WriteImage(
                             img_raw, str(patient_path) +
+                            '/' + name + '.nii')
+                    elif 'wave' in name:
+                        img_wave = split_image(img, reader, 'wave')
+                        sitk.WriteImage(
+                            img_wave, str(patient_path) +
                             '/' + name + '.nii')
                     elif name == 'mre':
                         img, mre_info = scrape_mre(dicom_names)
@@ -790,9 +799,9 @@ def split_image(img, reader, mode='art'):
             return img1, img2, img3
 
     elif mode == 'mre':
-        # Split an mre-raw image into the raw and wave images.  Take the first timestamp for each
+        # Split an mre-raw image into the raw and phase images.  Take the first timestamp for each
         # image type.
-        meta_data_wave = {}
+        meta_data_phase = {}
         meta_data_raw = {}
         for i in range(img.GetSize()[-1]):
             min_max_filter = sitk.MinimumMaximumImageFilter()
@@ -800,15 +809,15 @@ def split_image(img, reader, mode='art'):
             min_pixel = min_max_filter.GetMinimum()
             location = float(reader.GetMetaData(i, '0027|1041'))
             if min_pixel < -10:
-                if location not in meta_data_wave:
-                    meta_data_wave[location] = i
+                if location not in meta_data_phase:
+                    meta_data_phase[location] = i
             else:
                 if location not in meta_data_raw:
                     meta_data_raw[location] = i
 
-        wave_slices = []
-        for i, k in enumerate(sorted(list(meta_data_wave.keys()), reverse=False)):
-            my_slice = img[:, :, meta_data_wave[k]]
+        phase_slices = []
+        for i, k in enumerate(sorted(list(meta_data_phase.keys()), reverse=False)):
+            my_slice = img[:, :, meta_data_phase[k]]
             # Clean up origin to prevent join conflicts
             if i == 0:
                 origin = my_slice.GetOrigin()
@@ -816,8 +825,8 @@ def split_image(img, reader, mode='art'):
             else:
                 my_slice.SetOrigin(origin)
                 my_slice.SetDirection(direction)
-            wave_slices.append(my_slice)
-        img_wave = sitk.JoinSeries(wave_slices)
+            phase_slices.append(my_slice)
+        img_phase = sitk.JoinSeries(phase_slices)
 
         raw_slices = []
         for i, k in enumerate(sorted(list(meta_data_raw.keys()), reverse=False)):
@@ -832,13 +841,37 @@ def split_image(img, reader, mode='art'):
             raw_slices.append(my_slice)
         img_raw = sitk.JoinSeries(raw_slices)
 
-        return img_wave, img_raw
+        return img_phase, img_raw
+
+    elif mode == 'wave':
+        # Grab 4 phase images.  Take the first timestamp for each
+        # image type. Keep image as rgb, and do not clean or inpaint
+        meta_data_wave = {}
+        for i in range(img.GetSize()[-1]):
+            location = float(reader.GetMetaData(i, '0027|1041'))
+            if location not in meta_data_wave:
+                meta_data_wave[location] = i
+
+        wave_slices = []
+        for i, k in enumerate(sorted(list(meta_data_wave.keys()), reverse=False)):
+            my_slice = img[:, :, meta_data_wave[k]]
+            # Clean up origin to prevent join conflicts
+            if i == 0:
+                origin = my_slice.GetOrigin()
+                direction = my_slice.GetDirection()
+            else:
+                my_slice.SetOrigin(origin)
+                my_slice.SetDirection(direction)
+            wave_slices.append(my_slice)
+        img_wave = sitk.JoinSeries(wave_slices)
+
+        return img_wave
 
 
 def select_image(img, desc, sel_dict):
-    if img.GetNumberOfComponentsPerPixel() == 3:
-        return False
-    elif 'cor' in desc:
+    # if img.GetNumberOfComponentsPerPixel() == 3:
+    #     return False
+    if 'cor' in desc:
         return False
 
     if not sel_dict['t1_pre_water'] and is_t1_pre_water(desc):
@@ -908,6 +941,10 @@ def select_image(img, desc, sel_dict):
     if not sel_dict['dwi'] and is_dwi(desc):
         sel_dict['dwi'] = desc
         return 'dwi'
+
+    if not sel_dict['wave'] and is_wave(desc):
+        sel_dict['wave'] = desc
+        return 'wave'
 
     return False
 
@@ -1038,6 +1075,12 @@ def is_dwi(desc):
 
 def is_mre_raw(desc):
     if 'mr touch' in desc:
+        return True
+    return False
+
+
+def is_wave(desc):
+    if 'wave' in desc:
         return True
     return False
 
