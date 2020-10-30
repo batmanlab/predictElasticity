@@ -848,7 +848,11 @@ def split_image(img, reader, mode='art'):
         # image type. Keep image as rgb, and do not clean or inpaint
         meta_data_wave = {}
         for i in range(img.GetSize()[-1]):
-            location = float(reader.GetMetaData(i, '0027|1041'))
+            try:
+                location = round(float(reader.GetMetaData(i, '0027|1041')), 3)
+            except RuntimeError:
+                location = round(float(reader.GetMetaData(i, '0020|1041')), 3)
+
             if location not in meta_data_wave:
                 meta_data_wave[location] = i
 
@@ -1080,7 +1084,8 @@ def is_mre_raw(desc):
 
 
 def is_wave(desc):
-    if 'wave' in desc:
+    if 'wave images' in desc:
+        print(desc)
         return True
     return False
 
