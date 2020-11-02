@@ -1,8 +1,6 @@
 # Attempt at making DeepLabv3+ 3D
 # https://github.com/Cadene/pretrained-models.pytorch/blob/master/pretrainedmodels/models/xception.py
 # https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/modeling/backbone/xception.py
-# Ordinal:
-# https://github.com/dontLoveBugs/DORN_pytorch/blob/master/network/DORN_nyu.py
 import math
 import numpy as np
 import torch
@@ -10,7 +8,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models
 from tensorboardX import SummaryWriter
-from mre.CoordConv import CoordConv
 
 
 class SeparableConv3d(nn.Module):
@@ -530,116 +527,42 @@ class DecoderFeatures(nn.Module):
                 m.bias.data.zero_()
 
 
-class OrdinalRegressionLayerSigmoid(nn.Module):
-    def __init__(self):
-        super(OrdinalRegressionLayerSigmoid, self).__init__()
-
-    def forward(self, x):
-        """
-        :param x: N X D X H X W X C, N is batch_size, C is channels of features
-        :return: ord_labels is ordinal outputs for each spatial locations,
-                 size is N x H X W X K (K is interval of SID)
-                 decode_label is the ordinal labels for each position of Image I
-        """
-        # N, K, D, H, W = x.size()
-
-        """
-        replace iter with matrix operation
-        fast speed methods
-        """
-        # x = torch.clamp(x, min=-1e8, max=1e8)  # prevent nans
-
-        ord_c = torch.sigmoid(x)
-        # print(ord_c.requires_grad)
-
-        decode_c = torch.sum((ord_c > 0.5), dim=1).unsqueeze(1)
-        # print(decode_c.requires_grad)
-        # decode_c = torch.sum(ord_c1, dim=1).view(-1, 1, H, W)
-        return decode_c, ord_c.float()
-
-
-# https://github.com/dontLoveBugs/DORN_pytorch/blob/master/network/DORN_nyu.py
-class OrdinalRegressionLayer(nn.Module):
-    def __init__(self):
-        super(OrdinalRegressionLayer, self).__init__()
-
-    def forward(self, x):
-        """
-        :param x: N X D X H X W X C, N is batch_size, C is channels of features
-        :return: ord_labels is ordinal outputs for each spatial locations,
-                 size is N x H X W X C (C = 2K, K is interval of SID)
-                 decode_label is the ordinal labels for each position of Image I
-        """
-        N, C, D, H, W = x.size()
-        ord_num = C // 2
-
-        """
-        replace iter with matrix operation
-        fast speed methods
-        """
-        A = x[:, ::2, :, :, :].clone()
-        B = x[:, 1::2, :, :, :].clone()
-
-        A = A.view(N, 1, ord_num * D * H * W)
-        B = B.view(N, 1, ord_num * D * H * W)
-
-        C = torch.cat((A, B), dim=1)
-        C = torch.clamp(C, min=1e-8, max=1e8)  # prevent nans
-
-        ord_c = nn.functional.softmax(C, dim=1)
-        # print(ord_c.requires_grad)
-
-        ord_c1 = ord_c[:, 1, :].clone()
-        ord_c1 = ord_c1.view(-1, ord_num, D, H, W)
-        # print(ord_c1.requires_grad)
-        # print('ord > 0.5 size:', (ord_c1 > 0.5).size())
-        decode_c = torch.sum((ord_c1 > 0.5), dim=1).view(-1, 1, D, H, W)
-        # print(decode_c.requires_grad)
-        # decode_c = torch.sum(ord_c1, dim=1).view(-1, 1, H, W)
-        return decode_c, ord_c1.float()
-
-
 class DeepLab(nn.Module):
-    def __init__(self, in_channels, out_channels, output_stride=8, do_ord=False, norm='bn',
-                 do_clinical=False):
+    def __init__(self, in_channels, out_channels, output_stride=8, norm='bn',
+                 do_clinical=False, class_only=False):
         super(DeepLab, self).__init__()
 
         self.backbone = AlignedXception(in_channels, output_stride, norm=norm)
         self.aspp = ASPP(output_stride, norm=norm)
         self.decoder = Decoder(out_channels, norm=norm, do_clinical=do_clinical)
-        self.do_ord = do_ord
-        if self.do_ord:
-            self.ord_layer = OrdinalRegressionLayerSigmoid()
         self.do_clinical = do_clinical
+        self.class_only = class_only
+        if self.class_only:
+            # assuming single out_channel only
+            self.fc = nn.Linear(16*64*64, 5)
 
     def forward(self, input, clinical=None):
         x, low_level_feat = self.backbone(input)
         x = self.aspp(x)
         x = self.decoder(x, low_level_feat, clinical)
-
-        if self.do_ord:
-            depth_labels, ord_labels = self.ord_layer(x)
-            depth_labels = F.interpolate(depth_labels.float(), size=input.size()[2:],
-                                         mode='trilinear', align_corners=True)
-            ord_labels = F.interpolate(ord_labels, size=input.size()[2:],
-                                       mode='trilinear', align_corners=True)
-
-            return depth_labels, ord_labels
+        if self.class_only:
+            print(x.shape)
+            x = x.view(-1, 16*64*64)
+            x = self.fc(x)
         else:
             x = F.interpolate(x, size=input.size()[2:], mode='trilinear', align_corners=True)
 
-            return x
+        return x
 
 
 class DeepLabFeatures(nn.Module):
-    def __init__(self, in_channels, out_channels, output_stride=8, do_ord=False, norm='bn',
+    def __init__(self, in_channels, out_channels, output_stride=8, norm='bn',
                  do_clinical=False):
         super(DeepLabFeatures, self).__init__()
 
         self.backbone = AlignedXception(in_channels, output_stride, norm=norm)
         self.aspp = ASPP(output_stride, norm=norm)
         self.decoder = DecoderFeatures(out_channels, norm=norm, do_clinical=do_clinical)
-        self.do_ord = do_ord
         self.do_clinical = do_clinical
 
     def forward(self, input, clinical=None):

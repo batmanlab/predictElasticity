@@ -24,7 +24,6 @@ from tensorboardX import SummaryWriter
 # from mre.plotting import hv_dl_vis
 from mre.mre_datasets import MRETorchDataset
 from robust_loss_pytorch import adaptive
-from mre.ord_bins import get_ord_binning
 
 
 def masked_L1(pred, target, mask):
@@ -176,106 +175,12 @@ def get_depth_sid(args, labels):
     return depth.float()
 
 
-class OrdLoss(nn.Module):
-    """
-    Ordinal loss is defined as the average of pixelwise ordinal loss F(h, w, X, O)
-    over the entire image domain:
-    """
+def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.05,
+              wave=False, class_only=False):
 
-    def __init__(self):
-        super(OrdLoss, self).__init__()
-        self.loss = 0.0
-
-    def forward(self, pred, target, mask, widths=None):
-        """
-        Ordinal loss is defined as the average of pixelwise ordinal loss F(h, w, X, O)
-        over the entire image domain:
-        :param ord_labels: ordinal labels for each position of Image I.
-        :param target:     the ground_truth discreted using SID strategy.
-        :return: ordinal loss
-        """
-
-        # assert pred.dim() == target.dim()
-        # invalid_mask = target < 0
-        # target[invalid_mask] = 0
-        # return torch.sum(pred)
-
-        N, C, D, H, W = pred.size()
-        ord_num = C
-        self.loss = 0.0
-        # First mask the target and prediction based on the MRE Combo Mask
-        pred = pred.transpose(0, 1)[:, (mask.transpose(0, 1)[0, :]) > 0]
-        target = target.transpose(0, 1)[:, (mask.transpose(0, 1)[0, :]) > 0]
-        S = target.size()[1]
-        # for k in range(ord_num):
-        #     #     '''
-        #     #     p^k_(w, h) = e^y(w, h, 2k+1) / [e^(w, h, 2k) + e^(w, h, 2k+1)]
-        #     #     '''
-        #     #
-        #     #     '''
-        #     #     对每个像素而言，
-        #     #     如果k小于l(w, h), log(p_k)
-        #     #     如果k大于l(w, h), log(1-p_k)
-        #     #     希望分类正确的p_k越大越好
-        #     #     '''
-        #     print(k)
-        #     p_k = pred[:, k, :, :, :]
-        #     p_k = p_k.view(N, 1, D, H, W)
-        #     mask_0 = (target >= k).detach()   # 分类正确
-        #     mask_1 = (target < k).detach()  # 分类错误
-
-        #     self.loss += torch.sum(torch.log(torch.clamp(p_k[mask_0], min=1e-7, max=1e7))) \
-        #         + torch.sum(torch.log(torch.clamp(1 - p_k[mask_1], min=1e-7, max=1e7)))
-
-        # print('ord_num = ', ord_num)
-
-        # faster version
-        # K = torch.zeros((N, C, D, H, W), dtype=torch.int, requires_grad=False).cuda()
-        K = torch.zeros((C, S), dtype=torch.int, requires_grad=False).cuda()
-        if widths is not None:
-            weights = torch.zeros((C, S), dtype=torch.float, requires_grad=False).cuda()
-        for i in range(ord_num):
-            # K[:, i, :, :, :] = K[:, i, :, :, :] + i * torch.ones((N, D, H, W),
-            #                                                      dtype=torch.int,
-            #                                                      requires_grad=False).cuda()
-            K[i, :] = K[i, :] + i * torch.ones(S, dtype=torch.int, requires_grad=False).cuda()
-            if widths is not None:
-                weights[i, :] = widths[i] * torch.ones(S, dtype=torch.float,
-                                                       requires_grad=False).cuda()
-
-        mask_0 = (K <= target).detach()
-        mask_1 = (K > target).detach()
-
-        # one = torch.ones(pred[mask_1].size(), dtype=torch.int, requires_grad=False).cuda()
-
-        # print(pred.size())
-        # print(pred)
-        # print(pred[0:4, 0:10])
-        # print(pred[mask_0].size())
-        # print(pred[mask_1].size())
-        if widths is not None:
-            wnorm_0 = 1/torch.mean(weights[mask_0])
-            wnorm_1 = 1/torch.mean(weights[mask_1])
-            self.loss = wnorm_0*torch.sum(weights[mask_0]*torch.log(
-                torch.clamp(pred[mask_0], min=1e-8, max=1e8))) \
-                + wnorm_1*torch.sum(weights[mask_1]*torch.log(
-                    torch.clamp(1 - pred[mask_1], min=1e-8, max=1e8)))
-        else:
-            self.loss = torch.sum(torch.log(torch.clamp(pred[mask_0], min=1e-8, max=1e8))) \
-                + torch.sum(torch.log(torch.clamp(1 - pred[mask_1], min=1e-8, max=1e8)))
-
-        # del K
-        # del one
-        # del mask_0
-        # del mask_1
-
-        # N = N * H * W * D
-        self.loss /= (-S)  # negative
-        return self.loss
-
-
-def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.05, widths=None,
-              wave=False):
+    if class_only:
+        loss = nn.CrossEntropyLoss()
+        loss = (pred, target)
 
     if not wave and (loss_func is None or loss_func == 'l2'):
         pixel_loss = masked_mse(pred, target, mask)
@@ -290,13 +195,6 @@ def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.05, wi
         loss = 0.005*pixel_loss_stiff + 0.5*pixel_loss_wave
         metrics['pixel_loss_stiff'] += pixel_loss_stiff.data.cpu().numpy() * target.size(0)
         metrics['pixel_loss_wave'] += pixel_loss_wave.data.cpu().numpy() * target.size(0)
-
-    elif loss_func == 'ordinal':
-        ord_loss = OrdLoss()
-        # print('requires_grad', pred[0].requires_grad)
-        # print('requires_grad', pred[1].requires_grad)
-        loss = ord_loss(pred[1], target, mask, widths=widths)
-        # loss = masked_mse(pred[1], target, mask)
 
     else:
         pass
@@ -322,13 +220,10 @@ def print_metrics(metrics, epoch_samples, phase):
 
 
 def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25, tb_writer=None,
-                verbose=True, loss_func=None, sls=False, pixel_weight=1, do_val=True, ds=None,
-                bins=None, nbins=0, do_clinical=False, wave=False):
-    widths = centers = 0
+                verbose=True, loss_func=None, pixel_weight=1, do_val=True, ds=None,
+                bins=None, nbins=0, do_clinical=False, wave=False, class_only=False):
     if loss_func is None:
         loss_func = 'l2'
-    elif loss_func == 'ordinal':
-        _, centers, widths = get_ord_binning(bins, nbins)
     best_model_wts = copy.deepcopy(model.state_dict())
     best_loss = 1e16
     if do_val:
@@ -347,10 +242,7 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                 if phase == 'train':
                     for param_group in optimizer.param_groups:
                         if verbose:
-                            if sls:
-                                print('sls auto LR')
-                            else:
-                                print("LR", param_group['lr'])
+                            print("LR", param_group['lr'])
 
                     model.train()  # Set model to training mode
                 else:
@@ -376,27 +268,19 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                             outputs = model(inputs)
                         # backward + optimize only if in training phase
                         if phase == 'train':
-                            if not sls:
-                                with torch.autograd.detect_anomaly():
-                                    loss = calc_loss(outputs, labels, masks, metrics, loss_func,
-                                                     pixel_weight, widths=widths, wave=wave)
-                                    loss.backward()
-                                    optimizer.step()
-                            else:
-                                def closure():
-                                    pass
-                                    # return calc_loss(outputs, labels, masks, metrics, loss_func,
-                                    #                  pixel_weight)
-                                optimizer.step(closure)
+                            with torch.autograd.detect_anomaly():
+                                loss = calc_loss(outputs, labels, masks, metrics, loss_func,
+                                                 pixel_weight, wave=wave)
+                                loss.backward()
+                                optimizer.step()
                         else:
                             loss = calc_loss(outputs, labels, masks, metrics, loss_func,
-                                             pixel_weight, widths=widths, wave=wave)
+                                             pixel_weight, wave=wave)
                     # accrue total number of samples
                     epoch_samples += inputs.size(0)
 
                 if phase == 'train':
-                    if not sls:
-                        scheduler.step()
+                    scheduler.step()
 
                 if verbose:
                     print_metrics(metrics, epoch_samples, phase)
@@ -513,11 +397,7 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                 # print('looping over names')
                 for i, name in enumerate(names):
                     # print('loading pred to mem')
-                    if loss_func == 'ordinal':
-                        prediction = model(inputs[i:i+1])[0].data.cpu().numpy()
-                        # print(prediction.shape)
-                    else:
-                        prediction = model(inputs[i:i+1], clinical[i:i+1]).data.cpu().numpy()
+                    prediction = model(inputs[i:i+1], clinical[i:i+1]).data.cpu().numpy()
                     # print(name)
                     # print(prediction[i])
                     # print(prediction[i][0])
@@ -536,19 +416,6 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                             ds_mem['image_mre'].loc[{
                                 'subject': name,
                                 'mre_type': 'mre_pred'}] = (prediction[0, 0].T)*100
-                    elif loss_func == 'ordinal':
-                        subj_pred = prediction[0, 0].T.astype(int)
-                        pred_transform = np.ones_like(subj_pred)
-                        it = np.nditer(subj_pred, flags=['multi_index'])
-                        # print('iterating pred_trans')
-                        while not it.finished:
-                            # print(it.multi_index)
-                            # print(it[0])
-                            # print(centers)
-                            # print(pred_transform)
-                            pred_transform[it.multi_index] = centers[it[0]]
-                            it.iternext()
-                        ds_mem['image_mre'].loc[{'subject': name}] = pred_transform
                     else:
                         raise ValueError('Cannot save predictions due to unknown loss function'
                                          f' {loss_func}')

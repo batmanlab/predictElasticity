@@ -296,15 +296,11 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         # model = DeepLabV3_3D(num_classes=cfg['out_channels_final'],
         #                      input_channels=in_channels, resnet='resnet34_os8',
         #                      last_activation=None)
-        if cfg['loss'] == 'ordinal':
-            do_ord = True
-        else:
-            do_ord = False
 
         print(cfg['norm'])
         model = DeepLab(in_channels=in_channels, out_channels=cfg['out_channels_final'],
-                        output_stride=8, do_ord=do_ord, norm=cfg['norm'],
-                        do_clinical=cfg['do_clinical'])
+                        output_stride=8, norm=cfg['norm'],
+                        do_clinical=cfg['do_clinical'], class_only=cfg['class_only'])
         if cfg['transfer']:
 
             # transfer_path = Path('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data',
@@ -354,9 +350,6 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
     elif use_sls:
         optimizer = sls.Sls(model.parameters(),
                             n_batches_per_epoch=len(train_set)/float(cfg["batch_size"]))
-    if loss_type == 'ordinal':
-        loss_func = 'ordinal'
-
     # Define optimizer
     if cfg['lr_scheduler'] == 'step':
         exp_lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=cfg['step_size'],
@@ -440,9 +433,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         masks.to('cpu')
         model.eval()
         # model.to('cpu')
-        if cfg['loss'] == 'ordinal':
-            model_pred = model(inputs)[0]
-        elif cfg['do_clinical']:
+        if cfg['do_clinical']:
             clinical = clinical.to('cuda:0')
             model_pred = model(inputs, clinical)
         else:
@@ -537,9 +528,9 @@ def default_cfg():
            'train_num_samples': 200, 'val_num_samples': 100,
            'train_smear': 'gaussian', 'val_smear': False, 'test_smear': False,
            'smear_amt': 3,
-           'wave': False,
+           'wave': False, 'class_only': False,
            'batch_size': 64, 'model_cap': 16, 'subj': None,
-           'gamma': 0.1, 'num_epochs': 40, 'dry_run': False, 'coord_conv': False, 'loss': 'l2',
+           'gamma': 0.1, 'num_epochs': 40, 'dry_run': False, 'loss': 'l2',
            'mask_trimmer': False, 'mask_mixer': 'mixed', 'target_max': None, 'target_bins': 100,
            'model_arch': 'modular', 'n_layers': 7, 'out_channels_final': 1,
            'channel_growth': False, 'transfer_layer': False, 'seed': 100,

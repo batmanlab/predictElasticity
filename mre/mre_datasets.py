@@ -32,7 +32,6 @@ from scipy.ndimage import gaussian_filter, median_filter
 from mre.registration import RegPatient, Register
 from mre.pytorch_arch_old import GeneralUNet3D
 from mre.pytorch_arch_deeplab import DeepLab
-from mre.ord_bins import get_ord_binning
 
 
 class MREtoXr:
