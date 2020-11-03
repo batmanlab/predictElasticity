@@ -414,12 +414,12 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         model, best_loss, ds_mem = train_model(model, optimizer, exp_lr_scheduler, device,
                                                dataloaders, num_epochs=cfg['num_epochs'],
                                                tb_writer=writer, verbose=verbose,
-                                               loss_func=loss_func, sls=use_sls,
+                                               loss_func=loss_func,
                                                pixel_weight=cfg['pixel_weight'],
                                                do_val=cfg['do_val'], ds=ds, bins=cfg['bins'],
                                                nbins=cfg['out_channels_final'],
                                                do_clinical=cfg['do_clinical'],
-                                               wave=cfg['wave'])
+                                               wave=cfg['wave'], class_only=cfg['class_only'])
         print('model trained, handed off new mem_ds')
 
         # Write outputs and save model
@@ -438,15 +438,18 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
             model_pred = model(inputs, clinical)
         else:
             model_pred = model(inputs)
-        model_pred.to('cpu')
-        masked_target = targets.detach().numpy()*masks.numpy()
-        masked_pred = model_pred.detach().cpu().numpy()*masks.numpy()
-        test_mse = ((masked_target-masked_pred)**2).sum()/masks.numpy().sum()
-        cfg['test_mse'] = test_mse
-        masked_target = np.where(masked_target > 0, masked_target, np.nan)
-        masked_pred = np.where(masked_pred > 0, masked_pred, np.nan)
-        cfg['true_ave_stiff'] = np.nanmean(masked_target)
-        cfg['test_ave_stiff'] = np.nanmean(masked_pred)
+
+        if not cfg['class_only']:
+
+            model_pred.to('cpu')
+            masked_target = targets.detach().numpy()*masks.numpy()
+            masked_pred = model_pred.detach().cpu().numpy()*masks.numpy()
+            test_mse = ((masked_target-masked_pred)**2).sum()/masks.numpy().sum()
+            cfg['test_mse'] = test_mse
+            masked_target = np.where(masked_target > 0, masked_target, np.nan)
+            masked_pred = np.where(masked_pred > 0, masked_pred, np.nan)
+            cfg['true_ave_stiff'] = np.nanmean(masked_target)
+            cfg['test_ave_stiff'] = np.nanmean(masked_pred)
 
         config_file = Path(config_dir, f'{model_version}_{subj_group}.pkl')
         with open(config_file, 'wb') as f:

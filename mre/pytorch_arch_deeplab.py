@@ -546,7 +546,6 @@ class DeepLab(nn.Module):
         x = self.aspp(x)
         x = self.decoder(x, low_level_feat, clinical)
         if self.class_only:
-            print(x.shape)
             x = x.view(-1, 16*64*64)
             x = self.fc(x)
         else:

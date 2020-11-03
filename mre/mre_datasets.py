@@ -827,8 +827,8 @@ class MRETorchDataset(Dataset):
         if erode_mask != 0:
             input_slice = ndi.binary_erosion(
                 input_slice, iterations=erode_mask).astype(input_slice.dtype)
-        outer_pixel_val = np.concatenate([input_slice[0, :], input_slice[-1, :], input_slice[:, 0],
-                                          input_slice[:, -1]]).mean()
+        outer_pixel_val = int(np.concatenate([input_slice[0, :], input_slice[-1, :],
+                                              input_slice[:, 0], input_slice[:, -1]]).mean())
         input_slice = transforms.ToPILImage()(input_slice)
         input_slice = TF.affine(input_slice, angle=rot_angle,
                                 translate=list(translations), scale=scale, shear=0,

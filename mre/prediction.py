@@ -82,6 +82,22 @@ def full_mse(pred, target):
     return mse
 
 
+def masked_class_subj(target, mask):
+    target = target.contiguous()
+    mask = mask.contiguous()
+    mask_target = target*mask
+    if len(target.shape) == 5:
+        mask_norm = mask.sum([1, 2, 3, 4])
+        mask_target_mean = mask_target.sum([1, 2, 3, 4])/mask_norm
+    else:
+        mask_norm = mask.sum([1, 2, 3])
+        mask_target_mean = mask_target.sum([1, 2, 3])/mask_norm
+
+    bins = torch.as_tensor([28.8, 35.4, 37.7, 40.9], device=mask_target_mean.get_device())
+    subj_class = torch.bucketize(mask_target_mean, bins)
+    return subj_class
+
+
 def masked_mse_subj(pred, target, mask):
     pred = pred.contiguous()
     target = target.contiguous()
@@ -179,10 +195,11 @@ def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.05,
               wave=False, class_only=False):
 
     if class_only:
+        label_class = masked_class_subj(target, mask)
         loss = nn.CrossEntropyLoss()
-        loss = (pred, target)
+        loss = loss(pred, label_class)
 
-    if not wave and (loss_func is None or loss_func == 'l2'):
+    elif not wave and (loss_func is None or loss_func == 'l2'):
         pixel_loss = masked_mse(pred, target, mask)
         subj_loss = masked_mse_subj(pred, target, mask)
         loss = pixel_weight*pixel_loss + (1-pixel_weight)*subj_loss
@@ -268,14 +285,14 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                             outputs = model(inputs)
                         # backward + optimize only if in training phase
                         if phase == 'train':
-                            with torch.autograd.detect_anomaly():
-                                loss = calc_loss(outputs, labels, masks, metrics, loss_func,
-                                                 pixel_weight, wave=wave)
-                                loss.backward()
-                                optimizer.step()
+                            # with torch.autograd.detect_anomaly():
+                            loss = calc_loss(outputs, labels, masks, metrics, loss_func,
+                                             pixel_weight, wave=wave, class_only=class_only)
+                            loss.backward()
+                            optimizer.step()
                         else:
                             loss = calc_loss(outputs, labels, masks, metrics, loss_func,
-                                             pixel_weight, wave=wave)
+                                             pixel_weight, wave=wave, class_only=class_only)
                     # accrue total number of samples
                     epoch_samples += inputs.size(0)
 
@@ -398,6 +415,11 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                 for i, name in enumerate(names):
                     # print('loading pred to mem')
                     prediction = model(inputs[i:i+1], clinical[i:i+1]).data.cpu().numpy()
+                    if class_only:
+                        fills = [1, 29, 36, 38, 41]
+                        pred_classes = np.max(prediction, 1)
+                        print(pred_classes)
+                        prediction = np.full((1, 1, 32, 256, 256), fills[pred_classes])
                     # print(name)
                     # print(prediction[i])
                     # print(prediction[i][0])
