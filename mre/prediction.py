@@ -417,8 +417,7 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                     prediction = model(inputs[i:i+1], clinical[i:i+1]).data.cpu().numpy()
                     if class_only:
                         fills = [1, 29, 36, 38, 41]
-                        pred_classes = np.max(prediction, 1)
-                        print(pred_classes)
+                        pred_classes = np.argmax(prediction, 1)[0]
                         prediction = np.full((1, 1, 32, 256, 256), fills[pred_classes])
                     # print(name)
                     # print(prediction[i])

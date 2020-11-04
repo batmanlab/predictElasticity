@@ -833,7 +833,7 @@ class MRETorchDataset(Dataset):
         input_slice = TF.affine(input_slice, angle=rot_angle,
                                 translate=list(translations), scale=scale, shear=0,
                                 resample=resample, fillcolor=outer_pixel_val)
-        input_slice = transforms.ToTensor()(input_slice)
+        input_slice = transforms.ToTensor()(np.array(input_slice))
         return input_slice
 
     def input_norm(self, input_image):
