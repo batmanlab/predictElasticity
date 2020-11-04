@@ -1047,6 +1047,86 @@ def example_images(ds, subj='0219', z=18):
     fig.colorbar(mre_cb, cax=cbar_ax)
 
 
+def example_images_dice(ds, subj='0219', z=18):
+    '''Make a 2x3 grid of images for the important concepts of the analysis'''
+    from matplotlib.colors import ListedColormap
+    import matplotlib.patches as mpatches
+    dice_map_true = ListedColormap(['deepskyblue'])
+    dice_map_pred = ListedColormap(['C1'])
+    dice_map_inter = ListedColormap(['maroon'])
+    mask_map = ListedColormap(['white', 'grey'])
+    # dice_map.set_bad(alpha=1)
+
+    ds_other = ds.sel(subject=subj, z=z)
+    ds_mri = ds.sel(subject=subj, z=20)
+    fig, ax = plt.subplots(2, 3, sharex=False, sharey=False, figsize=(14, 10))
+    fig.patch.set_alpha(1)
+    mri = ds_mri.sel(sequence='t1_pre_water')['image_mri']
+    ax[0][0].imshow(mri.T, cmap='gray', vmin=0, vmax=700)
+    ax[0][0].axis('off')
+    ax[0][0].set_title('MRI (Input Image)', size=18)
+    ax[0][0].set_ylim(235, 15)
+    ax[0][0].set_xlim(15, 235)
+
+    mre = ds_other.sel(mre_type='mre_mask')['image_mre']/1000
+    mre_cb = ax[0][1].imshow(mre.T, cmap='magma', vmin=0, vmax=7.800)
+    ax[0][1].axis('off')
+    ax[0][1].set_title('MRE (Hatched)', size=18)
+    ax[0][1].set_ylim(235, 15)
+    ax[0][1].set_xlim(15, 235)
+
+    mre_pred = ds_other.sel(mre_type='pred')['image_mre']/1000
+    ax[0][2].imshow(mre_pred.T, cmap='magma', vmin=0, vmax=7.800)
+    ax[0][2].axis('off')
+    ax[0][2].set_title('MRE (Predicted)', size=18)
+    ax[0][2].set_ylim(235, 15)
+    ax[0][2].set_xlim(15, 235)
+
+    combo_mask = ds_other.sel(mask_type='combo')['mask_mre']
+    ax[1][0].imshow(combo_mask.T, cmap=mask_map, interpolation='none', alpha=1)
+    ax[1][0].axis('off')
+    ax[1][0].set_title('ROI (zoomed)', size=18)
+    ax[1][0].set_ylim(170, 45)
+    ax[1][0].set_xlim(30, 170)
+
+    true_dice_f1 = np.ma.masked_where(mre*combo_mask >= 2.88, np.ones_like(mre))
+    true_dice_f1 = np.ma.masked_array(np.ones_like(mre), ~true_dice_f1.mask)
+    pred_dice_f1 = np.ma.masked_where(mre_pred*combo_mask >= 2.88, np.ones_like(mre_pred))
+    pred_dice_f1 = np.ma.masked_array(np.ones_like(mre), ~pred_dice_f1.mask)
+    ax[1][1].imshow(pred_dice_f1.T, cmap=dice_map_pred, interpolation='none', label='Predicted')
+    ax[1][1].imshow(true_dice_f1.T, cmap=dice_map_true, interpolation='none', label='True')
+    ax[1][1].imshow(true_dice_f1.T*pred_dice_f1.T, cmap=dice_map_inter, interpolation='none',
+                    label='Overlap')
+    ax[1][1].axis('off')
+    ax[1][1].set_title('2.88 kPa or Greater', size=18)
+    ax[1][1].set_ylim(170, 45)
+    ax[1][1].set_xlim(30, 170)
+
+    true_dice_f4 = np.ma.masked_where(mre*combo_mask >= 4.09, np.ones_like(mre))
+    true_dice_f4 = np.ma.masked_array(np.ones_like(mre), ~true_dice_f4.mask)
+    pred_dice_f4 = np.ma.masked_where(mre_pred*combo_mask >= 4.09, np.ones_like(mre_pred))
+    pred_dice_f4 = np.ma.masked_array(np.ones_like(mre), ~pred_dice_f4.mask)
+    ax[1][2].imshow(pred_dice_f4.T, cmap=dice_map_pred, interpolation='none', label='Predicted')
+    ax[1][2].imshow(true_dice_f4.T, cmap=dice_map_true, interpolation='none', label='True')
+    ax[1][2].imshow(true_dice_f4.T*pred_dice_f4.T, cmap=dice_map_inter, interpolation='none',
+                    label='Overlap')
+    ax[1][2].axis('off')
+    ax[1][2].set_title('4.09 kPa or Greater', size=18)
+    ax[1][2].set_ylim(170, 45)
+    ax[1][2].set_xlim(30, 170)
+    pred_patch = mpatches.Patch(color='C1', label='Predicted')
+    true_patch = mpatches.Patch(color='deepskyblue', label='True')
+    overlap_patch = mpatches.Patch(color='maroon', label='Overlap')
+    ax[1][2].legend(handles=[true_patch, pred_patch, overlap_patch], loc='lower right')
+    ax[1][1].legend(handles=[true_patch, pred_patch, overlap_patch], loc='lower right')
+
+    fig.subplots_adjust(right=0.85)
+    cbar_ax = fig.add_axes([0.88, 0.55, 0.03, 0.3])
+    cbar_ax.set_title('Stiffness\n(kPa)', size=16)
+    cbar_ax.tick_params(labelsize=16)
+    fig.colorbar(mre_cb, cax=cbar_ax)
+
+
 def model_feature_extractor(ds, model_path=None, subj='0219'):
     '''Load in a model, then get the next-to-last layer.'''
 

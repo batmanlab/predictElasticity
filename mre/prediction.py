@@ -305,7 +305,19 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
 
                 # deep copy the model if is it best
                 if do_val:
-                    if (phase == 'val') and (epoch_loss < best_loss) and (epoch == 0 or epoch > 50):
+                    if class_only:
+                        best_conds = (
+                            (phase == 'val') and
+                            (epoch_loss < best_loss)
+                        )
+                    else:
+                        best_conds = (
+                            (phase == 'val') and
+                            (epoch_loss < best_loss) and
+                            (epoch == 0 or epoch > 50)
+                        )
+
+                    if best_conds:
                         if verbose:
                             print("updating best model floor")
                             print("saving best model")
