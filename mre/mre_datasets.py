@@ -1141,7 +1141,7 @@ class ModelComparePandas:
                 pred_mre_region = (ds.sel(subject=subj, mre_type=pred)['image_mre'].values * mask)
                 pred_mre_region = pred_mre_region.flatten()
                 pred_mre_region = pred_mre_region[~np.isnan(pred_mre_region)]
-                if do_cor:
+                if do_cor and pred != 'best_4_class_only':
                     slope = ds.sel(subject=subj, mre_type=pred)['val_slope'].values
                     intercept = ds.sel(subject=subj, mre_type=pred)['val_intercept'].values
                     pred_mre_region = (pred_mre_region-intercept)/slope
