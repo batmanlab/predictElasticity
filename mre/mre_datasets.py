@@ -144,7 +144,7 @@ class MREtoXr:
         self.nz_mre = kwargs.get('nz_mre', 4)
         self.mask_types = kwargs.get('mask_types', ['liver', 'mre', 'combo'])
         self.primary_input = kwargs.get('primary_input', 't1_pre_water')
-        self.mre_types = kwargs.get('mre_types', ['mre', 'mre_mask', 'mre_raw', 'mre_wave',
+        self.mre_types = kwargs.get('mre_types', ['mre', 'mre_mask', 'mre_raw', 'wave',
                                                   'mre_pred'])
         # self.mre_types = kwargs.get('mre_types', ['mre'])
         self.output_name = kwargs.get('output_name', 'test')
