@@ -17,7 +17,6 @@ import skimage as skim
 from skimage import feature, morphology, exposure
 from skimage.filters import sobel
 import PIL
-import pdb
 from tqdm import tqdm_notebook
 from medpy.filter.smoothing import anisotropic_diffusion
 # import matplotlib.pyplot as plt
@@ -32,6 +31,7 @@ from scipy.ndimage import gaussian_filter, median_filter
 from mre.registration import RegPatient, Register
 from mre.pytorch_arch_old import GeneralUNet3D
 from mre.pytorch_arch_deeplab import DeepLab
+from mre.pytorch_arch_models_genesis import UNet3D
 
 
 class MREtoXr:
@@ -142,6 +142,7 @@ class MREtoXr:
         self.ny = kwargs.get('ny', 256)
         self.nz_mri = kwargs.get('nz_mri', 32)
         self.nz_mre = kwargs.get('nz_mre', 4)
+        self.mask_arch = kwargs.get('mask_arch', 'ModelsGenesis')
         self.mask_types = kwargs.get('mask_types', ['liver', 'mre', 'combo'])
         self.primary_input = kwargs.get('primary_input', 't1_pre_water')
         self.mre_types = kwargs.get('mre_types', ['mre', 'mre_mask', 'mre_raw', 'wave',
@@ -166,14 +167,26 @@ class MREtoXr:
         # model_path = Path('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/CHAOS/',
         #                   'trained_models', '001', 'model_2020-02-12_14-14-16.pkl')
         # NEWER VERSION
-        model_path = Path('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/CHAOS/',
-                          'trained_models', '001', 'model_2020-04-02_13-54-57.pkl')
-        with torch.no_grad():
-            self.model = DeepLab(1, 1, output_stride=8, do_ord=False)
-            model_dict = torch.load(model_path, map_location='cpu')
-            model_dict = OrderedDict([(key[7:], val) for key, val in model_dict.items()])
-            self.model.load_state_dict(model_dict, strict=True)
-            self.model.eval()
+        if self.mask_arch == 'DeepLab':
+            model_path = Path('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/CHAOS/',
+                              'trained_models', '001', 'model_2020-04-02_13-54-57.pkl')
+            with torch.no_grad():
+                self.model = DeepLab(1, 1, output_stride=8, do_ord=False)
+                model_dict = torch.load(model_path, map_location='cpu')
+                model_dict = OrderedDict([(key[7:], val) for key, val in model_dict.items()])
+                self.model.load_state_dict(model_dict, strict=True)
+                self.model.eval()
+
+        # WAVE VERSION (ModelsGenesis)
+        elif self.mask_arch == 'ModelsGenesis':
+            model_path = Path('/pghbio/dbmi/batmanlab/bpollack/intensity_agnostic/data/CHAOS/',
+                              'trained_models', '001', 'model_2020-09-30_11-14-20.pkl')
+            with torch.no_grad():
+                self.model = UNet3D().to('cuda:0')
+                model_dict = torch.load(model_path, map_location='cuda:0')
+                model_dict = OrderedDict([(key[7:], val) for key, val in model_dict.items()])
+                self.model.load_state_dict(model_dict, strict=True)
+                self.model.eval()
 
         # Initialize empty ds
         self.init_new_ds()
@@ -408,37 +421,63 @@ class MREtoXr:
     def gen_liver_mask(self, input_image_np):
         '''Generate the mask of the liver by using the CHAOS segmentation model.'''
 
-        # get the input, force it into the correct shape
-        input_image_np = np.where(input_image_np >= 1500, 1500, input_image_np)
-        # input_image_np = np.where(input_image_np <= 1e-9, np.nan, input_image_np)
-        # mean = np.nanmean(input_image_np)
-        # std = np.nanstd(input_image_np)
-        # # input_image_np = ((input_image_np - mean)/std) + 4
-        # input_image_np = ((input_image_np - mean)/std)
-        # input_image_np = np.where(input_image_np != input_image_np, 0, input_image_np)
-        # image = np.where(input_image <= 1e-9, np.nan, input_image)
+        if self.mask_arch == 'DeepLab':
+            # get the input, force it into the correct shape
+            input_image_np = np.where(input_image_np >= 1500, 1500, input_image_np)
+            # input_image_np = np.where(input_image_np <= 1e-9, np.nan, input_image_np)
+            # mean = np.nanmean(input_image_np)
+            # std = np.nanstd(input_image_np)
+            # # input_image_np = ((input_image_np - mean)/std) + 4
+            # input_image_np = ((input_image_np - mean)/std)
+            # input_image_np = np.where(input_image_np != input_image_np, 0, input_image_np)
+            # image = np.where(input_image <= 1e-9, np.nan, input_image)
 
-        mean = np.nanmean(input_image_np)
-        std = np.nanstd(input_image_np)
-        input_image_np = ((input_image_np - mean)/std)
-        input_image_np = np.where(input_image_np != input_image_np, 0, input_image_np)
+            mean = np.nanmean(input_image_np)
+            std = np.nanstd(input_image_np)
+            input_image_np = ((input_image_np - mean)/std)
+            input_image_np = np.where(input_image_np != input_image_np, 0, input_image_np)
 
-        input_image_np = input_image_np[np.newaxis, np.newaxis, :]
-        # get the model prediction (liver mask)
-        with torch.no_grad():
-            print('starting torch model loading')
-            model_pred = self.model(torch.Tensor(input_image_np))
-            print('sigmoid func')
-            model_pred = torch.sigmoid(model_pred)
-            print('torch done')
-            # Convert to binary mask
-            # print('ones and zeros')
-            # ones = torch.ones_like(model_pred)
-            # zeros = torch.zeros_like(model_pred)
-            # print('where')
-            # model_pred = torch.where(model_pred > 1e-1, ones, zeros)
-        output_image_np = np.transpose(model_pred.cpu().numpy()[0, 0, :], (2, 1, 0))
-        output_image_np = np.where(output_image_np > 0.5, 1, 0)
+            input_image_np = input_image_np[np.newaxis, np.newaxis, :]
+            # get the model prediction (liver mask)
+            with torch.no_grad():
+                print('starting torch model loading')
+                model_pred = self.model(torch.Tensor(input_image_np))
+                print('sigmoid func')
+                model_pred = torch.sigmoid(model_pred)
+                print('torch done')
+                # Convert to binary mask
+                # print('ones and zeros')
+                # ones = torch.ones_like(model_pred)
+                # zeros = torch.zeros_like(model_pred)
+                # print('where')
+                # model_pred = torch.where(model_pred > 1e-1, ones, zeros)
+            output_image_np = np.transpose(model_pred.cpu().numpy()[0, 0, :], (2, 1, 0))
+            output_image_np = np.where(output_image_np > 0.5, 1, 0)
+        elif self.mask_arch == 'ModelsGenesis':
+            image = input_image_np*1.0
+            v_min, v_max = np.percentile(image, (0.5, 99.5))
+            for i in range(image.shape[0]):
+                image[i, :] = exposure.rescale_intensity(image[i], in_range=(v_min, v_max),
+                                                         out_range=(-1.0, 1.0))
+
+            image = image[np.newaxis, np.newaxis, :]
+
+            # get the model prediction (liver mask)
+            with torch.no_grad():
+                print('starting torch model loading')
+                model_pred = self.model(torch.Tensor(image).to('cuda:0'))
+                print('sigmoid func')
+                model_pred = torch.sigmoid(model_pred)
+                print('torch done')
+                # Convert to binary mask
+                # print('ones and zeros')
+                # ones = torch.ones_like(model_pred)
+                # zeros = torch.zeros_like(model_pred)
+                # print('where')
+                # model_pred = torch.where(model_pred >
+                # 1e-1, ones, zeros)
+                output_image_np = np.transpose(model_pred.cpu().numpy()[0, 0, :], (2, 1, 0))
+                output_image_np = np.where(output_image_np > 0.5, 1, 0)
         return output_image_np
 
     def gen_elast_mask(self, subj):
