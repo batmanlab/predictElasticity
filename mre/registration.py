@@ -9,6 +9,9 @@ from scipy import ndimage as ndi
 import SimpleITK as sitk
 import skimage as skim
 from skimage import feature, morphology
+from skimage.morphology import binary_dilation
+from skimage.restoration import inpaint
+from skimage import color
 import glob
 from tqdm import tqdm
 
@@ -36,7 +39,59 @@ class RegPatient:
             # if 'dwi' in str(f):
             #     img.SetOrigin((0, 0, 0))
             #     img.SetDirection((1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0))
+            if f.stem == 'wave':
+                img = self.correct_wave_image(img)
+
+            if f.stem == 'mre':
+                print('mre', img.GetPixelIDTypeAsString())
+
             self.images[f.stem] = img
+
+    def correct_wave_image(self, img):
+        '''Convert wave image from rgb to gray, do inpainting'''
+        print('correcting wave image')
+
+        print(img.GetSize())
+        print(img.GetOrigin())
+        print(img.GetSpacing())
+        print(img.GetDirection())
+        print(img.GetNumberOfComponentsPerPixel())
+        print(img.GetPixelIDTypeAsString())
+
+        tmp_origin = img.GetOrigin()
+        tmp_dir = img.GetDirection()
+        tmp_spacing = img.GetSpacing()
+        img_array = sitk.GetArrayViewFromImage(img)
+        print(img_array.shape)
+        # img_array = color.rgb2gray(img_array)
+        print(img_array.shape)
+
+        img_r = np.squeeze(img_array[:, :, :, 0]).astype(float)
+        img_g = np.squeeze(img_array[:, :, :, 1]).astype(float)
+        img_b = np.squeeze(img_array[:, :, :, 2]).astype(float)
+        img_gr = np.where(img_r == 0, 0, img_g)
+        img_gb = np.where(img_b == 0, 0, img_g)
+        img_gg = np.where((img_b == 255) & (img_r == 255) & (img_g == 255), 1, 0)
+        img_array = 0.001*(img_r+img_gr)  - 0.001*(img_b+img_gb) + img_gg
+
+        array = np.ma.masked_where(img_array == 1, img_array)
+        for i in range(img_array.shape[0]):
+            array[i].mask = binary_dilation(array[i].mask)
+            array[i].mask = binary_dilation(array[i].mask)
+            img_array[i] = inpaint.inpaint_biharmonic(img_array[i], array[i].mask)
+        img_array = 1000*img_array
+        img_array = img_array.astype(np.int16)
+        img = sitk.GetImageFromArray(img_array)
+        img.SetOrigin(tmp_origin)
+        img.SetDirection(tmp_dir)
+        img.SetSpacing(tmp_spacing)
+        print(img.GetSize())
+        print(img.GetOrigin())
+        print(img.GetSpacing())
+        print(img.GetDirection())
+        print(img.GetNumberOfComponentsPerPixel())
+        print(img.GetPixelIDTypeAsString())
+        return img
 
 
 class Register:

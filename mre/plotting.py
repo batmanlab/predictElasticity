@@ -541,16 +541,16 @@ def xr_viewer_v2(xr_ds, grid_coords=None, group_coords=None,
     hv_ds_mre = hv.Dataset(xr_ds[['image_mre', 'mask_mre']])
     if prediction:
         hv_ds_mre_1 = hv_ds_mre.select(mre_type=['mre', 'mre_mask', 'mre_pred'])
-        hv_ds_mre_2 = hv_ds_mre.select(mre_type=['mre_wave', 'wave_pred'])
+        hv_ds_mre_2 = hv_ds_mre.select(mre_type=['wave', 'wave_pred'])
     elif not torch:
         hv_ds_mre_1 = hv_ds_mre.select(mre_type=['mre', 'mre_mask'])
-        hv_ds_mre_2 = hv_ds_mre.select(mre_type=['mre_raw', 'mre_wave'])
+        hv_ds_mre_2 = hv_ds_mre.select(mre_type=['mre_raw', 'wave'])
     elif torch and (len(xr_ds.mre_type) == 1):
         hv_ds_mre_1 = hv_ds_mre.select(mre_type=['mre'])
         wave = False
     else:
         hv_ds_mre_1 = hv_ds_mre.select(mre_type=['mre'])
-        hv_ds_mre_2 = hv_ds_mre.select(mre_type=['mre_wave'])
+        hv_ds_mre_2 = hv_ds_mre.select(mre_type=['wave'])
     print(hv_ds_mri)
     print(hv_ds_mre)
 

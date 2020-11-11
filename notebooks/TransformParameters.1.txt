@@ -1,6 +1,6 @@
 (Transform "EulerTransform")
 (NumberOfParameters 6)
-(TransformParameters 0.000641 0.000831 -0.001321 0.043218 0.045682 -0.002601)
+(TransformParameters -0.000085 0.000126 0.000179 -0.039118 0.013367 -0.013585)
 (InitialTransformParametersFileName "./TransformParameters.0.txt")
 (UseBinaryFormatForTransformationParameters "false")
 (HowToCombineTransforms "Compose")
@@ -18,7 +18,7 @@
 (UseDirectionCosines "true")
 
 // EulerTransform specific
-(CenterOfRotationPoint -27.6482820458 -29.7137931437 -41.7436826985)
+(CenterOfRotationPoint -24.6414781393 -28.8397419858 -41.9682649962)
 (ComputeZYX "false")
 
 // ResampleInterpolator specific

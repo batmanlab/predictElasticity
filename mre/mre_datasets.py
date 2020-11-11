@@ -107,9 +107,8 @@ class MREtoXr:
         elif data_dir:
             self.data_dir = data_dir
             if sequences is None:
-                sequences = ['t1_pre_water', 't1_pre_in', 't1_pre_out', 't1_pre_fat', 't2',
-                             't1_pos_0_water', 't1_pos_70_water', 't1_pos_160_water',
-                             't1_pos_300_water', 'dwi']
+                sequences = ['t1_pre_water', 't1_pre_in', 't1_pre_fat', 't2',
+                             't1_pos_160_water']
             self.sequences = sequences
             if len(self.sequences) == 0:
                 raise ValueError('No sequences specificed')
@@ -119,21 +118,16 @@ class MREtoXr:
                 self.patient = str(patient)
 
             # Check if any contrast images are specified
-            if np.any(['dwi' in seq for seq in self.sequences]):
-                # out_subdir = 'XR_with_contrast_v2'
-                # out_subdir = 'XR_resized'
-                out_subdir = 'XR_v4'
-            elif np.any(['pos' in seq for seq in self.sequences]):
-                # out_subdir = 'XR_with_contrast_v2'
-                # out_subdir = 'XR_resized'
-                out_subdir = 'XR_v3'
-            else:
-                out_subdir = 'XR'
-            self.output_dir = Path(self.data_dir.parents[1], out_subdir)
-            print(self.data_dir)
-            print(self.patient)
-            print(self.sequences)
-            print(self.output_dir)
+            # if np.any(['dwi' in seq for seq in self.sequences]):
+            #     # out_subdir = 'XR_with_contrast_v2'
+            #     # out_subdir = 'XR_resized'
+            #     out_subdir = 'XR_v4'
+            # elif np.any(['pos' in seq for seq in self.sequences]):
+            #     # out_subdir = 'XR_with_contrast_v2'
+            #     # out_subdir = 'XR_resized'
+            #     out_subdir = 'XR_v3'
+            # else:
+            #     out_subdir = 'XR'
         else:
             raise ValueError('__init__ error')
 
@@ -150,6 +144,13 @@ class MREtoXr:
         # self.mre_types = kwargs.get('mre_types', ['mre'])
         self.output_name = kwargs.get('output_name', 'test')
         self.write_file = kwargs.get('write_file', True)
+        self.out_subdir = kwargs.get('out_subdir', 'XR_wave_v1')
+
+        self.output_dir = Path(self.data_dir.parents[1], self.out_subdir)
+        print(self.data_dir)
+        print(self.patient)
+        print(self.sequences)
+        print(self.output_dir)
 
         # Load the liver mask model (hard-coded for now)
 
@@ -182,8 +183,9 @@ class MREtoXr:
             model_path = Path('/pghbio/dbmi/batmanlab/bpollack/intensity_agnostic/data/CHAOS/',
                               'trained_models', '001', 'model_2020-09-30_11-14-20.pkl')
             with torch.no_grad():
-                self.model = UNet3D().to('cuda:0')
-                model_dict = torch.load(model_path, map_location='cuda:0')
+                # self.model = UNet3D().to('cuda:0')
+                self.model = UNet3D()
+                model_dict = torch.load(model_path, map_location='cpu')
                 model_dict = OrderedDict([(key[7:], val) for key, val in model_dict.items()])
                 self.model.load_state_dict(model_dict, strict=True)
                 self.model.eval()
@@ -275,6 +277,12 @@ class MREtoXr:
         # Register mre_raw to center and resize. Must be done slice by slice in 2D
 
         mre_raw = reg_pat.images['mre_raw']
+        reg_pat.images['wave'] = self.resize_wave(reg_pat.images['wave'], mre_raw)
+        print('mre_raw')
+        print(mre_raw.GetSize())
+        print(mre_raw.GetOrigin())
+        print(mre_raw.GetSpacing())
+        print(mre_raw.GetDirection())
         for i in range(mre_raw.GetSize()[2]):
             mre_raw_slice = mre_raw[:, :, i]
             np_tmp = sitk.GetArrayFromImage(mre_raw[:, :, i])
@@ -301,6 +309,8 @@ class MREtoXr:
                 elif mre_type not in reg_pat.images.keys():
                     continue
 
+                if mre_type == 'wave':
+                    print('transform wave')
                 transformixImageFilter.SetMovingImage(reg_pat.images[mre_type][:, :, i])
                 transformixImageFilter.Execute()
                 mre_output = transformixImageFilter.GetResultImage()
@@ -308,6 +318,9 @@ class MREtoXr:
                 self.ds['image_mre'].loc[
                     {'mre_type': mre_type, 'z_mre': i}] = (
                         sitk.GetArrayFromImage(mre_output).T)
+                # self.ds['image_mre'].loc[
+                #     {'mre_type': mre_type, 'z_mre': i}] = (
+                #         sitk.GetArrayFromImage(reg_pat.images[mre_type][:, :, i]).T)
 
         # resized_mre = self.respace_image(reg_pat.images[mre_type], 'input_mre',
         #                                  new_spacing[0], new_spacing[1])
@@ -346,6 +359,29 @@ class MREtoXr:
             self.ds.to_netcdf(self.output_name)
             print('Done')
             return self.ds
+
+    def resize_wave(self, wave, mre_raw):
+        '''Take an input image and resize it to the appropriate resolution.'''
+        # Get initial and resizing params
+        wave_size = wave.GetSize()
+        raw_size = mre_raw.GetSize()
+        raw_spacing = mre_raw.GetSpacing()
+        raw_dir = mre_raw.GetDirection()
+        raw_origin = mre_raw.GetOrigin()
+
+        interp_method = sitk.sitkLinear
+
+        # Resize image
+        wave.SetOrigin(raw_origin)
+        wave.SetDirection(raw_dir)
+        wave.SetSpacing((raw_spacing[0]*(raw_size[0]/wave_size[0]),
+                        raw_spacing[1]*(raw_size[1]/wave_size[1]), 1))
+
+        center = sitk.CenteredTransformInitializer(
+            mre_raw, wave, sitk.AffineTransform(3),
+            sitk.CenteredTransformInitializerFilter.GEOMETRY,
+        )
+        return sitk.Resample(wave, mre_raw, center, interp_method)
 
     def resize_image(self, input_image, var_name):
         '''Take an input image and resize it to the appropriate resolution.'''
@@ -465,7 +501,8 @@ class MREtoXr:
             # get the model prediction (liver mask)
             with torch.no_grad():
                 print('starting torch model loading')
-                model_pred = self.model(torch.Tensor(image).to('cuda:0'))
+                # model_pred = self.model(torch.Tensor(image).to('cuda:0'))
+                model_pred = self.model(torch.Tensor(image))
                 print('sigmoid func')
                 model_pred = torch.sigmoid(model_pred)
                 print('torch done')
