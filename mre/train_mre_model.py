@@ -121,7 +121,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         val_list = [subj for subj in val_subj if subj not in test_list]
 
     elif cfg['sampling_breakdown'] == 'smart':
-        if cfg['do_older_dataset'] is True:
+        if cfg['dataset_ver'] == 'old':
             # Needs to be hardcoded for now, problem with calc on the fly
             high_subj = ['1106', '1853', '0173', '1033', '0954', '1427', '2007', '1736', '1967',
                          '1474', '1343', '0135', '0890', '1296', '1839', '1395', '1526', '0838',
@@ -151,7 +151,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
             val_list = high_subj[:14] + low_subj[:24]
             train_list = high_subj[14:] + low_subj[24:]
 
-        else:
+        elif cfg['dataset_ver'] == 'rad_freeze':
             # Needs to be hardcoded for now, problem with calc on the fly
             high_subj = ['1736', '2001', '1935', '0898', '1149', '0931', '1590', '1033',
                          '0135', '1271', '1474', '1577', '1851', '1103', '0173', '1106',
@@ -178,6 +178,34 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
 
             val_list = high_subj[:10] + low_subj[:20]
             train_list = high_subj[10:] + low_subj[20:]
+
+        elif cfg['dataset_ver'] == 'wave_v1':
+            # Needs to be hardcoded for now, problem with calc on the fly
+            train_list = ['0898', '0924', '1119', '1795', '2007', '1712', '0234', '1076', '0384',
+                          '0989', '1039', '0221', '1138', '0344', '1110', '0084', '1215', '1028',
+                          '0693', '1250', '1807', '0979', '0024', '1045', '0604', '0164', '1149',
+                          '0291', '0653', '0704', '0659', '1239', '0628', '1979', '1077', '0929',
+                          '1209', '1336', '1367', '1287', '1841', '0043', '0415', '0235', '0401',
+                          '0914', '0210', '0556', '1072', '0135', '0457', '1829', '0516', '0727',
+                          '1948', '1433', '0650', '1217', '0995', '1106', '0219', '1741', '0964',
+                          '1337', '1075', '1400', '0509', '0492', '0378', '1426', '0175', '1296',
+                          '1714', '1699', '1785', '1706', '1344', '0615', '1839', '1736', '0975',
+                          '0639', '2034', '1453', '1303', '1278', '0740', '1417', '0510', '0747',
+                          '1798', '1311', '0155', '1715', '0395', '1360', '1103', '1834', '1850',
+                          '1266', '1967', '0173', '1382', '0461', '0047', '1412', '0491', '0020',
+                          '1793', '0213', '0900', '1765', '1819', '1205', '0490', '1404', '1448',
+                          '0954', '0006', '1935', '1671', '1108', '1903', '1121']
+            val_list = ['1917', '2046', '1694', '0748', '0496', '2001', '1789', '1447',
+                        '1083', '1851', '0029', '1395', '1727', '1940', '0564', '0734',
+                        '0931', '1341', '0892', '1790', '1459', '1980', '0648', '1427',
+                        '1853', '0735', '0525', '1207', '0222', '1806', '0737', '1271',
+                        '1896', '1033', '0932', '1123', '0172', '1843', '1679', '0937',
+                        '1343', '2029', '1932', '1435', '0612', '0126', '1053', '1893',
+                        '1144', '1791', '1464', '1899', '1456', '0655', '1329', '1230']
+
+            test_list = cfg['subj']
+            val_list = [subj for subj in val_list if subj not in test_list]
+            train_list = [subj for subj in train_list if subj not in test_list]
 
     elif cfg['sampling_breakdown'] == 'stratified':
         test_list = cfg['subj']
@@ -541,7 +569,7 @@ def default_cfg():
            'resize': False, 'patient_list': False, 'num_workers': 0, 'lr_scheduler': 'step',
            'lr': 1e-2, 'lr_max': 1e-2, 'lr_min': 1e-4, 'step_size': 20, 'dims': 2,
            'pixel_weight': 1.0, 'depth': False, 'bins': 'none',
-           'sampling_breakdown': 'smart', 'do_clinical': False, 'do_older_dataset': False,
+           'sampling_breakdown': 'smart', 'do_clinical': False, 'dataset_ver': 'wave_v1',
            'norm_clinical': False, 'norm_clin_vals': None, 'erode_mask': 0,
            'do_val': True, 'norm': 'bn', 'transfer': False, 'weight_decay': 0.1,
            'inputs': ['t1_pre_water', 't1_pre_in', 't1_pre_out', 't1_pre_fat', 't2',

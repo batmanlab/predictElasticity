@@ -1196,11 +1196,11 @@ class ModelComparePandas:
 
     def __init__(self, ds, do_cor=False, do_aug=False):
         pred_names = [pred for pred in list(ds.mre_type.values) if
-                      pred not in ['mre_raw', 'mre_mask', 'mre_pred', 'mre_wave']]
+                      pred not in ['mre_raw', 'mre_mask', 'mre_pred', 'mre_wave', 'wave']]
         pred_dict = {}
 
         for subj in ds.subject:
-            mask = ds.sel(subject=subj, mask_type='combo')['mask_mri'].values.copy()
+            mask = ds.sel(subject=subj, mask_type='combo')['mask_mre'].values.copy()
             # print(mask.shape)
             # print(mask.mean())
             if do_aug:
