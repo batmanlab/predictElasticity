@@ -719,7 +719,7 @@ class MRETorchDataset(Dataset):
         self.wave = kwargs.get('wave', False)
         if self.wave:
             print('wave true')
-            self.target = kwargs.get('target', ['mre', 'mre_wave'])
+            self.target = kwargs.get('target', ['mre', 'wave'])
         else:
             self.target = kwargs.get('target', 'mre')
         if type(self.target) is str:
@@ -934,6 +934,7 @@ class MRETorchDataset(Dataset):
 
     def target_norm(self, target):
         '''Rescale stiffness and wave image (if available)'''
+        target = target*1.0
 
         # Stiffness image
         with np.errstate(divide='ignore', invalid='ignore'):
@@ -941,14 +942,12 @@ class MRETorchDataset(Dataset):
             target[0, :] = np.float32(target[0]/100.0)
 
         # Wave images
-        if target.shape[0] > 1:
-            for i in range(1, target.shape[0]):
-                # v_min, v_max = np.percentile(target[i], (5, 95))
-                # v_min, v_max = np.min(target[i]), np.max(target[i])
-                # target[i, :] = exposure.rescale_intensity(target[i], in_range=(v_min, v_max),
-                #                                           out_range=(-1.0, 1.0))
-                # target[i, :] = exposure.rescale_intensity(target[i], out_range=(-1.0, 1.0))
-                target[i, :] = np.float32(target[i]/100.0)
+        if self.wave:
+            # v_min, v_max = np.percentile(target[i], (5, 95))
+            v_min, v_max = np.min(target[1]), np.max(target[1])
+            target[1, :] = exposure.rescale_intensity(target[1], in_range=(v_min, v_max),
+                                                      out_range=(-10.0, 10.0))
+            # target[i, :] = np.float32(target[i]/10.0)
 
         target = target.astype(np.float32)
         return target
@@ -1008,7 +1007,7 @@ class TorchToXr:
         if self.nmre == 1:
             self.mre_types = kwargs.get('mre_types', ['mre'])
         elif self.nmre == 2:
-            self.mre_types = kwargs.get('mre_types', ['mre', 'mre_wave'])
+            self.mre_types = kwargs.get('mre_types', ['mre', 'wave'])
         else:
             self.mre_types = kwargs.get('mre_types', [f'mre_type_{i}' for i in range(self.nmre)])
 
@@ -1085,11 +1084,16 @@ class ModelCompare:
     '''
 
     def __init__(self, base_model_path='/pghbio/dbmi/batmanlab/Data/MRE/XR_full_gold_v3/*.nc',
-                 pred_dict=None):
+                 pred_dict=None, do_clin=True, wave=False):
 
         if pred_dict is None:
             pred_dict = {}
 
+        self.do_clin = do_clin
+        if wave:
+            self.wave_name = 'wave'
+        else:
+            self.wave_name = 'mre_wave'
         self.init_new_ds(base_model_path, pred_dict.keys())
         self.add_predictions(pred_dict)
 
@@ -1106,59 +1110,94 @@ class ModelCompare:
         mre_type.remove('mre_pred')
         mre_type += pred_names
         # mre_type
-        self.ds = xr.Dataset(
-            {'image_mri': (['subject', 'sequence', 'x', 'y', 'z'],
-                           base_ds['image_mri']),
-             'mask_mri': (['subject', 'mask_type', 'x', 'y', 'z'],
-                          base_ds['mask_mri']),
-             'image_mre': (['subject', 'mre_type', 'x', 'y', 'z'],
-                           np.zeros((len(base_ds.subject),
-                                     len(mre_type),
-                                     len(base_ds.x), len(base_ds.y), len(base_ds.z)),
-                                    dtype=np.float)),
-             'mask_mre': (['subject', 'mask_type', 'x', 'y', 'z'],
-                          base_ds['mask_mre']),
-             'mri_to_mre_idx': (['subject', 'z_idx'],
-                                base_ds['mri_to_mre_idx']),
-             'val_slope': (['subject', 'mre_type'],
-                           np.ones((len(base_ds.subject),
-                                    len(mre_type)),
-                                   dtype=np.float)),
-             'val_intercept': (['subject', 'mre_type'],
+        if self.do_clin:
+            self.ds = xr.Dataset(
+                {'image_mri': (['subject', 'sequence', 'x', 'y', 'z'],
+                               base_ds['image_mri']),
+                 'mask_mri': (['subject', 'mask_type', 'x', 'y', 'z'],
+                              base_ds['mask_mri']),
+                 'image_mre': (['subject', 'mre_type', 'x', 'y', 'z'],
                                np.zeros((len(base_ds.subject),
-                                         len(mre_type)),
+                                         len(mre_type),
+                                         len(base_ds.x), len(base_ds.y), len(base_ds.z)),
                                         dtype=np.float)),
+                 'mask_mre': (['subject', 'mask_type', 'x', 'y', 'z'],
+                              base_ds['mask_mre']),
+                 'mri_to_mre_idx': (['subject', 'z_idx'],
+                                    base_ds['mri_to_mre_idx']),
+                 'val_slope': (['subject', 'mre_type'],
+                               np.ones((len(base_ds.subject),
+                                        len(mre_type)),
+                                       dtype=np.float)),
+                 'val_intercept': (['subject', 'mre_type'],
+                                   np.zeros((len(base_ds.subject),
+                                             len(mre_type)),
+                                            dtype=np.float)),
 
-             'age': (['subject'], base_ds['age']),
-             'gender': (['subject'], base_ds['gender']),
-             'height': (['subject'], base_ds['height']),
-             'weight': (['subject'], base_ds['weight']),
-             'bmi': (['subject'], base_ds['bmi']),
-             'htn': (['subject'], base_ds['htn']),
-             'hld': (['subject'], base_ds['hld']),
-             'dm': (['subject'], base_ds['dm']),
-             'ast': (['subject'], base_ds['ast']),
-             'alt': (['subject'], base_ds['alt']),
-             'alk': (['subject'], base_ds['alk']),
-             'tbili': (['subject'], base_ds['tbili']),
-             'albumin': (['subject'], base_ds['albumin']),
-             'plt': (['subject'], base_ds['plt'])
-             },
+                 'age': (['subject'], base_ds['age']),
+                 'gender': (['subject'], base_ds['gender']),
+                 'height': (['subject'], base_ds['height']),
+                 'weight': (['subject'], base_ds['weight']),
+                 'bmi': (['subject'], base_ds['bmi']),
+                 'htn': (['subject'], base_ds['htn']),
+                 'hld': (['subject'], base_ds['hld']),
+                 'dm': (['subject'], base_ds['dm']),
+                 'ast': (['subject'], base_ds['ast']),
+                 'alt': (['subject'], base_ds['alt']),
+                 'alk': (['subject'], base_ds['alk']),
+                 'tbili': (['subject'], base_ds['tbili']),
+                 'albumin': (['subject'], base_ds['albumin']),
+                 'plt': (['subject'], base_ds['plt'])
+                 },
 
-            coords={'subject': base_ds.subject,
-                    'sequence': base_ds.sequence,
-                    'mask_type': base_ds.mask_type,
-                    'mre_type': mre_type,
-                    'x': base_ds.x,
-                    'y': base_ds.y,
-                    'z': base_ds.z
-                    }
-        )
+                coords={'subject': base_ds.subject,
+                        'sequence': base_ds.sequence,
+                        'mask_type': base_ds.mask_type,
+                        'mre_type': mre_type,
+                        'x': base_ds.x,
+                        'y': base_ds.y,
+                        'z': base_ds.z
+                        }
+            )
+        else:
+            self.ds = xr.Dataset(
+                {'image_mri': (['subject', 'sequence', 'x', 'y', 'z'],
+                               base_ds['image_mri']),
+                 'mask_mri': (['subject', 'mask_type', 'x', 'y', 'z'],
+                              base_ds['mask_mri']),
+                 'image_mre': (['subject', 'mre_type', 'x', 'y', 'z'],
+                               np.zeros((len(base_ds.subject),
+                                         len(mre_type),
+                                         len(base_ds.x), len(base_ds.y), len(base_ds.z)),
+                                        dtype=np.float)),
+                 'mask_mre': (['subject', 'mask_type', 'x', 'y', 'z'],
+                              base_ds['mask_mre']),
+                 'mri_to_mre_idx': (['subject', 'z_idx'],
+                                    base_ds['mri_to_mre_idx']),
+                 'val_slope': (['subject', 'mre_type'],
+                               np.ones((len(base_ds.subject),
+                                        len(mre_type)),
+                                       dtype=np.float)),
+                 'val_intercept': (['subject', 'mre_type'],
+                                   np.zeros((len(base_ds.subject),
+                                             len(mre_type)),
+                                            dtype=np.float)),
+                 },
+
+                coords={'subject': base_ds.subject,
+                        'sequence': base_ds.sequence,
+                        'mask_type': base_ds.mask_type,
+                        'mre_type': mre_type,
+                        'x': base_ds.x,
+                        'y': base_ds.y,
+                        'z': base_ds.z
+                        }
+            )
         # Fill in the model mre_types
         self.ds['image_mre'].loc[
             {'mre_type': 'mre'}] = base_ds['image_mre'].sel(mre_type='mre')
         self.ds['image_mre'].loc[
-            {'mre_type': 'mre_wave'}] = base_ds['image_mre'].sel(mre_type='mre_wave')
+            {'mre_type': self.wave_name}] = base_ds['image_mre'].sel(mre_type=self.wave_name)
         self.ds['image_mre'].loc[
             {'mre_type': 'mre_mask'}] = base_ds['image_mre'].sel(mre_type='mre_mask')
         self.ds['image_mre'].loc[
