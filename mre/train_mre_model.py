@@ -328,7 +328,8 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         print(cfg['norm'])
         model = DeepLab(in_channels=in_channels, out_channels=cfg['out_channels_final'],
                         output_stride=8, norm=cfg['norm'],
-                        do_clinical=cfg['do_clinical'], class_only=cfg['class_only'])
+                        do_clinical=cfg['do_clinical'], class_only=cfg['class_only'],
+                        wave=cfg['wave'])
         if cfg['transfer']:
 
             # transfer_path = Path('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data',
@@ -390,7 +391,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
     elif use_sls:
         exp_lr_scheduler = None
 
-    if torch.cuda.device_count() > 1 and not cfg['dry_run']:
+    if torch.cuda.device_count() > 100 and not cfg['dry_run']:
         print("Let's use", torch.cuda.device_count(), "GPUs!")
         model = nn.DataParallel(model, [0, 1])
 
@@ -467,7 +468,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
         else:
             model_pred = model(inputs)
 
-        if not cfg['class_only']:
+        if (not cfg['class_only']) and (not cfg['wave']):
 
             model_pred.to('cpu')
             masked_target = targets.detach().numpy()*masks.numpy()

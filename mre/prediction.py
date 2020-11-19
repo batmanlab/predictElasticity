@@ -24,6 +24,7 @@ from tensorboardX import SummaryWriter
 # from mre.plotting import hv_dl_vis
 from mre.mre_datasets import MRETorchDataset
 from robust_loss_pytorch import adaptive
+import kornia
 
 
 def masked_L1(pred, target, mask):
@@ -80,6 +81,19 @@ def full_mse(pred, target):
     # print('sum:', mask.sum())
 
     return mse
+
+
+def helmholtz(mu, wave, freq):
+    laplace = kornia.filters.Laplacian(25)
+    laplace_wave = torch.zeros_like(wave)
+    for z in range(wave.size()[2]):
+        laplace_slice = laplace(wave[:, :, z, :, :])
+        laplace_wave[:, :, z, :, :] = laplace_slice
+    freq = torch.clamp(freq, -1e6, -1e-6)
+    l_hh = torch.abs(mu*laplace_wave - freq*wave).sum()/torch.numel(mu)
+    # print(freq)
+    # print(l_hh)
+    return l_hh
 
 
 def masked_class_subj(target, mask):
@@ -207,11 +221,13 @@ def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.05,
         metrics['subj_loss'] += subj_loss.data.cpu().numpy() * target.size(0)
     elif wave:
         # do stiffness
-        pixel_loss_stiff = masked_mse(pred[:, 0:1, :], target[:, 0:1, :], mask)
-        pixel_loss_wave = masked_mse(pred[:, 1:2, :], target[:, 1:2, :], mask)
-        loss = 0.5*pixel_loss_stiff + 0.5*pixel_loss_wave
+        pixel_loss_stiff = masked_mse(pred[0][:, 0:1, :, :, :], target[:, 0:1, :, :, :], mask)
+        pixel_loss_wave = masked_mse(pred[0][:, 1:2, :, :, :], target[:, 1:2, :, :, :], mask)
+        helmholtz_loss = helmholtz(pred[0][:, 0:1, :, :, :], pred[0][:, 1:2, :, :, :], pred[1])
+        loss = 0.05*pixel_loss_stiff + 0.5*pixel_loss_wave + 0.5*helmholtz_loss
         metrics['pixel_loss_stiff'] += pixel_loss_stiff.data.cpu().numpy() * target.size(0)
         metrics['pixel_loss_wave'] += pixel_loss_wave.data.cpu().numpy() * target.size(0)
+        metrics['loss_helmholtz'] += helmholtz_loss.data.cpu().numpy() * target.size(0)
 
     else:
         pass
@@ -426,7 +442,10 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                 # print('looping over names')
                 for i, name in enumerate(names):
                     # print('loading pred to mem')
-                    prediction = model(inputs[i:i+1], clinical[i:i+1]).data.cpu().numpy()
+                    if wave:
+                        prediction = model(inputs[i:i+1], clinical[i:i+1])[0].data.cpu().numpy()
+                    else:
+                        prediction = model(inputs[i:i+1], clinical[i:i+1]).data.cpu().numpy()
                     if class_only:
                         fills = [1, 29, 36, 38, 41]
                         pred_classes = np.argmax(prediction, 1)[0]

@@ -529,7 +529,7 @@ class DecoderFeatures(nn.Module):
 
 class DeepLab(nn.Module):
     def __init__(self, in_channels, out_channels, output_stride=8, norm='bn',
-                 do_clinical=False, class_only=False):
+                 do_clinical=False, class_only=False, wave=False):
         super(DeepLab, self).__init__()
 
         self.backbone = AlignedXception(in_channels, output_stride, norm=norm)
@@ -537,9 +537,12 @@ class DeepLab(nn.Module):
         self.decoder = Decoder(out_channels, norm=norm, do_clinical=do_clinical)
         self.do_clinical = do_clinical
         self.class_only = class_only
+        self.wave = wave
         if self.class_only:
             # assuming single out_channel only
             self.fc = nn.Linear(16*64*64, 5)
+        if self.wave:
+            self.freq = nn.Parameter(torch.FloatTensor([-60]))
 
     def forward(self, input, clinical=None):
         x, low_level_feat = self.backbone(input)
@@ -551,7 +554,10 @@ class DeepLab(nn.Module):
         else:
             x = F.interpolate(x, size=input.size()[2:], mode='trilinear', align_corners=True)
 
-        return x
+        if self.wave:
+            return (x, self.freq)
+        else:
+            return x
 
 
 class DeepLabFeatures(nn.Module):
