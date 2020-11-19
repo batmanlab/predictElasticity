@@ -448,7 +448,8 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
                                                do_val=cfg['do_val'], ds=ds, bins=cfg['bins'],
                                                nbins=cfg['out_channels_final'],
                                                do_clinical=cfg['do_clinical'],
-                                               wave=cfg['wave'], class_only=cfg['class_only'])
+                                               wave=cfg['wave'], class_only=cfg['class_only'],
+                                               wave_hypers=cfg['wave_hypers'])
         print('model trained, handed off new mem_ds')
 
         # Write outputs and save model
@@ -566,7 +567,7 @@ def default_cfg():
            'mask_trimmer': False, 'mask_mixer': 'mixed', 'target_max': None, 'target_bins': 100,
            'model_arch': 'modular', 'n_layers': 7, 'out_channels_final': 1,
            'channel_growth': False, 'transfer_layer': False, 'seed': 100,
-           'worker_init_fn': 'rand_epoch',
+           'worker_init_fn': 'rand_epoch', 'wave_hypers': [0.05, 0.5, 0.5],
            'resize': False, 'patient_list': False, 'num_workers': 0, 'lr_scheduler': 'step',
            'lr': 1e-2, 'lr_max': 1e-2, 'lr_min': 1e-4, 'step_size': 20, 'dims': 2,
            'pixel_weight': 1.0, 'depth': False, 'bins': 'none',

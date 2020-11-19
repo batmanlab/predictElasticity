@@ -206,7 +206,7 @@ def get_depth_sid(args, labels):
 
 
 def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.05,
-              wave=False, class_only=False):
+              wave=False, class_only=False, wave_hypers=None):
 
     if class_only:
         label_class = masked_class_subj(target, mask)
@@ -220,11 +220,15 @@ def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.05,
         metrics['pixel_loss'] += pixel_loss.data.cpu().numpy() * target.size(0)
         metrics['subj_loss'] += subj_loss.data.cpu().numpy() * target.size(0)
     elif wave:
+        if wave_hypers is None:
+            wave_hypers = [0.05, 0.5, 0.5]
         # do stiffness
         pixel_loss_stiff = masked_mse(pred[0][:, 0:1, :, :, :], target[:, 0:1, :, :, :], mask)
         pixel_loss_wave = masked_mse(pred[0][:, 1:2, :, :, :], target[:, 1:2, :, :, :], mask)
         helmholtz_loss = helmholtz(pred[0][:, 0:1, :, :, :], pred[0][:, 1:2, :, :, :], pred[1])
-        loss = 0.05*pixel_loss_stiff + 0.5*pixel_loss_wave + 0.5*helmholtz_loss
+        loss = (wave_hypers[0]*pixel_loss_stiff +
+                wave_hypers[1]*pixel_loss_wave +
+                wave_hypers[2]*helmholtz_loss)
         metrics['pixel_loss_stiff'] += pixel_loss_stiff.data.cpu().numpy() * target.size(0)
         metrics['pixel_loss_wave'] += pixel_loss_wave.data.cpu().numpy() * target.size(0)
         metrics['loss_helmholtz'] += helmholtz_loss.data.cpu().numpy() * target.size(0)
@@ -254,7 +258,8 @@ def print_metrics(metrics, epoch_samples, phase):
 
 def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25, tb_writer=None,
                 verbose=True, loss_func=None, pixel_weight=1, do_val=True, ds=None,
-                bins=None, nbins=0, do_clinical=False, wave=False, class_only=False):
+                bins=None, nbins=0, do_clinical=False, wave=False, class_only=False,
+                wave_hypers=None):
     if loss_func is None:
         loss_func = 'l2'
     best_model_wts = copy.deepcopy(model.state_dict())
@@ -303,12 +308,14 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                         if phase == 'train':
                             # with torch.autograd.detect_anomaly():
                             loss = calc_loss(outputs, labels, masks, metrics, loss_func,
-                                             pixel_weight, wave=wave, class_only=class_only)
+                                             pixel_weight, wave=wave, class_only=class_only,
+                                             wave_hypers=wave_hypers)
                             loss.backward()
                             optimizer.step()
                         else:
                             loss = calc_loss(outputs, labels, masks, metrics, loss_func,
-                                             pixel_weight, wave=wave, class_only=class_only)
+                                             pixel_weight, wave=wave, class_only=class_only,
+                                             wave_hypers=wave_hypers)
                     # accrue total number of samples
                     epoch_samples += inputs.size(0)
 

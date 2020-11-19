@@ -77,6 +77,7 @@ class SlurmMaster:
         arg_string = ''
         for i in conf:
             if type(conf[i]) is list:
+                print(conf[i])
                 clean_vals = ' '.join(conf[i])
                 arg_string += f' --{i} {clean_vals}'
             else:
