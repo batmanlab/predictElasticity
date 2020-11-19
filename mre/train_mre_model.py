@@ -603,6 +603,9 @@ if __name__ == "__main__":
         elif key == 'inputs':
             parser.add_argument(f'--{key}', nargs='*',
                                 default=val)
+        elif key == 'wave_hypers':
+            parser.add_argument(f'--{key}', nargs='*',
+                                default=val)
         elif type(val) is bool:
             parser.add_argument(f'--{key}', action='store', type=str2bool,
                                 default=val)

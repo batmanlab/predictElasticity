@@ -84,6 +84,9 @@ def full_mse(pred, target):
 
 
 def helmholtz(mu, wave, freq):
+    print(mu)
+    print(wave)
+    print(freq)
     laplace = kornia.filters.Laplacian(25)
     laplace_wave = torch.zeros_like(wave)
     for z in range(wave.size()[2]):
@@ -328,7 +331,7 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
 
                 # deep copy the model if is it best
                 if do_val:
-                    if class_only:
+                    if class_only or wave:
                         best_conds = (
                             (phase == 'val') and
                             (epoch_loss < best_loss)
