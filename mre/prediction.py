@@ -11,6 +11,7 @@ import xarray as xr
 from scipy import ndimage as ndi
 
 import torch
+import torch.fft
 import torch.nn as nn
 import torch.optim as optim
 from torch.optim import lr_scheduler
@@ -52,24 +53,27 @@ def masked_mse(pred, target, mask):
     pred = pred.contiguous()
     target = target.contiguous()
     mask = mask.contiguous()
-    # norm = (target*mask).sum()
-    # N, C, D, H, W = pred.size()
-    # ord_num = C
-    # self.loss = 0.0
-    # First mask the target and prediction based on the MRE Combo Mask
-    # pred = pred.transpose(0, 1)[:, (mask.transpose(0, 1)[0, :]) > 0]
-    # target = target.transpose(0, 1)[:, (mask.transpose(0, 1)[0, :]) > 0]
-    # var = target.clone()
-    # var[var == 0] = 1
-    # norm = var.sum()
-    # S = target.size()[1]
-    # print(pred.shape)
     masked_mse = (((pred - target)**2)*mask).sum()/mask.ceil().sum()
-    # masked_mse = ((pred - target)**2).sum()/S
-    # print('ceil sum:', mask.ceil().sum())
-    # print('sum:', mask.sum())
 
     return masked_mse
+
+
+def masked_mse_fft(pred, target, mask):
+    pred = pred.contiguous()
+    target = target.contiguous()
+    mask = mask.contiguous()
+
+    fft_pred = torch.fft.fftn(pred*mask)
+    pow_pred = torch.real(fft_pred)**2+torch.imag(fft_pred)**2
+    pow_pred = (pow_pred-torch.mean(pow_pred))/torch.std(pow_pred)
+
+    fft_target = torch.fft.fftn(target*mask)
+    pow_target = torch.real(fft_target)**2+torch.imag(fft_target)**2
+    pow_target = (pow_target-torch.mean(pow_target))/torch.std(pow_target)
+
+    fft_mse = ((pow_pred - pow_target)**2).sum()/torch.numel(pow_pred)
+
+    return fft_mse
 
 
 def full_mse(pred, target):
@@ -84,9 +88,6 @@ def full_mse(pred, target):
 
 
 def helmholtz(mu, wave, freq):
-    print(mu)
-    print(wave)
-    print(freq)
     laplace = kornia.filters.Laplacian(25)
     laplace_wave = torch.zeros_like(wave)
     for z in range(wave.size()[2]):
@@ -209,7 +210,7 @@ def get_depth_sid(args, labels):
 
 
 def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.05,
-              wave=False, class_only=False, wave_hypers=None):
+              wave=False, class_only=False, wave_hypers=None, fft=True):
 
     if class_only:
         label_class = masked_class_subj(target, mask)
@@ -227,7 +228,11 @@ def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.05,
             wave_hypers = [0.05, 0.5, 0.5]
         # do stiffness
         pixel_loss_stiff = masked_mse(pred[0][:, 0:1, :, :, :], target[:, 0:1, :, :, :], mask)
-        pixel_loss_wave = masked_mse(pred[0][:, 1:2, :, :, :], target[:, 1:2, :, :, :], mask)
+        if fft:
+            pixel_loss_wave = masked_mse_fft(pred[0][:, 1:2, :, :, :],
+                                             target[:, 1:2, :, :, :], mask)
+        else:
+            pixel_loss_wave = masked_mse(pred[0][:, 1:2, :, :, :], target[:, 1:2, :, :, :], mask)
         helmholtz_loss = helmholtz(pred[0][:, 0:1, :, :, :], pred[0][:, 1:2, :, :, :], pred[1])
         loss = (wave_hypers[0]*pixel_loss_stiff +
                 wave_hypers[1]*pixel_loss_wave +
@@ -262,7 +267,7 @@ def print_metrics(metrics, epoch_samples, phase):
 def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25, tb_writer=None,
                 verbose=True, loss_func=None, pixel_weight=1, do_val=True, ds=None,
                 bins=None, nbins=0, do_clinical=False, wave=False, class_only=False,
-                wave_hypers=None):
+                wave_hypers=None, fft=True):
     if loss_func is None:
         loss_func = 'l2'
     best_model_wts = copy.deepcopy(model.state_dict())
@@ -312,13 +317,13 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                             # with torch.autograd.detect_anomaly():
                             loss = calc_loss(outputs, labels, masks, metrics, loss_func,
                                              pixel_weight, wave=wave, class_only=class_only,
-                                             wave_hypers=wave_hypers)
+                                             wave_hypers=wave_hypers, fft=fft)
                             loss.backward()
                             optimizer.step()
                         else:
                             loss = calc_loss(outputs, labels, masks, metrics, loss_func,
                                              pixel_weight, wave=wave, class_only=class_only,
-                                             wave_hypers=wave_hypers)
+                                             wave_hypers=wave_hypers, fft=fft)
                     # accrue total number of samples
                     epoch_samples += inputs.size(0)
 

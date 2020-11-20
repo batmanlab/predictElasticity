@@ -449,7 +449,7 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
                                                nbins=cfg['out_channels_final'],
                                                do_clinical=cfg['do_clinical'],
                                                wave=cfg['wave'], class_only=cfg['class_only'],
-                                               wave_hypers=cfg['wave_hypers'])
+                                               wave_hypers=cfg['wave_hypers'], fft=cfg['fft'])
         print('model trained, handed off new mem_ds')
 
         # Write outputs and save model
@@ -533,7 +533,10 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
 def process_kwargs(kwargs):
     cfg = default_cfg()
     for key in kwargs:
-        val = str2bool(kwargs[key])
+        if key == 'wave_hypers':
+            val = [float(i) for i in kwargs[key]]
+        else:
+            val = str2bool(kwargs[key])
         cfg[key] = val
     return cfg
 
@@ -570,7 +573,7 @@ def default_cfg():
            'worker_init_fn': 'rand_epoch', 'wave_hypers': [0.05, 0.5, 0.5],
            'resize': False, 'patient_list': False, 'num_workers': 0, 'lr_scheduler': 'step',
            'lr': 1e-2, 'lr_max': 1e-2, 'lr_min': 1e-4, 'step_size': 20, 'dims': 2,
-           'pixel_weight': 1.0, 'depth': False, 'bins': 'none',
+           'pixel_weight': 1.0, 'depth': False, 'bins': 'none', 'fft': True,
            'sampling_breakdown': 'smart', 'do_clinical': False, 'dataset_ver': 'wave_v1',
            'norm_clinical': False, 'norm_clin_vals': None, 'erode_mask': 0,
            'do_val': True, 'norm': 'bn', 'transfer': False, 'weight_decay': 0.1,
