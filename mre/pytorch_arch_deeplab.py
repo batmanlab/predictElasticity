@@ -542,7 +542,7 @@ class DeepLab(nn.Module):
             # assuming single out_channel only
             self.fc = nn.Linear(16*64*64, 5)
         if self.wave:
-            self.freq = nn.Parameter(torch.FloatTensor([-60]))
+            self.freq = nn.Parameter(torch.FloatTensor([1]))
 
     def forward(self, input, clinical=None):
         x, low_level_feat = self.backbone(input)

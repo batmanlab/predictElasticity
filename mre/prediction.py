@@ -233,13 +233,15 @@ def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.05,
                                              target[:, 1:2, :, :, :], mask)
         else:
             pixel_loss_wave = masked_mse(pred[0][:, 1:2, :, :, :], target[:, 1:2, :, :, :], mask)
-        helmholtz_loss = helmholtz(pred[0][:, 0:1, :, :, :], pred[0][:, 1:2, :, :, :], pred[1])
+        freq = 3600*pred[1]
+        helmholtz_loss = helmholtz(pred[0][:, 0:1, :, :, :], pred[0][:, 1:2, :, :, :], freq)
         loss = (wave_hypers[0]*pixel_loss_stiff +
                 wave_hypers[1]*pixel_loss_wave +
                 wave_hypers[2]*helmholtz_loss)
         metrics['pixel_loss_stiff'] += pixel_loss_stiff.data.cpu().numpy() * target.size(0)
         metrics['pixel_loss_wave'] += pixel_loss_wave.data.cpu().numpy() * target.size(0)
         metrics['loss_helmholtz'] += helmholtz_loss.data.cpu().numpy() * target.size(0)
+        metrics['freq'] = freq.data.cpu().numpy()[0]
 
     else:
         pass
@@ -259,7 +261,10 @@ def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.05,
 def print_metrics(metrics, epoch_samples, phase):
     outputs = []
     for k in metrics.keys():
-        outputs.append("{}: {:4f}".format(k, metrics[k] / epoch_samples))
+        if k == 'freq':
+            outputs.append("{}: {:4f}".format(k, metrics[k]))
+        else:
+            outputs.append("{}: {:4f}".format(k, metrics[k] / epoch_samples))
 
     print("{}: {}".format(phase, ", ".join(outputs)))
 
@@ -369,10 +374,14 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                 if tb_writer:
                     tb_writer.add_scalar(f'loss_{phase}', epoch_loss, epoch)
                     if wave:
-                        tb_writer.add_scalar(f'pixel_loss_stiff{phase}',
+                        tb_writer.add_scalar(f'pixel_loss_stiff_{phase}',
                                              metrics['pixel_loss_stiff']/epoch_samples, epoch)
                         tb_writer.add_scalar(f'pixel_loss_wave_{phase}',
                                              metrics['pixel_loss_wave']/epoch_samples, epoch)
+                        tb_writer.add_scalar(f'helmholtz_loss_{phase}',
+                                             metrics['helmholtz_loss']/epoch_samples, epoch)
+                        tb_writer.add_scalar('freq',
+                                             metrics['freq'], epoch)
                     elif loss_func != 'ordinal':
                         tb_writer.add_scalar(f'pixel_loss_{phase}',
                                              metrics['pixel_loss']/epoch_samples, epoch)
