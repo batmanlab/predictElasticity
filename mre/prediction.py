@@ -234,7 +234,7 @@ def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.05,
                                              target[:, 1:2, :, :, :], mask)
         else:
             pixel_loss_wave = masked_mse(pred[0][:, 1:2, :, :, :], target[:, 1:2, :, :, :], mask)
-        freq = 60*pred[1]
+        freq = 5*pred[1]
         helmholtz_loss = helmholtz(pred[0][:, 0:1, :, :, :], pred[0][:, 1:2, :, :, :], freq)
         loss = (wave_hypers[0]*pixel_loss_stiff +
                 wave_hypers[1]*subj_loss +
