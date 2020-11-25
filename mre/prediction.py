@@ -234,7 +234,8 @@ def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.05,
                                              target[:, 1:2, :, :, :], mask)
         else:
             pixel_loss_wave = masked_mse(pred[0][:, 1:2, :, :, :], target[:, 1:2, :, :, :], mask)
-        freq = 5*pred[1]
+        # freq = 5*pred[1]
+        freq = torch.FloatTensor([-5]).to('cuda:0')
         helmholtz_loss = helmholtz(pred[0][:, 0:1, :, :, :], pred[0][:, 1:2, :, :, :], freq)
         loss = (wave_hypers[0]*pixel_loss_stiff +
                 wave_hypers[1]*subj_loss +
@@ -243,7 +244,7 @@ def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.05,
         metrics['pixel_loss_stiff'] += pixel_loss_stiff.data.cpu().numpy() * target.size(0)
         metrics['subj_loss'] += subj_loss.data.cpu().numpy() * target.size(0)
         metrics['pixel_loss_wave'] += pixel_loss_wave.data.cpu().numpy() * target.size(0)
-        metrics['loss_helmholtz'] += helmholtz_loss.data.cpu().numpy() * target.size(0)
+        metrics['helmholtz_loss'] += helmholtz_loss.data.cpu().numpy() * target.size(0)
         metrics['freq'] = freq.data.cpu().numpy()[0]
 
     else:
