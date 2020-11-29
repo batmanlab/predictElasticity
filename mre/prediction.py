@@ -87,12 +87,23 @@ def full_mse(pred, target):
     return mse
 
 
-def helmholtz(mu, wave, freq):
-    laplace = kornia.filters.Laplacian(25)
+def helmholtz(mu, wave, freq, lap_kernel=25):
     laplace_wave = torch.zeros_like(wave)
-    for z in range(wave.size()[2]):
-        laplace_slice = laplace(wave[:, :, z, :, :])
-        laplace_wave[:, :, z, :, :] = laplace_slice
+    if lap_kernel > 0:
+        laplace = kornia.filters.Laplacian(lap_kernel)
+        for z in range(wave.size()[2]):
+            laplace_slice = laplace(wave[:, :, z, :, :])
+            laplace_wave[:, :, z, :, :] = laplace_slice
+    elif lap_kernel == -1:
+        kernel = torch.tensor([[
+            [1., 4., 1.],
+            [4., -20., 4.],
+            [1., 4., 1.]]])
+        for z in range(wave.size()[2]):
+            laplace_slice = kornia.filter.filter2D(wave[:, :, z, :, :], kernel)
+            laplace_wave[:, :, z, :, :] = laplace_slice
+    else:
+        raise KeyError('lap_kernel is wrong')
     freq = torch.clamp(freq, -1e6, -1e-6)
     l_hh = torch.abs(mu*laplace_wave - freq*wave).sum()/torch.numel(mu)
     # print(freq)
@@ -210,7 +221,7 @@ def get_depth_sid(args, labels):
 
 
 def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.05,
-              wave=False, class_only=False, wave_hypers=None, fft=True):
+              wave=False, class_only=False, wave_hypers=None, fft=True, lap_kernel=25):
 
     if class_only:
         label_class = masked_class_subj(target, mask)
@@ -236,7 +247,8 @@ def calc_loss(pred, target, mask, metrics, loss_func=None, pixel_weight=0.05,
             pixel_loss_wave = masked_mse(pred[0][:, 1:2, :, :, :], target[:, 1:2, :, :, :], mask)
         # freq = 5*pred[1]
         freq = torch.FloatTensor([-5]).to('cuda:0')
-        helmholtz_loss = helmholtz(pred[0][:, 0:1, :, :, :], pred[0][:, 1:2, :, :, :], freq)
+        helmholtz_loss = helmholtz(pred[0][:, 0:1, :, :, :], pred[0][:, 1:2, :, :, :], freq,
+                                   lap_kernel=lap_kernel)
         loss = (wave_hypers[0]*pixel_loss_stiff +
                 wave_hypers[1]*subj_loss +
                 wave_hypers[2]*pixel_loss_wave +
@@ -276,7 +288,7 @@ def print_metrics(metrics, epoch_samples, phase):
 def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25, tb_writer=None,
                 verbose=True, loss_func=None, pixel_weight=1, do_val=True, ds=None,
                 bins=None, nbins=0, do_clinical=False, wave=False, class_only=False,
-                wave_hypers=None, fft=True):
+                wave_hypers=None, fft=True, lap_kernel=25):
     if loss_func is None:
         loss_func = 'l2'
     best_model_wts = copy.deepcopy(model.state_dict())
@@ -326,13 +338,15 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                             # with torch.autograd.detect_anomaly():
                             loss = calc_loss(outputs, labels, masks, metrics, loss_func,
                                              pixel_weight, wave=wave, class_only=class_only,
-                                             wave_hypers=wave_hypers, fft=fft)
+                                             wave_hypers=wave_hypers, fft=fft,
+                                             lap_kernel=lap_kernel)
                             loss.backward()
                             optimizer.step()
                         else:
                             loss = calc_loss(outputs, labels, masks, metrics, loss_func,
                                              pixel_weight, wave=wave, class_only=class_only,
-                                             wave_hypers=wave_hypers, fft=fft)
+                                             wave_hypers=wave_hypers, fft=fft,
+                                             lap_kernel=lap_kernel)
                     # accrue total number of samples
                     epoch_samples += inputs.size(0)
 
@@ -364,10 +378,10 @@ def train_model(model, optimizer, scheduler, device, dataloaders, num_epochs=25,
                         best_loss = epoch_loss
                         best_model_wts = copy.deepcopy(model.state_dict())
 
-                    elif phase == 'val' and epoch_loss < best_loss*1.01 and epoch > 51:
-                        if verbose:
-                            print("saving best model (within 1%) ")
-                        best_model_wts = copy.deepcopy(model.state_dict())
+                    # elif phase == 'val' and epoch_loss < best_loss*1.01 and epoch > 51:
+                    #     if verbose:
+                    #         print("saving best model (within 1%) ")
+                    #     best_model_wts = copy.deepcopy(model.state_dict())
                 else:
                     if phase == 'train' and epoch_loss < best_loss:
                         if verbose:

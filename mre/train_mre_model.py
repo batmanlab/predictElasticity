@@ -449,7 +449,8 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
                                                nbins=cfg['out_channels_final'],
                                                do_clinical=cfg['do_clinical'],
                                                wave=cfg['wave'], class_only=cfg['class_only'],
-                                               wave_hypers=cfg['wave_hypers'], fft=cfg['fft'])
+                                               wave_hypers=cfg['wave_hypers'], fft=cfg['fft'],
+                                               lap_kernel=cfg['lap_kernel'])
         print('model trained, handed off new mem_ds')
 
         # Write outputs and save model
@@ -563,7 +564,7 @@ def default_cfg():
            'test_aug': False,
            'train_num_samples': 200, 'val_num_samples': 100,
            'train_smear': 'gaussian', 'val_smear': False, 'test_smear': False,
-           'smear_amt': 3,
+           'smear_amt': 3, 'lap_kernel': 25,
            'wave': False, 'class_only': False,
            'batch_size': 64, 'model_cap': 16, 'subj': None,
            'gamma': 0.1, 'num_epochs': 40, 'dry_run': False, 'loss': 'l2',
