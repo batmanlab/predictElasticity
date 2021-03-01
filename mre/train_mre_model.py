@@ -26,7 +26,7 @@ from robust_loss_pytorch import adaptive
 from mre.pytorch_arch_deeplab import AlignedXception, DeepLab
 from mre.pytorch_arch_debug import Debug
 
-import sls
+# import sls
 
 
 def train_model_full(data_path: str, data_file: str, output_path: str, model_version: str = 'tmp',
@@ -376,9 +376,9 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
     elif loss_type in ['l2', 'ordinal'] and cfg['lr_scheduler'] == 'cyclic':
         optimizer = optim.SGD(model.parameters(), lr=cfg['lr_max'], momentum=0.9,
                               weight_decay=cfg['weight_decay'])
-    elif use_sls:
-        optimizer = sls.Sls(model.parameters(),
-                            n_batches_per_epoch=len(train_set)/float(cfg["batch_size"]))
+    # elif use_sls:
+    #     optimizer = sls.Sls(model.parameters(),
+    #                         n_batches_per_epoch=len(train_set)/float(cfg["batch_size"]))
     # Define optimizer
     if cfg['lr_scheduler'] == 'step':
         exp_lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=cfg['step_size'],
