@@ -728,13 +728,14 @@ class MRETorchDataset(Dataset):
         self.aug = kwargs.get(f'{set_type}_aug', False)
         self.smear = kwargs.get(f'{set_type}_smear', False)
         self.smear_amt = kwargs.get('smear_amt', 0)
-        self.loss = kwargs.get(f'loss', 'l2')
-        self.bins = kwargs.get(f'bins', None)
-        self.nbins = kwargs.get(f'out_channels_final', 0)
-        self.do_clinical = kwargs.get(f'do_clinical', False)
-        self.norm_clinical = kwargs.get(f'norm_clinical', True)
-        self.norm_clin_vals = kwargs.get(f'norm_clin_vals', None)
-        self.erode_mask = kwargs.get(f'erode_mask', 0)
+        self.loss = kwargs.get('loss', 'l2')
+        self.bins = kwargs.get('bins', None)
+        self.nbins = kwargs.get('out_channels_final', 0)
+        self.do_clinical = kwargs.get('do_clinical', False)
+        self.do_clinical_only = kwargs.get('do_clinical_only', False)
+        self.norm_clinical = kwargs.get('norm_clinical', True)
+        self.norm_clin_vals = kwargs.get('norm_clin_vals', None)
+        self.erode_mask = kwargs.get('erode_mask', 0)
         self.organize_data()
 
     def organize_data(self):
@@ -953,9 +954,14 @@ class MRETorchDataset(Dataset):
         return target
 
     def make_clin_tensor(self, clinical):
-        clin_tensor = torch.zeros((len(clinical), 16, 64, 64), dtype=torch.float32)
-        for i, val in enumerate(clinical):
-            clin_tensor[:, i, :] = torch.tensor(val, dtype=torch.float32)
+        if self.do_clinical_only:
+            clin_tensor = torch.zeros((len(clinical)), dtype=torch.float32)
+            for i, val in enumerate(clinical):
+                clin_tensor[i] = torch.tensor(val, dtype=torch.float32)
+        else:
+            clin_tensor = torch.zeros((len(clinical), 16, 64, 64), dtype=torch.float32)
+            for i, val in enumerate(clinical):
+                clin_tensor[:, i, :] = torch.tensor(val, dtype=torch.float32)
         return clin_tensor
 
 

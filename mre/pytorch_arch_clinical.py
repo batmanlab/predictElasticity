@@ -18,8 +18,10 @@ class Clinical(nn.Module):
 
         self.relu = nn.ReLU()
 
-    def forward(self, x):
+    def forward(self, dummy_in, x):
 
+        print(dummy_in.shape)
+        print(x.shape)
         x = self.fc_in(x)
         x = self.relu(x)
         x = self.fc_1(x)

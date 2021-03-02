@@ -124,6 +124,7 @@ def masked_class_subj(target, mask):
 
     bins = torch.as_tensor([28.8, 35.4, 37.7, 40.9], device=mask_target_mean.get_device())
     subj_class = torch.bucketize(mask_target_mean, bins)
+    print(subj_class.shape)
     return subj_class
 
 
