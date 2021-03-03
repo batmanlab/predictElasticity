@@ -1225,8 +1225,9 @@ class ModelCompare:
         '''Append predictions to self.ds'''
         for pred in pred_dict:
             ds_pred = self.load_files(pred_dict[pred])
-            if pred != 'rad_style_baseline':
-                ds_pred = ds_pred.sel(mre_type='mre_pred')
+            print(ds_pred)
+            # if pred != 'rad_style_baseline':
+            #     ds_pred = ds_pred.sel(mre_type='mre_pred')
             ds_pred = ds_pred.assign_coords(mre_type=[pred])
             ds_pred = ds_pred.sortby('subject')
             self.ds['image_mre'].loc[dict(mre_type=pred)] = ds_pred['image_mre']

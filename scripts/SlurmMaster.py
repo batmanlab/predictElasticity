@@ -20,9 +20,10 @@ from datetime import datetime
 class SlurmMaster:
     def __init__(self, config):
         self.date = datetime.today().strftime('%Y-%m-%d_%H-%M-%S')
-        self.log_dir = Path('/pylon5/ac5616p/bpollack/mre_slurm', self.date)
+        self.log_dir = Path(
+            '/ocean/projects/asc170022p/bpollack/predictElasticity/data/slurm_outputs', self.date)
         self.log_dir.mkdir(parents=True, exist_ok=True)
-        self.notes_dir = Path('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/notes',
+        self.notes_dir = Path('/ocean/projects/asc170022p/bpollack/predictElasticity/data/notes',
                               self.date)
         self.notes_dir.mkdir(parents=True, exist_ok=True)
         self.config = Path(config)
@@ -30,29 +31,30 @@ class SlurmMaster:
         random.seed(self.date)
         self.mre_id = random.randint(10000, 90000)
         print('making staging dir')
-        self.staging_dir = f'/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/{self.date}'
-        os.mkdir(f'/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/{self.date}')
-        shutil.copytree('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/mre',
-                        '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/' +
+        self.staging_dir = (
+            f'/ocean/projects/asc170022p/bpollack/predictElasticity/staging/{self.date}')
+        os.mkdir(f'/ocean/projects/asc170022p/bpollack/predictElasticity/staging/{self.date}')
+        shutil.copytree('/ocean/projects/asc170022p/bpollack/predictElasticity/mre',
+                        '/ocean/projects/asc170022p/bpollack/predictElasticity/staging/' +
                         f'{self.date}/mre{self.mre_id}')
-        shutil.copy('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/__init__.py',
-                    '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/' +
+        shutil.copy('/ocean/projects/asc170022p/bpollack/predictElasticity/__init__.py',
+                    '/ocean/projects/asc170022p/bpollack/predictElasticity/staging/' +
                     f'{self.date}/__init__.py')
-        shutil.copy('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/setup.py',
-                    '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/' +
+        shutil.copy('/ocean/projects/asc170022p/bpollack/predictElasticity/setup.py',
+                    '/ocean/projects/asc170022p/bpollack/predictElasticity/staging/' +
                     f'{self.date}/setup.py')
-        shutil.rmtree('/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/' +
+        shutil.rmtree('/ocean/projects/asc170022p/bpollack/predictElasticity/staging/' +
                       f'{self.date}/mre{self.mre_id}/__pycache__')
         os.system(f"sed -i 's/import mre/import mre{self.mre_id}/g' " +
-                  "/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/" +
+                  "/ocean/projects/asc170022p/bpollack/predictElasticity/staging/" +
                   f'{self.date}/mre{self.mre_id}/*.py')
         os.system(f"sed -i 's/from mre/from mre{self.mre_id}/g' " +
-                  "/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/" +
+                  "/ocean/projects/asc170022p/bpollack/predictElasticity/staging/" +
                   f"{self.date}/mre{self.mre_id}/*.py")
         os.system(f"sed -i 's/mre/mre{self.mre_id}/g' " +
-                  "/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/" +
+                  "/ocean/projects/asc170022p/bpollack/predictElasticity/staging/" +
                   f"{self.date}/setup.py")
-        os.chdir(f'/pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/{self.date}')
+        os.chdir(f'/ocean/projects/asc170022p/bpollack/predictElasticity/staging/{self.date}')
         os.system('python setup.py develop')
 
     def generate_slurm_script(self, number, conf, subj, subj_num, date, project):
@@ -93,17 +95,15 @@ class SlurmMaster:
             else:
                 arg_string += f' --subj {subj}'
             arg_string += f' --model_version={date}_n{number}'
-            # script.write('#SBATCH -D /pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging')
-            script.write('#SBATCH -A ac5616p\n')
+            script.write('#SBATCH -A asc170022p\n')
             script.write(f'#SBATCH --partition={self.node["partition"]}\n')
             # script.write('#SBATCH --gres=gpu:volta32:1\n')
-            script.write(f'#SBATCH --gres=gpu:{self.node["gpu"]}:{self.node["ngpus"]}\n')
+            script.write(f'#SBATCH --gres=gpu:{self.node["ngpus"]}\n')
             # script.write('#SBATCH -A bi561ip\n')
             # script.write('#SBATCH --partition=DBMI-GPU\n')
             # script.write('#SBATCH --gres=gpu:p100:2\n')
             script.write('#SBATCH --nodes=1\n')
             # script.write('#SBATCH --mem=92800\n')
-            script.write('#SBATCH -C EGRESS\n')
         else:
             arg_string += f' --subj={subj}'
             script.write('#SBATCH -A bi561ip\n')
@@ -118,14 +118,15 @@ class SlurmMaster:
 
         script.write('set -x\n')
         script.write('echo "$@"\n')
-        script.write('source /pghbio/dbmi/batmanlab/bpollack/anaconda3/etc/profile.d/conda.sh\n')
+        script.write(
+            'source /jet/home/bpollack/anaconda3/etc/profile.d/conda.sh\n')
         script.write('conda activate mre\n')
-        # script.write('python /pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/' +
+        # script.write('python /ocean/projects/asc170022p/bpollack/predictElasticity/staging/' +
         #              f'{self.date}/setup.py install\n')
         script.write('\n')
         script.write('nvidia-smi\n')
 
-        script.write(f'python /pghbio/dbmi/batmanlab/bpollack/predictElasticity/staging/'
+        script.write(f'python /ocean/projects/asc170022p/bpollack/predictElasticity/staging/'
                      f'{self.date}/mre{self.mre_id}/{module} {arg_string}\n')
 
         script.close()

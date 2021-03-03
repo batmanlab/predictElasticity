@@ -74,7 +74,10 @@ def train_model_full(data_path: str, data_file: str, output_path: str, model_ver
     use_sls = False
     if cfg['lr_scheduler'] == 'sls':
         use_sls = True
-    in_channels = len(cfg['inputs'])
+    if cfg['model_arch'] != 'clinical':
+        in_channels = len(cfg['inputs'])
+    else:
+        in_channels = cfg['in_channels']
 
     # Start filling dataloaders
     dataloaders = {}
@@ -579,9 +582,9 @@ def default_cfg():
            'worker_init_fn': 'rand_epoch', 'wave_hypers': [0.05, 0.05, 0.5, 0.5],
            'resize': False, 'patient_list': False, 'num_workers': 0, 'lr_scheduler': 'step',
            'lr': 1e-2, 'lr_max': 1e-2, 'lr_min': 1e-4, 'step_size': 20, 'dims': 2,
-       'pixel_weight': 1.0, 'depth': False, 'bins': 'none', 'fft': True,
-       'sampling_breakdown': 'smart', 'do_clinical': False, 'do_clinical_only': False,
-   'dataset_ver': 'wave_v1',
+           'pixel_weight': 1.0, 'depth': False, 'bins': 'none', 'fft': True,
+           'sampling_breakdown': 'smart', 'do_clinical': False, 'do_clinical_only': False,
+           'dataset_ver': 'wave_v1',
            'norm_clinical': False, 'norm_clin_vals': None, 'erode_mask': 0,
            'do_val': True, 'norm': 'bn', 'transfer': False, 'weight_decay': 0.1,
            'inputs': ['t1_pre_water', 't1_pre_in', 't1_pre_out', 't1_pre_fat', 't2',
