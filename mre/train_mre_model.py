@@ -584,7 +584,7 @@ def default_cfg():
            'lr': 1e-2, 'lr_max': 1e-2, 'lr_min': 1e-4, 'step_size': 20, 'dims': 2,
            'pixel_weight': 1.0, 'depth': False, 'bins': 'none', 'fft': True,
            'sampling_breakdown': 'smart', 'do_clinical': False, 'do_clinical_only': False,
-           'dataset_ver': 'wave_v1',
+           'dataset_ver': 'wave_v1', 'in_channels': 1,
            'norm_clinical': False, 'norm_clin_vals': None, 'erode_mask': 0,
            'do_val': True, 'norm': 'bn', 'transfer': False, 'weight_decay': 0.1,
            'inputs': ['t1_pre_water', 't1_pre_in', 't1_pre_out', 't1_pre_fat', 't2',

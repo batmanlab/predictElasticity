@@ -95,22 +95,16 @@ class SlurmMaster:
             else:
                 arg_string += f' --subj {subj}'
             arg_string += f' --model_version={date}_n{number}'
-            script.write('#SBATCH -A asc170022p\n')
-            script.write(f'#SBATCH --partition={self.node["partition"]}\n')
-            # script.write('#SBATCH --gres=gpu:volta32:1\n')
-            script.write(f'#SBATCH --gres=gpu:{self.node["ngpus"]}\n')
-            # script.write('#SBATCH -A bi561ip\n')
-            # script.write('#SBATCH --partition=DBMI-GPU\n')
-            # script.write('#SBATCH --gres=gpu:p100:2\n')
-            script.write('#SBATCH --nodes=1\n')
-            # script.write('#SBATCH --mem=92800\n')
+            script.write('#SBATCH -N 1\n')
+            script.write(f'#SBATCH -p {self.node["partition"]}\n')
+            script.write(f'#SBATCH --gpus={self.node["ngpus"]}\n')
         else:
             arg_string += f' --subj={subj}'
             script.write('#SBATCH -A bi561ip\n')
             script.write('#SBATCH --partition=DBMI\n')
             script.write('#SBATCH --mem=120GB\n')
             script.write('#SBATCH -C EGRESS\n')
-        script.write('#SBATCH --time=24:00:00\n')
+        script.write('#SBATCH -t 4:00:00\n')
         script.write('#SBATCH --mail-user=brianleepollack@gmail.com\n')
         script.write(f'#SBATCH --output={str(self.log_dir)}/job_n{number}_subj{subj_name}.stdout\n')
         script.write(f'#SBATCH --error={str(self.log_dir)}/job_n{number}_subj{subj_name}.stderr\n')
