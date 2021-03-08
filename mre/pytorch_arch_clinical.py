@@ -8,7 +8,7 @@ from tensorboardX import SummaryWriter
 
 
 class Clinical(nn.Module):
-    def __init__(self, in_channels, out_channels, n_hidden=256):
+    def __init__(self, in_channels, out_channels, n_hidden=32):
         super(Clinical, self).__init__()
 
         self.fc_in = nn.Linear(in_channels, n_hidden)
