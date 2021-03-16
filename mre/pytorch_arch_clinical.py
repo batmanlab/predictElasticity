@@ -13,7 +13,7 @@ class Clinical(nn.Module):
 
         self.fc_in = nn.Linear(in_channels, n_hidden)
         self.fc_1 = nn.Linear(n_hidden, n_hidden)
-        self.fc_2 = nn.Linear(n_hidden, n_hidden)
+        # self.fc_2 = nn.Linear(n_hidden, n_hidden)
         self.fc_out = nn.Linear(n_hidden, out_channels)
 
         self.relu = nn.ReLU()
@@ -24,8 +24,8 @@ class Clinical(nn.Module):
         x = self.relu(x)
         x = self.fc_1(x)
         x = self.relu(x)
-        x = self.fc_2(x)
-        x = self.relu(x)
+        # x = self.fc_2(x)
+        # x = self.relu(x)
         x = self.fc_out(x)
 
         return x
