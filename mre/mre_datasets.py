@@ -961,8 +961,8 @@ class MRETorchDataset(Dataset):
         else:
             clin_tensor = torch.zeros((len(clinical), 16, 64, 64), dtype=torch.float32)
             for i, val in enumerate(clinical):
-                # clin_tensor[:, i, :] = torch.tensor(val, dtype=torch.float32)
-                clin_tensor[i, :] = torch.tensor(val, dtype=torch.float32)
+                clin_tensor[:, i, :] = torch.tensor(val, dtype=torch.float32)
+                # clin_tensor[i, :] = torch.tensor(val, dtype=torch.float32)
         return clin_tensor
 
 

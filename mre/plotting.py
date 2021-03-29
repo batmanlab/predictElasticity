@@ -151,7 +151,7 @@ def hv_dl_vis_chaos(inputs, targets, names, seq_names=None, predictions=None):
 
     hv_inputs = hv_ds_inputs.to(
         hv.Image, ['x', 'y'], groupby=group_dims, dynamic=True).redim.range(
-            inputs=(-1, 1)).opts(cmap='viridis', title=f'Input')
+            inputs=(-1, 1)).opts(cmap='viridis', title='Input')
 
     if predictions is not None:
         predictions = predictions.data.cpu().numpy()
@@ -1003,6 +1003,7 @@ def example_images(ds, subj='0219', z=18):
     ax[0][0].set_title('MRI (Input Image)', size=18)
     ax[0][0].set_ylim(235, 15)
     ax[0][0].set_xlim(15, 235)
+    ax[0][0].annotate("a.", xy=(-0.02, 1.04), xycoords="axes fraction", fontsize=16)
 
     mre = ds_other.sel(mre_type='mre_mask')['image_mre']/1000
     mre_cb = ax[0][1].imshow(mre.T, cmap='magma', vmin=0, vmax=7.800)
@@ -1010,6 +1011,7 @@ def example_images(ds, subj='0219', z=18):
     ax[0][1].set_title('MRE (Hatched)', size=18)
     ax[0][1].set_ylim(235, 15)
     ax[0][1].set_xlim(15, 235)
+    ax[0][1].annotate("b.", xy=(-0.02, 1.04), xycoords="axes fraction", fontsize=16)
 
     mre_pred = ds_other.sel(mre_type='pred')['image_mre']/1000
     ax[0][2].imshow(mre_pred.T, cmap='magma', vmin=0, vmax=7.800)
@@ -1017,6 +1019,7 @@ def example_images(ds, subj='0219', z=18):
     ax[0][2].set_title('MRE (Predicted)', size=18)
     ax[0][2].set_ylim(235, 15)
     ax[0][2].set_xlim(15, 235)
+    ax[0][2].annotate("c.", xy=(-0.02, 1.04), xycoords="axes fraction", fontsize=16)
 
     liver_mask = ds_other.sel(mask_type='liver')['mask_mri']
     liver_mask = morphology.remove_small_objects(liver_mask.values.astype(bool), min_size=1000)
@@ -1025,6 +1028,7 @@ def example_images(ds, subj='0219', z=18):
     ax[1][0].set_title('Liver Segmentation', size=18)
     ax[1][0].set_ylim(235, 15)
     ax[1][0].set_xlim(15, 235)
+    ax[1][0].annotate("d.", xy=(-0.02, 1.04), xycoords="axes fraction", fontsize=16)
 
     mre_mask = ds_other.sel(mask_type='mre')['mask_mre']
     ax[1][1].imshow(mre_mask.T, cmap=mask_map)
@@ -1032,6 +1036,7 @@ def example_images(ds, subj='0219', z=18):
     ax[1][1].set_title('MRE Segmentation', size=18)
     ax[1][1].set_ylim(235, 15)
     ax[1][1].set_xlim(15, 235)
+    ax[1][1].annotate("e.", xy=(-0.02, 1.04), xycoords="axes fraction", fontsize=16)
 
     combo_mask = ds_other.sel(mask_type='combo')['mask_mre']
     ax[1][2].imshow(combo_mask.T, cmap=mask_map)
@@ -1039,6 +1044,7 @@ def example_images(ds, subj='0219', z=18):
     ax[1][2].set_title('ROI', size=18)
     ax[1][2].set_ylim(235, 15)
     ax[1][2].set_xlim(15, 235)
+    ax[1][2].annotate("f.", xy=(-0.02, 1.04), xycoords="axes fraction", fontsize=16)
 
     fig.subplots_adjust(right=0.85)
     cbar_ax = fig.add_axes([0.88, 0.55, 0.03, 0.3])
