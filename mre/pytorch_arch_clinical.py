@@ -22,8 +22,8 @@ class Clinical(nn.Module):
 
         x = self.fc_in(x)
         x = self.relu(x)
-        x = self.fc_1(x)
-        x = self.relu(x)
+        # x = self.fc_1(x)
+        # x = self.relu(x)
         # x = self.fc_2(x)
         # x = self.relu(x)
         x = self.fc_out(x)
