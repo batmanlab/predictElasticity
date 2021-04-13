@@ -1091,7 +1091,8 @@ class ModelCompare:
     '''
 
     def __init__(self, base_model_path='/pghbio/dbmi/batmanlab/Data/MRE/XR_full_gold_v3/*.nc',
-                 pred_dict=None, do_clin=True, wave=False, drop_eovist=False, eovist_only=False):
+                 pred_dict=None, do_clin=True, wave=False, drop_eovist=False, eovist_only=False,
+                 eovist_combo=False):
 
         if pred_dict is None:
             pred_dict = {}
@@ -1103,6 +1104,8 @@ class ModelCompare:
             self.wave_name = 'mre_wave'
         self.drop_eovist = drop_eovist
         self.eovist_only = eovist_only
+        self.eovist_combo = eovist_combo
+        self.eovist_list = ['0510', '1793', '0931', '0932', '0940', '1474', '1435', '0219']
         if self.drop_eovist and self.eovist_only:
             raise ValueError('cannot have both `drop_eovist` and `eovist_only`')
         self.init_new_ds(base_model_path, pred_dict.keys())
@@ -1117,20 +1120,22 @@ class ModelCompare:
         print(base_model_path)
         base_ds = self.load_files(base_model_path)
 
-        eovist_list = ['0510', '1793', '0931', '0932', '0940', '1474', '1435', '0219']
         if self.drop_eovist:
             all_subjs = base_ds.subject.values
-            sel_subjs = [subj for subj in all_subjs if subj not in eovist_list]
+            sel_subjs = [subj for subj in all_subjs if subj not in self.eovist_list]
             base_ds = base_ds.sel(subject=sel_subjs)
 
         if self.eovist_only:
-            base_ds = base_ds.sel(subject=eovist_list)
+            base_ds = base_ds.sel(subject=self.eovist_list)
 
         base_ds = base_ds.sortby('subject')
 
         mre_type = list(base_ds.mre_type.values)
         mre_type.remove('mre_pred')
-        mre_type += pred_names
+        if self.eovist_combo:
+            mre_type += ['pred']
+        else:
+            mre_type += pred_names
         # mre_type
         if self.do_clin:
             self.ds = xr.Dataset(
@@ -1239,16 +1244,29 @@ class ModelCompare:
 
     def add_predictions(self, pred_dict):
         '''Append predictions to self.ds'''
-        for pred in pred_dict:
-            ds_pred = self.load_files(pred_dict[pred])
-            # if pred != 'rad_style_baseline':
-            #     ds_pred = ds_pred.sel(mre_type='mre_pred')
-            ds_pred = ds_pred.assign_coords(mre_type=[pred])
+        if self.eovist_combo:
+            ds_pred = self.load_files(pred_dict['pred1'])
+            sel_subjs = [subj for subj in ds_pred.subject.values if subj not in self.eovist_list]
+            ds_pred = ds_pred.sel(subject=sel_subjs)
+            ds_eovist = self.load_files(pred_dict['pred2'])
+            ds_pred = ds_pred.combine_first(ds_eovist)
+            ds_pred = ds_pred.assign_coords(mre_type=['pred'])
             ds_pred = ds_pred.sortby('subject')
             print(ds_pred)
-            self.ds['image_mre'].loc[dict(mre_type=pred)] = ds_pred['image_mre']
-            self.ds['val_slope'].loc[dict(mre_type=pred)] = ds_pred['val_slope']
-            self.ds['val_intercept'].loc[dict(mre_type=pred)] = ds_pred['val_intercept']
+            self.ds['image_mre'].loc[dict(mre_type='pred')] = ds_pred['image_mre']
+            self.ds['val_slope'].loc[dict(mre_type='pred')] = ds_pred['val_slope']
+            self.ds['val_intercept'].loc[dict(mre_type='pred')] = ds_pred['val_intercept']
+        else:
+            for pred in pred_dict:
+                ds_pred = self.load_files(pred_dict[pred])
+                # if pred != 'rad_style_baseline':
+                #     ds_pred = ds_pred.sel(mre_type='mre_pred')
+                ds_pred = ds_pred.assign_coords(mre_type=[pred])
+                ds_pred = ds_pred.sortby('subject')
+                print(ds_pred)
+                self.ds['image_mre'].loc[dict(mre_type=pred)] = ds_pred['image_mre']
+                self.ds['val_slope'].loc[dict(mre_type=pred)] = ds_pred['val_slope']
+                self.ds['val_intercept'].loc[dict(mre_type=pred)] = ds_pred['val_intercept']
 
 
 class ModelComparePandas:

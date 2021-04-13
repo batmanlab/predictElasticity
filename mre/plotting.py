@@ -1187,7 +1187,7 @@ def model_feature_extractor(ds, model_path=None, subj='0219'):
 
 
 def radiology_cor_plots(ds, df=None, do_aug=True, do_cor=True,
-                        pred='pred', save_name='test', plot=True):
+                        pred='pred', save_name='test', plot=True, eovist=False):
     import seaborn as sns
     sns.set()
     sns.set_palette(sns.color_palette('colorblind'))
@@ -1246,7 +1246,11 @@ def radiology_cor_plots(ds, df=None, do_aug=True, do_cor=True,
         r2_subj_std.append(r2_subj_boot)
 
     if plot:
-        fig, ax = plt.subplots(1, 2, figsize=(20, 10))
+        if eovist:
+            fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+            ax = [ax]
+        else:
+            fig, ax = plt.subplots(1, 2, figsize=(20, 10))
         ymax = df_subj['predict'].max()+1
         xmax = df_subj['true'].max()+1
         rect1 = plt.Rectangle((0, 0), 3.77, 3.77, color='grey', alpha=0.3,
@@ -1254,12 +1258,24 @@ def radiology_cor_plots(ds, df=None, do_aug=True, do_cor=True,
         rect2 = plt.Rectangle((3.77, 3.77), xmax-3.77, ymax-3.77, color='grey', alpha=0.3)
         ax[0].add_patch(rect1)
         ax[0].add_patch(rect2)
-        df_subj.query('true>3.77').plot(x='true', y='predict', kind='scatter',
-                                        xlim=(0, xmax), ylim=(0, ymax), color='C1', ax=ax[0],
-                                        label='High Stiffness')
-        df_subj.query('true<3.77').plot(x='true', y='predict', kind='scatter',
-                                        xlim=(0, xmax), ylim=(0, ymax), color='C0', ax=ax[0],
-                                        label='Low Stiffness')
+        if eovist:
+            eovist_list = ['0510', '1793', '0931', '0932', '0940', '1474', '1435', '0219']
+            df_subj.query(f'true>3.77 and (subject not in {eovist_list})').plot(
+                x='true', y='predict', kind='scatter', xlim=(0, xmax), ylim=(0, ymax), color='C1',
+                ax=ax[0], label='High Stiffness')
+            df_subj.query(f'true<3.77 and (subject not in {eovist_list})').plot(
+                x='true', y='predict', kind='scatter', xlim=(0, xmax), ylim=(0, ymax), color='C0',
+                ax=ax[0], label='Low Stiffness')
+            df_subj.query(f'subject in {eovist_list}').plot(
+                x='true', y='predict', kind='scatter', xlim=(0, xmax), ylim=(0, ymax), color='C2',
+                ax=ax[0], s=100, marker='s', edgecolor='k', linewidth=1, label='Eovist Contrast')
+        else:
+            df_subj.query('true>3.77').plot(x='true', y='predict', kind='scatter',
+                                            xlim=(0, xmax), ylim=(0, ymax), color='C1', ax=ax[0],
+                                            label='High Stiffness')
+            df_subj.query('true<3.77').plot(x='true', y='predict', kind='scatter',
+                                            xlim=(0, xmax), ylim=(0, ymax), color='C0', ax=ax[0],
+                                            label='Low Stiffness')
         ax[0].plot(df_subj['true'], result.best_fit, label='Best Fit', linewidth=2, c='k')
         ax[0].set_title('Predicted vs True Average Stiffness', size=22)
         # plt.ylim(-1, df_subj['predict'].max[0]())
@@ -1297,7 +1313,7 @@ def radiology_cor_plots(ds, df=None, do_aug=True, do_cor=True,
         result_boot = model_boot.fit(pred_pixel_boot, params_boot, x=true_pixel_boot)
         r2_pixel_boot = 1 - result_boot.residual.var() / np.var(pred_pixel_boot)
         r2_pixel_std.append(r2_pixel_boot)
-    if plot:
+    if plot and not eovist:
         thresholds = ['2.88', '3.54', '3.77', '4.09']
 
         for i, thresh in enumerate(thresholds):
