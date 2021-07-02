@@ -54,15 +54,6 @@ class MREtoXr:
             ds = xr.open_dataset(file_names)
         return ds
 
-    def get_best_data(self, file_names):
-        pass
-        # versions = []
-        # groups = []
-        # slurm_config_dir = '/pghbio/dbmi/batmanlab/bpollack/predictElasticity/data/config/'
-        # config_path = Path(slurm_config_dir)
-        # for i in Path(test_path).parents[2].glob(Path(test_path).parents[1].stem):
-        #     versions.append(str(i).split('_')[-1])
-
     def __init__(self, data_dir=None, sequences=None, patient=None, from_file=None, **kwargs):
 
         self.is_ipython = self._check_ipython()

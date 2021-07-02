@@ -4,6 +4,8 @@ from collections import OrderedDict
 import numpy as np
 from sklearn.metrics import roc_curve, auc
 from sklearn.metrics import roc_auc_score, accuracy_score
+from sklearn.metrics import confusion_matrix
+from sklearn.preprocessing import normalize
 from skimage import morphology
 from scipy import ndimage as ndi
 import pandas as pd
@@ -15,6 +17,7 @@ import panel as pn
 import holoviews as hv
 from holoviews import opts
 from holoviews.operation.datashader import datashade, shade, dynspread, rasterize
+import seaborn as sns
 
 import torch
 from torch.utils.data import DataLoader
@@ -22,8 +25,7 @@ from torch.utils.data import DataLoader
 from mre.preprocessing import MRIImage
 from mre.pytorch_arch_deeplab import DeepLabFeatures
 from mre.mre_datasets import MRETorchDataset
-
-hv.extension('bokeh')
+from fractions import Fraction
 
 
 def grid_plots(ds, rows, cols, title=None, xlabel=None, ylabel=None):
@@ -893,7 +895,7 @@ def xr_viewer_models(xr_ds, size=250, do_cor=False):
 
 
 def roc_curves(df, true='mre', pred='baseline', threshold=4, label=None, title=None, ax=None,
-               plot=True):
+               plot=True, frac=False):
     if label is None:
         label = pred
     if title is None:
@@ -936,22 +938,31 @@ def roc_curves(df, true='mre', pred='baseline', threshold=4, label=None, title=N
             ax.set_title(title, size=22)
             ax.legend(loc="lower right", fontsize=15)
 
-    tp = df.query(f'{true}>{threshold} and {pred}>{threshold}').count()[0]
+    tp = df.query(f'{true}>={threshold} and {pred}>={threshold}').count()[0]
     fn = df.query(f'{true}>{threshold} and {pred}<{threshold}').count()[0]
-    sens = tp/(tp+fn)
+    if frac:
+        sens = f'{tp}/{tp+fn}'
+    else:
+        sens = tp/(tp+fn)
     # print('tp', tp)
     # print('fn', fn)
     # print('sensitivity', tp/(tp+fn))
 
     # Specificity: TN/(TN+FP)
-    tn = df.query(f'{true}<{threshold} and {pred}<{threshold}').count()[0]
+    tn = df.query(f'{true}<={threshold} and {pred}<={threshold}').count()[0]
     fp = df.query(f'{true}<{threshold} and {pred}>{threshold}').count()[0]
-    spec = tn/(tn+fp)
+    if frac:
+        spec = f'{tn}/{tn+fp}'
+    else:
+        spec = tn/(tn+fp)
     # print('tn', tn)
     # print('fp', fp)
     # print('specificity', spec)
 
-    acc = (tn+tp)/(tn+fp+tp+fn)
+    if frac:
+        acc = f'{tn+tp}/{tn+fp+tp+fn}'
+    else:
+        acc = (tn+tp)/(tn+fp+tp+fn)
     sens_std = []
     spec_std = []
     acc_std = []
@@ -1367,3 +1378,39 @@ def radiology_cor_plots(ds, df=None, do_aug=True, do_cor=True,
     r2_pixel_std = np.std(r2_pixel_std)
 
     return r2_subj, r2_subj_std, r2_pixel, r2_pixel_std
+
+
+def confusion_plots(df, n_cats=5):
+    '''Make confusion plot for classification.'''
+    if n_cats not in [3, 5]:
+        raise ValueError('n_cats must be 3 or 5')
+    elif n_cats == 3:
+        df['true_cat'] = pd.cut(df.mre, bins=[0, 2880, 4090, 20000], labels=False)
+        df['pred_cat'] = pd.cut(df.pred, bins=[0, 2880, 4090, 20000], labels=False)
+    else:
+        df['true_cat'] = pd.cut(df.mre, bins=[0, 2880, 3540, 3770, 4090, 20000], labels=False)
+        df['pred_cat'] = pd.cut(df.pred, bins=[0, 2880, 3540, 3770, 4090, 20000], labels=False)
+    cm = confusion_matrix(df.true_cat, df.pred_cat)
+    cm_raw = np.ravel(cm).astype(str)
+    cm_raw = [f'({i})' for i in cm_raw]
+
+    cm = normalize(cm, axis=1, norm='l1')
+    cm_norm = np.ravel(cm)
+    cm_norm = [f'{i:.2g}' for i in cm_norm]
+
+    cm_annot = ['\n'.join([cm_norm[i], cm_raw[i]]) for i in range(len(cm_raw))]
+    cm_annot = np.reshape(cm_annot, cm.shape)
+    print(cm_annot)
+
+    sns.heatmap(cm, annot=cm_annot, fmt='')
+    # sns.heatmap(cm, annot=True)
+    plt.xlabel('Predicted', size=18)
+    plt.ylabel('True', size=18)
+    plt.title('Confusion Matrix (Normalized)', size=18)
+
+    if n_cats == 5:
+        plt.xticks([0.5, 1.5, 2.5, 3.5, 4.5], ['F0', 'F1', 'F2', 'F3', 'F4'], size=14)
+        plt.yticks([0.5, 1.5, 2.5, 3.5, 4.5], ['F0', 'F1', 'F2', 'F3', 'F4'], size=14)
+    elif n_cats == 3:
+        plt.xticks([0.5, 1.5, 2.5], ['<2.88', '2.88-4.09', '>4.09'], size=14)
+        plt.yticks([0.5, 1.5, 2.5], ['<2.88', '2.88-4.09', '>4.09'], size=14)
