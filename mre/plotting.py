@@ -1380,37 +1380,180 @@ def radiology_cor_plots(ds, df=None, do_aug=True, do_cor=True,
     return r2_subj, r2_subj_std, r2_pixel, r2_pixel_std
 
 
-def confusion_plots(df, n_cats=5):
+def confusion_plots(df):
     '''Make confusion plot for classification.'''
-    if n_cats not in [3, 5]:
-        raise ValueError('n_cats must be 3 or 5')
-    elif n_cats == 3:
-        df['true_cat'] = pd.cut(df.mre, bins=[0, 2880, 4090, 20000], labels=False)
-        df['pred_cat'] = pd.cut(df.pred, bins=[0, 2880, 4090, 20000], labels=False)
-    else:
-        df['true_cat'] = pd.cut(df.mre, bins=[0, 2880, 3540, 3770, 4090, 20000], labels=False)
-        df['pred_cat'] = pd.cut(df.pred, bins=[0, 2880, 3540, 3770, 4090, 20000], labels=False)
-    cm = confusion_matrix(df.true_cat, df.pred_cat)
-    cm_raw = np.ravel(cm).astype(str)
-    cm_raw = [f'({i})' for i in cm_raw]
+    df['true_cat_fine'] = pd.cut(df.mre, bins=[0, 2880, 3540, 3770, 4090, 20000], labels=False)
+    df['pred_cat_fine'] = pd.cut(df.pred, bins=[0, 2880, 3540, 3770, 4090, 20000], labels=False)
+    df['true_cat_coarse'] = pd.cut(df.mre, bins=[0, 3540, 20000], labels=False)
+    df['pred_cat_coarse'] = pd.cut(df.pred, bins=[0, 3540, 20000], labels=False)
 
-    cm = normalize(cm, axis=1, norm='l1')
-    cm_norm = np.ravel(cm)
-    cm_norm = [f'{i:.2g}' for i in cm_norm]
+    cm_fine = confusion_matrix(df.true_cat_fine, df.pred_cat_fine)
+    cm_raw_fine = np.ravel(cm_fine).astype(str)
+    cm_raw_fine = [f'({i})' for i in cm_raw_fine]
 
-    cm_annot = ['\n'.join([cm_norm[i], cm_raw[i]]) for i in range(len(cm_raw))]
-    cm_annot = np.reshape(cm_annot, cm.shape)
-    print(cm_annot)
+    cm_fine = normalize(cm_fine, axis=1, norm='l1')
+    cm_norm_fine = np.ravel(cm_fine)
+    cm_norm_fine = [f'{i:.2g}' for i in cm_norm_fine]
 
-    sns.heatmap(cm, annot=cm_annot, fmt='')
+    cm_annot_fine = ['\n'.join([cm_norm_fine[i], cm_raw_fine[i]]) for i in range(len(cm_raw_fine))]
+    cm_annot_fine = np.reshape(cm_annot_fine, cm_fine.shape)
+
+    cm_coarse = confusion_matrix(df.true_cat_coarse, df.pred_cat_coarse)
+    cm_raw_coarse = np.ravel(cm_coarse).astype(str)
+    cm_raw_coarse = [f'({i})' for i in cm_raw_coarse]
+
+    cm_coarse = normalize(cm_coarse, axis=1, norm='l1')
+    cm_norm_coarse = np.ravel(cm_coarse)
+    cm_norm_coarse = [f'{i:.2g}' for i in cm_norm_coarse]
+
+    cm_annot_coarse = ['\n'.join([cm_norm_coarse[i], cm_raw_coarse[i]])
+                       for i in range(len(cm_raw_coarse))]
+    cm_annot_coarse = np.reshape(cm_annot_coarse, cm_coarse.shape)
+
+    fig, ax = plt.subplots(1, 2, sharex=False, sharey=False, figsize=(13, 6))
+    fig.subplots_adjust(right=0.85)
+    cbar_ax = fig.add_axes([0.88, 0.15, 0.02, 0.7])
+    cbar_ax.tick_params(labelsize=16)
+    # fig.patch.set_alpha(1)
+
+    sns.heatmap(cm_fine, annot=cm_annot_fine, fmt='', ax=ax[0], cbar=False)
     # sns.heatmap(cm, annot=True)
-    plt.xlabel('Predicted', size=18)
-    plt.ylabel('True', size=18)
-    plt.title('Confusion Matrix (Normalized)', size=18)
+    # ax[0].set_xlabel('Predicted', size=18)
+    ax[0].set_ylabel('True', size=18)
+    # ax[0].set_title('Confusion Matrix (Normalized)', size=18)
 
-    if n_cats == 5:
-        plt.xticks([0.5, 1.5, 2.5, 3.5, 4.5], ['F0', 'F1', 'F2', 'F3', 'F4'], size=14)
-        plt.yticks([0.5, 1.5, 2.5, 3.5, 4.5], ['F0', 'F1', 'F2', 'F3', 'F4'], size=14)
-    elif n_cats == 3:
-        plt.xticks([0.5, 1.5, 2.5], ['<2.88', '2.88-4.09', '>4.09'], size=14)
-        plt.yticks([0.5, 1.5, 2.5], ['<2.88', '2.88-4.09', '>4.09'], size=14)
+    ax[0].set_xticks([0.5, 1.5, 2.5, 3.5, 4.5])
+    ax[0].set_xticklabels(['F0', 'F1', 'F2', 'F3', 'F4'], size=14)
+    ax[0].set_yticks([0.5, 1.5, 2.5, 3.5, 4.5])
+    ax[0].set_yticklabels(['F0', 'F1', 'F2', 'F3', 'F4'], size=14)
+    ax[0].axvline(x=2, color='lightblue', linewidth=3)
+    ax[0].axhline(y=2, color='lightblue', linewidth=3)
+
+    sns.heatmap(cm_coarse, annot=cm_annot_coarse, fmt='', ax=ax[1], cbar_ax=cbar_ax)
+    # sns.heatmap(cm, annot=True)
+    # ax[1].set_xlabel('Predicted', size=18)
+    # ax[1].set_ylabel('True', size=18)
+    # ax[1].set_title('Confusion Matrix (Normalized)', size=18)
+    ax[1].set_xticks([0.5, 1.5])
+    ax[1].set_xticklabels(['F0-F1', 'F2-F4'], size=14)
+    ax[1].set_yticks([0.5, 1.5])
+    ax[1].set_yticklabels(['F0-F1', 'F2-F4'], size=14)
+    fig.text(0.5, 0.04, 'Predicted', ha='center', size=18)
+
+    fig.suptitle('Confusion Matrices (Normalized)', size=18)
+
+
+def comparison_images(ds, do_cor=True):
+    '''Make a 4x3 grid of images, 4 subject, for final comparison.
+    Patients and z-slices are hard-coded, assuming '''
+
+    mremin = 0
+    mremax = 7
+
+    if do_cor:
+        ds = ds.copy(deep=True)
+        cor = (ds['image_mre']-ds['val_intercept'])/ds['val_slope']
+        cor = np.where(cor > 0, cor, 0)
+        ds['image_mre'].loc[{}] = cor
+        # xr_ds['image_mre'].loc[{}] = xr_ds['image_mre']+1000
+
+    ds_tn = ds.sel(subject='1448', z=20)
+    ds_tp = ds.sel(subject='1839', z=19)
+    ds_fn = ds.sel(subject='0415', z=23)
+    ds_fp = ds.sel(subject='0655', z=17)
+
+    fig, ax = plt.subplots(4, 3, sharex=True, sharey=True, figsize=(13, 17))
+    fig.patch.set_alpha(1)
+
+    mri = ds_tn.sel(sequence='t1_pre_water')['image_mri']
+    ax[0][0].imshow(mri.T, cmap='gray', vmin=0, vmax=700)
+    plt.setp(ax[0][0].get_xticklabels(), visible=False)
+    plt.setp(ax[0][0].get_yticklabels(), visible=False)
+    ax[0][0].tick_params(axis='both', which='both', length=0)
+    ax[0][0].set_title('MRI (Input Image)', size=18)
+    ax[0][0].set_ylim(235, 15)
+    ax[0][0].set_xlim(15, 235)
+    ax[0][0].set_ylabel('A) True Negative', size=16)
+
+    mre = ds_tn.sel(mre_type='mre')['image_mre']/1000
+    mre_cb = ax[0][1].imshow(mre.T, cmap='magma', vmin=mremin, vmax=mremax)
+    ax[0][1].axis('off')
+    ax[0][1].set_title('MRE (Acquired)', size=18)
+    ax[0][1].set_ylim(235, 15)
+    ax[0][1].set_xlim(15, 235)
+
+    mre_pred = ds_tn.sel(mre_type='pred')['image_mre']/1000
+    ax[0][2].imshow(mre_pred.T, cmap='magma', vmin=mremin, vmax=mremax)
+    ax[0][2].axis('off')
+    ax[0][2].set_title('MRE (Predicted)', size=18)
+    ax[0][2].set_ylim(235, 15)
+    ax[0][2].set_xlim(15, 235)
+
+    mri = ds_tp.sel(sequence='t1_pre_water')['image_mri']
+    ax[1][0].imshow(mri.T, cmap='gray', vmin=0, vmax=700)
+    plt.setp(ax[1][0].get_xticklabels(), visible=False)
+    plt.setp(ax[1][0].get_yticklabels(), visible=False)
+    ax[1][0].tick_params(axis='both', which='both', length=0)
+    ax[1][0].set_ylim(235, 15)
+    ax[1][0].set_xlim(15, 235)
+    ax[1][0].set_ylabel('B) True Positive', size=16)
+
+    mre = ds_tp.sel(mre_type='mre')['image_mre']/1000
+    ax[1][1].imshow(mre.T, cmap='magma', vmin=mremin, vmax=mremax)
+    ax[1][1].axis('off')
+    ax[1][1].set_ylim(235, 15)
+    ax[1][1].set_xlim(15, 235)
+
+    mre_pred = ds_tp.sel(mre_type='pred')['image_mre']/1000
+    ax[1][2].imshow(mre_pred.T, cmap='magma', vmin=mremin, vmax=mremax)
+    ax[1][2].axis('off')
+    ax[1][2].set_ylim(235, 15)
+    ax[1][2].set_xlim(15, 235)
+
+    mri = ds_fn.sel(sequence='t1_pre_water')['image_mri']
+    ax[2][0].imshow(mri.T, cmap='gray', vmin=0, vmax=700)
+    plt.setp(ax[2][0].get_xticklabels(), visible=False)
+    plt.setp(ax[2][0].get_yticklabels(), visible=False)
+    ax[2][0].tick_params(axis='both', which='both', length=0)
+    ax[2][0].set_ylim(235, 15)
+    ax[2][0].set_xlim(15, 235)
+    ax[2][0].set_ylabel('C) False Negative', size=16)
+
+    mre = ds_fn.sel(mre_type='mre')['image_mre']/1000
+    ax[2][1].imshow(mre.T, cmap='magma', vmin=mremin, vmax=mremax)
+    ax[2][1].axis('off')
+    ax[2][1].set_ylim(235, 15)
+    ax[2][1].set_xlim(15, 235)
+
+    mre_pred = ds_fn.sel(mre_type='pred')['image_mre']/1000
+    ax[2][2].imshow(mre_pred.T, cmap='magma', vmin=mremin, vmax=mremax)
+    ax[2][2].axis('off')
+    ax[2][2].set_ylim(235, 15)
+    ax[2][2].set_xlim(15, 235)
+
+    mri = ds_fp.sel(sequence='t1_pre_water')['image_mri']
+    ax[3][0].imshow(mri.T, cmap='gray', vmin=0, vmax=700)
+    plt.setp(ax[3][0].get_xticklabels(), visible=False)
+    plt.setp(ax[3][0].get_yticklabels(), visible=False)
+    ax[3][0].tick_params(axis='both', which='both', length=0)
+    ax[3][0].set_ylim(235, 15)
+    ax[3][0].set_xlim(15, 235)
+    ax[3][0].set_ylabel('D) False Positive', size=16)
+
+    mre = ds_fp.sel(mre_type='mre')['image_mre']/1000
+    ax[3][1].imshow(mre.T, cmap='magma', vmin=mremin, vmax=mremax)
+    ax[3][1].axis('off')
+    ax[3][1].set_ylim(235, 15)
+    ax[3][1].set_xlim(15, 235)
+
+    mre_pred = ds_fp.sel(mre_type='pred')['image_mre']/1000
+    ax[3][2].imshow(mre_pred.T, cmap='magma', vmin=mremin, vmax=mremax)
+    ax[3][2].axis('off')
+    ax[3][2].set_ylim(235, 15)
+    ax[3][2].set_xlim(15, 235)
+
+    fig.subplots_adjust(right=0.85)
+    cbar_ax = fig.add_axes([0.88, 0.53, 0.03, 0.3])
+    cbar_ax.set_title('Stiffness\n(kPa)', size=16)
+    cbar_ax.tick_params(labelsize=16)
+    fig.colorbar(mre_cb, cax=cbar_ax)
